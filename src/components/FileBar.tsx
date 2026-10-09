@@ -17,10 +17,25 @@ interface Props {
 export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState(false);
+  const confirmRef = useRef<HTMLDivElement>(null);
+  // close the confirm popover on outside click / Esc
   useEffect(() => {
     if (!confirm) return;
-    const t = setTimeout(() => setConfirm(false), 3000);
-    return () => clearTimeout(t);
+    const onDown = (e: MouseEvent) => {
+      if (!confirmRef.current?.contains(e.target as Node)) setConfirm(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setConfirm(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey, true);
+    };
   }, [confirm]);
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2">
@@ -71,15 +86,40 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
       <span className="hidden items-center gap-1 text-[11.5px] text-faint lg:inline-flex" title="File được lưu trong trình duyệt này (IndexedDB) và tự mở lại khi tải lại trang">
         <HardDriveDownload size={12} /> Đã lưu, reload không mất
       </span>
-      {confirm ? (
-        <Button size="sm" className="border-error bg-error text-white hover:text-white" onClick={onClearAll}>
-          <Trash2 size={13} /> Xoá hết {files.length} file?
-        </Button>
-      ) : (
-        <Button size="sm" variant="ghost" onClick={() => setConfirm(true)} title="Bỏ tất cả file và xoá bản lưu trong trình duyệt">
+      <div className="relative" ref={confirmRef}>
+        <Button
+          size="sm"
+          variant="ghost"
+          active={confirm}
+          aria-expanded={confirm}
+          onClick={() => setConfirm((c) => !c)}
+          title="Bỏ tất cả file và xoá bản lưu trong trình duyệt"
+        >
           <Trash2 size={13} /> Xoá tất cả
         </Button>
-      )}
+        {confirm && (
+          <div role="dialog" aria-label="Xác nhận xoá tất cả file" className="animate-in absolute top-9 right-0 z-30 w-[260px] rounded-xl border border-line bg-surface p-3 shadow-xl shadow-black/10">
+            <p className="text-[13px] font-medium text-fg">Xoá {files.length} file khỏi trình duyệt?</p>
+            <p className="mt-0.5 text-[12px] text-muted">File log sẽ bị bỏ khỏi trang và không tự mở lại khi reload.</p>
+            <div className="mt-3 flex justify-end gap-1.5">
+              <Button size="sm" onClick={() => setConfirm(false)}>
+                Huỷ
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                autoFocus
+                onClick={() => {
+                  setConfirm(false);
+                  onClearAll();
+                }}
+              >
+                <Trash2 size={13} /> Xoá tất cả
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
       <Button size="sm" onClick={() => input.current?.click()}>
         <Plus size={13} />
         Thêm file

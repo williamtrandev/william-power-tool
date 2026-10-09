@@ -5,7 +5,7 @@ import type { Level, LogFile } from '../lib/types';
 import { shortName } from '../lib/format';
 
 type BtnProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: 'default' | 'ghost' | 'primary';
+  variant?: 'default' | 'ghost' | 'primary' | 'danger';
   size?: 'sm' | 'md';
   active?: boolean;
 };
@@ -18,6 +18,7 @@ export function Button({ variant = 'default', size = 'md', active, className, ..
         'focus-ring inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md font-medium whitespace-nowrap transition-colors disabled:pointer-events-none disabled:opacity-40',
         size === 'sm' ? 'h-7 px-2 text-xs' : 'h-8 px-3 text-[13px]',
         variant === 'primary' && 'bg-accent text-white hover:brightness-110',
+        variant === 'danger' && 'bg-error text-white hover:brightness-110',
         variant === 'default' &&
           (active
             ? 'border border-accent/60 bg-accent-soft text-accent'
