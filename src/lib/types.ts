@@ -34,6 +34,8 @@ export interface LogFile {
   traced: number;
   color: string;
   on: boolean;
+  /** key of the persisted copy in IndexedDB */
+  storeId: string;
 }
 
 export interface ParseResult {

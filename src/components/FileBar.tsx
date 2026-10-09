@@ -1,6 +1,6 @@
 import clsx from 'clsx';
-import { Eye, EyeOff, Plus, X } from 'lucide-react';
-import { useRef } from 'react';
+import { Eye, EyeOff, HardDriveDownload, Plus, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { LogFile } from '../lib/types';
 import { fmtBytes, nf, shortName } from '../lib/format';
 import { Button } from './ui';
@@ -10,11 +10,18 @@ interface Props {
   onAdd: (files: File[]) => void;
   onToggleFile: (id: number) => void;
   onRemoveFile: (id: number) => void;
+  onClearAll: () => void;
 }
 
 /** Loaded log files of the Log tool: toggle visibility, remove, add more. */
-export function FileBar({ files, onAdd, onToggleFile, onRemoveFile }: Props) {
+export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }: Props) {
   const input = useRef<HTMLInputElement>(null);
+  const [confirm, setConfirm] = useState(false);
+  useEffect(() => {
+    if (!confirm) return;
+    const t = setTimeout(() => setConfirm(false), 3000);
+    return () => clearTimeout(t);
+  }, [confirm]);
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2">
       <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
@@ -61,6 +68,18 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile }: Props) {
           e.target.value = '';
         }}
       />
+      <span className="hidden items-center gap-1 text-[11.5px] text-faint lg:inline-flex" title="File được lưu trong trình duyệt này (IndexedDB) và tự mở lại khi tải lại trang">
+        <HardDriveDownload size={12} /> Đã lưu, reload không mất
+      </span>
+      {confirm ? (
+        <Button size="sm" className="border-error bg-error text-white hover:text-white" onClick={onClearAll}>
+          <Trash2 size={13} /> Xoá hết {files.length} file?
+        </Button>
+      ) : (
+        <Button size="sm" variant="ghost" onClick={() => setConfirm(true)} title="Bỏ tất cả file và xoá bản lưu trong trình duyệt">
+          <Trash2 size={13} /> Xoá tất cả
+        </Button>
+      )}
       <Button size="sm" onClick={() => input.current?.click()}>
         <Plus size={13} />
         Thêm file

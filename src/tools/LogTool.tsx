@@ -176,11 +176,23 @@ export function LogTool({ active, onToast: showToast }: Props) {
 
   return (
     <div className={clsx('flex min-h-0 flex-1 flex-col', !active && 'hidden')}>
-      {logs.files.length === 0 ? (
-        <DropZone onAdd={logs.addFiles} />
+      {!logs.ready ? (
+        <div className="flex-1" />
+      ) : logs.files.length === 0 ? (
+        logs.loading ? <div className="flex-1" /> : <DropZone onAdd={logs.addFiles} />
       ) : (
         <>
-          <FileBar files={logs.files} onAdd={logs.addFiles} onToggleFile={logs.toggleFile} onRemoveFile={logs.removeFile} />
+          <FileBar
+            files={logs.files}
+            onAdd={logs.addFiles}
+            onToggleFile={logs.toggleFile}
+            onRemoveFile={logs.removeFile}
+            onClearAll={() => {
+              logs.clearFiles();
+              clearAll();
+              setSelected(null);
+            }}
+          />
           <div className="shrink-0 space-y-2.5 border-b border-line px-4 py-3">
             <Toolbar
               ref={searchRef}
@@ -285,7 +297,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
           <div className="animate-in w-[min(380px,calc(100vw-32px))] rounded-xl border border-line bg-surface p-5 shadow-2xl shadow-black/20">
             <div className="flex items-center justify-between text-[12px] text-muted">
               <span>
-                Đang đọc file {logs.loading.index}/{logs.loading.total}
+                {logs.loading.restoring ? 'Đang khôi phục file đã lưu' : 'Đang đọc file'} {logs.loading.index}/{logs.loading.total}
               </span>
               <span className="tabular-nums">{Math.round(logs.loading.progress * 100)}%</span>
             </div>
