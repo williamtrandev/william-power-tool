@@ -7,9 +7,9 @@ export type ExpandMode = 'auto' | 'all' | 'none';
 
 const STR_MAX = 240;
 
-function StringValue({ s, hl }: { s: string; hl: RegExp | null }) {
+function StringValue({ s, hl, collapse }: { s: string; hl: RegExp | null; collapse: boolean }) {
   const [open, setOpen] = useState(false);
-  const long = s.length > STR_MAX;
+  const long = collapse && s.length > STR_MAX;
   const shown = long && !open ? s.slice(0, STR_MAX) : s;
   return (
     <span className="break-all whitespace-pre-wrap text-emerald-700 dark:text-emerald-400">
@@ -28,15 +28,29 @@ function StringValue({ s, hl }: { s: string; hl: RegExp | null }) {
   );
 }
 
-function Primitive({ v, hl }: { v: unknown; hl: RegExp | null }) {
+function Primitive({ v, hl, collapse }: { v: unknown; hl: RegExp | null; collapse: boolean }) {
   if (v === null) return <span className="text-faint italic">null</span>;
-  if (typeof v === 'string') return <StringValue s={v} hl={hl} />;
+  if (typeof v === 'string') return <StringValue s={v} hl={hl} collapse={collapse} />;
   if (typeof v === 'number') return <span className="text-sky-700 dark:text-sky-400">{String(v)}</span>;
   if (typeof v === 'boolean') return <span className={v ? 'text-violet-600 dark:text-violet-400' : 'text-error'}>{String(v)}</span>;
   return <span>{String(v)}</span>;
 }
 
-function Node({ name, value, depth, mode, hl }: { name: string | null; value: unknown; depth: number; mode: ExpandMode; hl: RegExp | null }) {
+function Node({
+  name,
+  value,
+  depth,
+  mode,
+  hl,
+  collapse,
+}: {
+  name: string | null;
+  value: unknown;
+  depth: number;
+  mode: ExpandMode;
+  hl: RegExp | null;
+  collapse: boolean;
+}) {
   const isArr = Array.isArray(value);
   const isObj = !!value && typeof value === 'object';
   const entries: [string, unknown][] = isObj ? (isArr ? (value as unknown[]).map((v, i) => [String(i), v]) : Object.entries(value as object)) : [];
@@ -57,7 +71,7 @@ function Node({ name, value, depth, mode, hl }: { name: string | null; value: un
         <span className="w-4 shrink-0" />
         <span className="min-w-0">
           {key}
-          <Primitive v={value} hl={hl} />
+          <Primitive v={value} hl={hl} collapse={collapse} />
         </span>
       </div>
     );
@@ -81,15 +95,15 @@ function Node({ name, value, depth, mode, hl }: { name: string | null; value: un
           )}
         </span>
       </button>
-      {open && entries.map(([k, v]) => <Node key={k} name={k} value={v} depth={depth + 1} mode={mode} hl={hl} />)}
+      {open && entries.map(([k, v]) => <Node key={k} name={k} value={v} depth={depth + 1} mode={mode} hl={hl} collapse={collapse} />)}
     </div>
   );
 }
 
-export function JsonTree({ value, mode, hl }: { value: object; mode: ExpandMode; hl: RegExp | null }) {
+export function JsonTree({ value, mode, hl, collapse }: { value: object; mode: ExpandMode; hl: RegExp | null; collapse: boolean }) {
   return (
     <div className="font-mono text-[12px] leading-[1.65]">
-      <Node name={null} value={value} depth={0} mode={mode} hl={hl} />
+      <Node name={null} value={value} depth={0} mode={mode} hl={hl} collapse={collapse} />
     </div>
   );
 }

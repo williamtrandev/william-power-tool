@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { ChevronRight } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { createContext, useContext, useMemo, useState } from 'react';
 import { Highlight } from './ui';
 
 /** Stack frame line: .NET "   at X.Y()" or PHP "#12 /path(…)" */
@@ -11,6 +11,9 @@ const LIB_FRAME =
 /** Unbroken runs this long (JWT, base64, minified code) get collapsed. */
 const LONG_TOKEN = /\S{140,}/g;
 const MAX_LINES = 4000;
+
+/** Whether long lines / tokens are truncated behind an expand button. */
+const CollapseCtx = createContext(false);
 
 type Block = { kind: 'line'; n: number; text: string } | { kind: 'fold'; n: number; lines: string[] };
 
@@ -72,7 +75,8 @@ const LINE_HEAD = 700;
 
 /** Very long single lines (escaped HTML pages, minified code, huge JSON) show a head + expand button. */
 function LineText({ text, hl, onId }: { text: string; hl: RegExp | null; onId?: (id: string) => void }) {
-  const long = text.length > LINE_MAX;
+  const collapse = useContext(CollapseCtx);
+  const long = collapse && text.length > LINE_MAX;
   const hitIdx = useMemo(() => {
     if (!long || !hl) return -1;
     hl.lastIndex = 0;
@@ -122,7 +126,8 @@ function LineText({ text, hl, onId }: { text: string; hl: RegExp | null; onId?: 
 }
 
 function Segments({ text, hl, onId }: { text: string; hl: RegExp | null; onId?: (id: string) => void }) {
-  if (text.length < 140) return <Highlight text={text} hl={hl} onId={onId} />;
+  const collapse = useContext(CollapseCtx);
+  if (!collapse || text.length < 140) return <Highlight text={text} hl={hl} onId={onId} />;
   const parts: React.ReactNode[] = [];
   let last = 0;
   let k = 0;
@@ -171,9 +176,10 @@ interface Props {
   onId?: (id: string) => void;
   wrap: boolean;
   fold: boolean;
+  collapse: boolean;
 }
 
-export function ContentViewer({ text, hl, onId, wrap, fold }: Props) {
+export function ContentViewer({ text, hl, onId, wrap, fold, collapse }: Props) {
   const [showAll, setShowAll] = useState(false);
   const blocks = useMemo(() => toBlocks(text, fold), [text, fold]);
   const shown = showAll ? blocks : blocks.slice(0, MAX_LINES);
@@ -182,6 +188,7 @@ export function ContentViewer({ text, hl, onId, wrap, fold }: Props) {
   const gutterStyle = { width: `${digits + 2}ch` };
 
   return (
+    <CollapseCtx.Provider value={collapse}>
     <div className={clsx('font-mono text-[12px] leading-[1.65] text-fg', wrap ? 'whitespace-pre-wrap break-words' : 'w-max min-w-full whitespace-pre')}>
       {shown.map((b) =>
         b.kind === 'line' ? (
@@ -203,5 +210,6 @@ export function ContentViewer({ text, hl, onId, wrap, fold }: Props) {
         </button>
       )}
     </div>
+    </CollapseCtx.Provider>
   );
 }

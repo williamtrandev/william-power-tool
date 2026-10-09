@@ -127,7 +127,7 @@ const HAS_FRAME = /\n\s*(?:at\s+\S|#\d+\s)/;
 function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
   const e = p.entry;
   const file = p.fileById.get(e.f);
-  const { view, wrap, fold } = useViewPrefs();
+  const { view, wrap, fold, collapse } = useViewPrefs();
   const setView = (v: View) => setViewPrefs({ view: v });
   const setWrap = (f: (w: boolean) => boolean) => setViewPrefs({ wrap: f(wrap) });
   const setFold = (f: (w: boolean) => boolean) => setViewPrefs({ fold: f(fold) });
@@ -273,6 +273,18 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
                 </Button>
               </>
             )}
+            <label
+              className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs font-medium text-muted select-none hover:bg-surface-3 hover:text-fg"
+              title="Rút gọn chuỗi / dòng quá dài thành nút …+N ký tự"
+            >
+              <input
+                type="checkbox"
+                checked={collapse}
+                onChange={(ev) => setViewPrefs({ collapse: ev.target.checked })}
+                className="size-3.5 cursor-pointer accent-[var(--accent)]"
+              />
+              Thu gọn
+            </label>
             <Button variant="ghost" size="sm" onClick={copy} aria-label="Copy">
               {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
               {copied ? 'Đã copy' : 'Copy'}
@@ -281,9 +293,9 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
         </div>
         <div className="overflow-x-auto bg-surface px-2 py-2.5">
           {v === 'json' && json ? (
-            <JsonTree key={`${e.f}:${e.k}:${expand.gen}`} value={json} mode={expand.mode} hl={p.hl} />
+            <JsonTree key={`${e.f}:${e.k}:${expand.gen}`} value={json} mode={expand.mode} hl={p.hl} collapse={collapse} />
           ) : (
-            <ContentViewer key={`${e.f}:${e.k}:${v}`} text={text} hl={p.hl} onId={p.onFilterTrace} wrap={wrap} fold={fold && v === 'text'} />
+            <ContentViewer key={`${e.f}:${e.k}:${v}`} text={text} hl={p.hl} onId={p.onFilterTrace} wrap={wrap} fold={fold && v === 'text'} collapse={collapse} />
           )}
           {truncated && v !== 'json' && <div className="mt-2 px-1 text-[12px] text-faint">… đã cắt bớt vì quá dài, bấm Copy để lấy đầy đủ</div>}
         </div>

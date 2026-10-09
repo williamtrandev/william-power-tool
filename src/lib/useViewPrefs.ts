@@ -5,10 +5,12 @@ export interface ViewPrefs {
   view: 'text' | 'json' | 'raw';
   wrap: boolean;
   fold: boolean;
+  /** truncate very long strings / lines behind a "…+N ký tự" button */
+  collapse: boolean;
 }
 
 const KEY = 'loglens-view';
-const DEFAULTS: ViewPrefs = { view: 'text', wrap: true, fold: true };
+const DEFAULTS: ViewPrefs = { view: 'text', wrap: true, fold: true, collapse: false };
 
 let prefs: ViewPrefs = DEFAULTS;
 try {
