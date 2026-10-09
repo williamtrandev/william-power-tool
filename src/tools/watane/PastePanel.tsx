@@ -79,7 +79,7 @@ export function PastePanel({ run, decrypting, keyReady, onToast }: Props) {
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {!keyReady ? (
-            <Empty text="Nhập secret key hợp lệ để bắt đầu" />
+            <Empty text="Thêm hoặc chọn một key hợp lệ để bắt đầu" />
           ) : rows.length === 0 ? (
             <Empty text={decrypting ? 'Kết quả giải mã sẽ hiện ở đây' : 'Kết quả mã hoá sẽ hiện ở đây'} />
           ) : (
