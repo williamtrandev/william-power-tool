@@ -1,0 +1,129 @@
+@import 'tailwindcss';
+@import './fonts.css';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f7f7f8;
+  --surface: #ffffff;
+  --surface-2: #f4f4f5;
+  --surface-3: #e9e9ec;
+  --line: #e4e4e7;
+  --line-strong: #d4d4d8;
+  --fg: #18181b;
+  --fg-2: #3f3f46;
+  --muted: #71717a;
+  --faint: #a1a1aa;
+  --accent: #2563eb;
+  --accent-soft: #eff4ff;
+  --accent-ring: rgb(37 99 235 / 0.22);
+  --sel: #eef3ff;
+  --hit: #fde68a;
+  --hit-fg: #18181b;
+  --lv-fatal: #c026d3;
+  --lv-error: #dc2626;
+  --lv-warn: #d97706;
+  --lv-info: #2563eb;
+  --lv-debug: #71717a;
+  --bar: #c4c4cc;
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #09090b;
+  --surface: #111113;
+  --surface-2: #18181b;
+  --surface-3: #232328;
+  --line: #24242a;
+  --line-strong: #3a3a42;
+  --fg: #f4f4f5;
+  --fg-2: #d4d4d8;
+  --muted: #a1a1aa;
+  --faint: #6b6b74;
+  --accent: #4f8bff;
+  --accent-soft: rgb(79 139 255 / 0.12);
+  --accent-ring: rgb(79 139 255 / 0.3);
+  --sel: rgb(79 139 255 / 0.13);
+  --hit: #eab308;
+  --hit-fg: #09090b;
+  --lv-fatal: #e879f9;
+  --lv-error: #f87171;
+  --lv-warn: #fbbf24;
+  --lv-info: #6ea2ff;
+  --lv-debug: #8b8b94;
+  --bar: #3f3f48;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-fg: var(--fg);
+  --color-fg-2: var(--fg-2);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-sel: var(--sel);
+  --color-fatal: var(--lv-fatal);
+  --color-error: var(--lv-error);
+  --color-warn: var(--lv-warn);
+  --color-info: var(--lv-info);
+  --color-debug: var(--lv-debug);
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+mark.hl {
+  background: var(--hit);
+  color: var(--hit-fg);
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* Thin, unobtrusive scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-in {
+  animation: fade-in 0.18s ease-out;
+}
