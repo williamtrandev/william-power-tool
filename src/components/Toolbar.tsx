@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { ArrowDownWideNarrow, Download, HelpCircle, Regex, Search, ShieldAlert, X } from 'lucide-react';
 import { forwardRef, useEffect, useRef, useState } from 'react';
+import { DisplayMenu } from './DisplayMenu';
 import { Button, Kbd, Switch } from './ui';
 
 export type Sort = 'asc' | 'desc' | 'score';
@@ -182,6 +183,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
           <option value="score">Khả nghi nhất</option>
         </select>
       </label>
+      <DisplayMenu />
       <Button onClick={p.onExport} disabled={!p.canExport} title="Tải các dòng đang hiển thị về file .log">
         <Download size={14} />
         <span className="hidden sm:inline">Tải kết quả</span>

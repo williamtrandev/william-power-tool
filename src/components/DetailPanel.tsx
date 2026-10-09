@@ -163,7 +163,9 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
   return (
     <div className="animate-in space-y-4 p-4" key={`${e.f}:${e.k}`}>
       <div className="flex flex-wrap items-center gap-2">
-        <LevelBadge level={e.level} className="h-5 text-[11px]" />
+        <span className="text-[13px]">
+          <LevelBadge level={e.level} />
+        </span>
         <span className="font-mono text-[12.5px] text-fg-2 tabular-nums">{fmtFull(e.ts)}</span>
         <span className="text-faint">·</span>
         <FileTag file={file} className="text-[12.5px]" />
@@ -310,14 +312,14 @@ function MiniRow({ e, file, cur, hl, onSelect, time }: { e: LogEntry; file?: Log
       type="button"
       onClick={() => onSelect(e)}
       className={clsx(
-        'grid w-full grid-cols-[78px_44px_minmax(0,1fr)] items-baseline gap-2 border-b border-line px-3 py-1.5 text-left font-mono text-[11.5px] transition-colors',
+        'fs-log-sm grid w-full grid-cols-[6.8em_3.8em_minmax(0,1fr)] items-baseline gap-2 border-b border-line px-3 py-1.5 text-left font-mono transition-colors',
         cur ? 'bg-sel shadow-[inset_2px_0_0_var(--accent)]' : 'hover:bg-surface-2',
         e.ti && 'italic',
       )}
       title={file ? `${file.name}:${e.ln}` : undefined}
     >
       <span className="text-muted tabular-nums">{time}</span>
-      <span className={clsx('text-[10px] font-semibold', LEVEL_META[e.level].text)}>{LEVEL_META[e.level].short}</span>
+      <span className={clsx('text-[0.85em] font-semibold', LEVEL_META[e.level].text)}>{LEVEL_META[e.level].short}</span>
       <span className="truncate text-fg-2">
         {file && <span className="mr-1.5 inline-block size-2 rounded-[3px] align-middle" style={{ background: file.color }} />}
         <Highlight text={e.sum.slice(0, 300)} hl={hl} />
@@ -402,7 +404,7 @@ function TraceView({ entry, list, fileById, hl, onSelect, onFilterTrace }: { ent
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5 line-clamp-2 font-mono text-[11.5px] break-all text-fg-2">
+                <div className="fs-log-sm mt-0.5 line-clamp-2 font-mono break-all text-fg-2">
                   <Highlight text={x.sum.slice(0, 400)} hl={hl} />
                 </div>
               </button>

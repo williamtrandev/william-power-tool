@@ -94,6 +94,14 @@ body {
   font-feature-settings: 'cv11', 'ss01';
 }
 
+/* Log text size, driven by the "Hiển thị → Cỡ chữ" setting (--log-fs on the Log tool root). */
+.fs-log {
+  font-size: var(--log-fs, 12px);
+}
+.fs-log-sm {
+  font-size: calc(var(--log-fs, 12px) - 0.5px);
+}
+
 mark.hl {
   background: var(--hit);
   color: var(--hit-fg);

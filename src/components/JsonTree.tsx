@@ -102,7 +102,7 @@ function Node({
 
 export function JsonTree({ value, mode, hl, collapse }: { value: object; mode: ExpandMode; hl: RegExp | null; collapse: boolean }) {
   return (
-    <div className="font-mono text-[12px] leading-[1.65]">
+    <div className="fs-log font-mono leading-[1.65]">
       <Node name={null} value={value} depth={0} mode={mode} hl={hl} collapse={collapse} />
     </div>
   );

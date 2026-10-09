@@ -1,15 +1,37 @@
 import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
 import { SearchX } from 'lucide-react';
-import { forwardRef, memo, useEffect, useImperativeHandle, useRef } from 'react';
+import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { snippetOf } from '../lib/search';
 import { SUS_MIN, type LogEntry, type LogFile } from '../lib/types';
 import { fmtDate, fmtTime } from '../lib/format';
+import { useLogDisplay, useMedia } from '../lib/useLogDisplay';
 import { FileTag, Highlight, LevelBadge } from './ui';
 
-const ROW_H = 30;
-const COLS =
-  'grid-cols-[3px_64px_50px_minmax(0,1fr)] md:grid-cols-[3px_104px_50px_108px_minmax(0,1fr)] 2xl:grid-cols-[3px_108px_50px_120px_72px_minmax(0,1fr)]';
+/** Which optional columns are actually rendered (user prefs + screen width). */
+interface Cols {
+  time: boolean;
+  date: boolean;
+  level: boolean;
+  source: boolean;
+  trace: boolean;
+}
+
+/** Column widths scale with the log font size so larger text doesn't get clipped. */
+function gridTemplate(c: Cols, fs: number): string {
+  const k = fs / 12;
+  const px = (n: number) => `${Math.round(n * k)}px`;
+  return [
+    '3px',
+    c.time && px(c.date ? 104 : 64),
+    c.level && px(50),
+    c.source && px(112),
+    c.trace && px(72),
+    'minmax(0,1fr)',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
 
 export interface LogTableHandle {
   focus: () => void;
@@ -25,7 +47,23 @@ interface Props {
   emptyHint: string;
 }
 
-const Row = memo(function Row({ e, file, sel, hl, onSelect }: { e: LogEntry; file: LogFile | undefined; sel: boolean; hl: RegExp | null; onSelect: (e: LogEntry) => void }) {
+const Row = memo(function Row({
+  e,
+  file,
+  sel,
+  hl,
+  onSelect,
+  cols,
+  grid,
+}: {
+  e: LogEntry;
+  file: LogFile | undefined;
+  sel: boolean;
+  hl: RegExp | null;
+  onSelect: (e: LogEntry) => void;
+  cols: Cols;
+  grid: string;
+}) {
   const snip = snippetOf(e, hl);
   return (
     <div
@@ -33,25 +71,33 @@ const Row = memo(function Row({ e, file, sel, hl, onSelect }: { e: LogEntry; fil
       aria-selected={sel}
       onClick={() => onSelect(e)}
       className={clsx(
-        'grid h-full cursor-pointer items-center gap-2.5 border-b border-line pr-3 font-mono text-[12px]',
-        COLS,
+        'fs-log grid h-full cursor-pointer items-center gap-2.5 border-b border-line pr-3 font-mono',
         sel ? 'bg-sel' : 'hover:bg-surface-2',
       )}
+      style={{ gridTemplateColumns: grid }}
     >
       <span className={clsx('h-full', e.score >= 80 ? 'bg-error' : e.score >= SUS_MIN ? 'bg-warn' : '')} />
-      <span className="whitespace-nowrap text-muted tabular-nums">
-        <span className="hidden text-faint md:inline">{fmtDate(e.ts)} </span>
-        {fmtTime(e.ts)}
-      </span>
-      <span>
-        <LevelBadge level={e.level} />
-      </span>
-      <span className="hidden min-w-0 md:block">
-        <FileTag file={file} className="max-w-full font-sans text-[12px]" />
-      </span>
-      <span className={clsx('hidden truncate text-faint 2xl:block', e.ti && 'italic')} title={e.trace ? (e.ti ? 'Suy luận: ' : '') + e.trace : undefined}>
-        {e.trace?.slice(0, 8)}
-      </span>
+      {cols.time && (
+        <span className="whitespace-nowrap text-muted tabular-nums">
+          {cols.date && <span className="text-faint">{fmtDate(e.ts)} </span>}
+          {fmtTime(e.ts)}
+        </span>
+      )}
+      {cols.level && (
+        <span>
+          <LevelBadge level={e.level} />
+        </span>
+      )}
+      {cols.source && (
+        <span className="min-w-0">
+          <FileTag file={file} className="max-w-full font-sans" />
+        </span>
+      )}
+      {cols.trace && (
+        <span className={clsx('truncate text-faint', e.ti && 'italic')} title={e.trace ? (e.ti ? 'Suy luận: ' : '') + e.trace : undefined}>
+          {e.trace?.slice(0, 8)}
+        </span>
+      )}
       {snip ? (
         <span className="flex min-w-0 items-center gap-2">
           <span className="max-w-[40%] shrink-0 truncate text-fg">{e.sum.slice(0, 200)}</span>
@@ -71,7 +117,26 @@ const Row = memo(function Row({ e, file, sel, hl, onSelect }: { e: LogEntry; fil
 export const LogTable = forwardRef<LogTableHandle, Props>(function LogTable({ rows, selected, onSelect, onMove, fileById, hl, emptyHint }, ref) {
   const scroller = useRef<HTMLDivElement>(null);
   useImperativeHandle(ref, () => ({ focus: () => scroller.current?.focus() }), []);
-  const v = useVirtualizer({ count: rows.length, getScrollElement: () => scroller.current, estimateSize: () => ROW_H, overscan: 20 });
+  const display = useLogDisplay();
+  const md = useMedia('(min-width: 768px)');
+  const fs = display.fontSize;
+  const rowH = Math.round(fs * 2.5);
+  const cols = useMemo<Cols>(
+    () => ({
+      time: display.cols.time,
+      date: md,
+      level: display.cols.level,
+      source: display.cols.source && md,
+      trace: display.cols.trace && md,
+    }),
+    [display.cols, md],
+  );
+  const grid = useMemo(() => gridTemplate(cols, fs), [cols, fs]);
+  const v = useVirtualizer({ count: rows.length, getScrollElement: () => scroller.current, estimateSize: () => rowH, overscan: 20 });
+  // row height follows the font size — drop cached measurements when it changes
+  useEffect(() => {
+    v.measure();
+  }, [rowH, v]);
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: 0 });
@@ -84,12 +149,15 @@ export const LogTable = forwardRef<LogTableHandle, Props>(function LogTable({ ro
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col bg-surface" aria-label="Danh sách log">
-      <div className={clsx('grid h-9 shrink-0 items-center gap-2.5 border-b border-line pr-3 text-[11px] font-semibold tracking-wider text-muted uppercase', COLS)}>
+      <div
+        className="grid h-9 shrink-0 items-center gap-2.5 border-b border-line pr-3 text-[11px] font-semibold tracking-wider whitespace-nowrap text-muted uppercase"
+        style={{ gridTemplateColumns: grid }}
+      >
         <span />
-        <span>Thời gian</span>
-        <span>Level</span>
-        <span className="hidden md:block">Nguồn</span>
-        <span className="hidden 2xl:block">Trace</span>
+        {cols.time && <span>Thời gian</span>}
+        {cols.level && <span>Level</span>}
+        {cols.source && <span>Nguồn</span>}
+        {cols.trace && <span>Trace</span>}
         <span>Nội dung</span>
       </div>
       <div
@@ -117,8 +185,8 @@ export const LogTable = forwardRef<LogTableHandle, Props>(function LogTable({ ro
             {v.getVirtualItems().map((it) => {
               const e = rows[it.index];
               return (
-                <div key={it.key} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: ROW_H, transform: `translateY(${it.start}px)` }}>
-                  <Row e={e} file={fileById.get(e.f)} sel={e === selected} hl={hl} onSelect={onSelect} />
+                <div key={it.key} style={{ position: 'absolute', top: 0, left: 0, right: 0, height: rowH, transform: `translateY(${it.start}px)` }}>
+                  <Row e={e} file={fileById.get(e.f)} sel={e === selected} hl={hl} onSelect={onSelect} cols={cols} grid={grid} />
                 </div>
               );
             })}

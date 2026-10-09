@@ -189,7 +189,7 @@ export function ContentViewer({ text, hl, onId, wrap, fold, collapse }: Props) {
 
   return (
     <CollapseCtx.Provider value={collapse}>
-    <div className={clsx('font-mono text-[12px] leading-[1.65] text-fg', wrap ? 'whitespace-pre-wrap break-words' : 'w-max min-w-full whitespace-pre')}>
+    <div className={clsx('fs-log font-mono leading-[1.65] text-fg', wrap ? 'whitespace-pre-wrap break-words' : 'w-max min-w-full whitespace-pre')}>
       {shown.map((b) =>
         b.kind === 'line' ? (
           <div key={b.n} className={clsx('flex', FRAME.test(b.text) && 'text-fg-2')}>

@@ -13,6 +13,7 @@ import { fmtBytes } from '../lib/format';
 import { groupSuspicious, parseQuery, runSearch, sigOf } from '../lib/search';
 import { SUS_MIN, type Level, type LogEntry } from '../lib/types';
 import { useLogs } from '../lib/useLogs';
+import { useLogDisplay } from '../lib/useLogDisplay';
 import { usePanelWidth } from '../lib/usePanelWidth';
 
 interface Props {
@@ -23,6 +24,7 @@ interface Props {
 
 export function LogTool({ active, onToast: showToast }: Props) {
   const logs = useLogs(showToast);
+  const display = useLogDisplay();
 
   const [query, setQuery] = useState('');
   const deferredQuery = useDeferredValue(query);
@@ -175,7 +177,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
   };
 
   return (
-    <div className={clsx('flex min-h-0 flex-1 flex-col', !active && 'hidden')}>
+    <div className={clsx('flex min-h-0 flex-1 flex-col', !active && 'hidden')} style={{ '--log-fs': `${display.fontSize}px` } as React.CSSProperties}>
       {!logs.ready ? (
         <div className="flex-1" />
       ) : logs.files.length === 0 ? (
@@ -229,14 +231,17 @@ export function LogTool({ active, onToast: showToast }: Props) {
               shown={res.rows.length}
               suspicious={res.suspicious}
             />
-            <Histogram rows={res.rows} range={timeRange} onPick={setTimeRange} />
+            {display.histogram && <Histogram rows={res.rows} range={timeRange} onPick={setTimeRange} />}
           </div>
 
           <main
-            className="grid min-h-[60vh] flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[minmax(0,1fr)_var(--dw)] xl:grid-cols-[248px_minmax(0,1fr)_var(--dw)]"
+            className={clsx(
+              'grid min-h-[60vh] flex-1 grid-cols-1 md:min-h-0 md:grid-cols-[minmax(0,1fr)_var(--dw)]',
+              display.groups && 'xl:grid-cols-[248px_minmax(0,1fr)_var(--dw)]',
+            )}
             style={{ '--dw': `${panel.width}px` } as React.CSSProperties}
           >
-            <GroupsPanel className="hidden xl:flex" groups={groups} active={sig} onPick={setSig} fileById={logs.fileById} hl={q.hl} />
+            {display.groups && <GroupsPanel className="hidden xl:flex" groups={groups} active={sig} onPick={setSig} fileById={logs.fileById} hl={q.hl} />}
             <LogTable
               ref={tableRef}
               rows={res.rows}

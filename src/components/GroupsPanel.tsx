@@ -56,7 +56,7 @@ export function GroupsPanel({ groups, active, onPick, fileById, hl, className }:
                         {g.t1 !== g.t0 && <> – {fmtTime(g.t1)}</>}
                       </span>
                     </div>
-                    <div className="line-clamp-3 font-mono text-[11.5px] leading-[1.5] break-all text-fg-2">
+                    <div className="fs-log-sm line-clamp-3 font-mono leading-[1.5] break-all text-fg-2">
                       <Highlight text={g.sig} hl={hl} />
                     </div>
                   </button>

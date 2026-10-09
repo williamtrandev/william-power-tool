@@ -54,7 +54,7 @@ export function LevelBadge({ level, className }: { level: Level; className?: str
   return (
     <span
       className={clsx(
-        'inline-flex h-[18px] items-center justify-center rounded px-1.5 font-mono text-[10px] font-semibold tracking-wide',
+        'inline-flex h-[1.55em] items-center justify-center rounded px-[0.55em] font-mono text-[0.84em] leading-none font-semibold tracking-wide',
         m.cls,
         className,
       )}
