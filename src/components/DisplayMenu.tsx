@@ -27,7 +27,7 @@ function Check2({ checked, onChange, label, hint }: { checked: boolean; onChange
           checked ? 'border-accent bg-accent text-white' : 'border-line-strong bg-surface',
         )}
       >
-        {checked && <Check size={11} strokeWidth={3} />}
+        {checked && <Check size={13} strokeWidth={3} />}
       </span>
       <span className="flex-1">{label}</span>
       {hint && <span className="text-[11px] text-faint">{hint}</span>}
@@ -74,7 +74,7 @@ export function DisplayMenu() {
   return (
     <div className="relative" ref={ref}>
       <Button active={open} aria-expanded={open} aria-haspopup="menu" onClick={() => setOpen((o) => !o)} title="Ẩn / hiện cột, panel và cỡ chữ">
-        <SlidersHorizontal size={14} />
+        <SlidersHorizontal size={16} />
         <span className="hidden sm:inline">Hiển thị</span>
         <span className="rounded bg-surface-3 px-1 text-[10.5px] text-muted tabular-nums">{d.fontSize}px</span>
       </Button>

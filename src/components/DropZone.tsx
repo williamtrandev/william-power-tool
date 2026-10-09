@@ -48,7 +48,7 @@ export function DropZone({ onAdd }: { onAdd: (files: File[]) => void }) {
         <ul className="mt-6 grid gap-4 sm:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, text }) => (
             <li key={title} className="flex gap-3 sm:flex-col sm:gap-2">
-              <Icon size={16} className="mt-0.5 shrink-0 text-accent" />
+              <Icon size={18} className="mt-0.5 shrink-0 text-accent" />
               <div>
                 <div className="font-medium">{title}</div>
                 <div className="mt-0.5 text-[12.5px] leading-relaxed text-muted">{text}</div>
@@ -57,7 +57,7 @@ export function DropZone({ onAdd }: { onAdd: (files: File[]) => void }) {
           ))}
         </ul>
         <p className="mt-8 flex items-center justify-center gap-1.5 text-[12px] text-faint">
-          <Lock size={12} /> File chỉ được đọc trong trình duyệt của bạn, không gửi lên server nào.
+          <Lock size={14} /> File chỉ được đọc trong trình duyệt của bạn, không gửi lên server nào.
         </p>
       </div>
     </div>

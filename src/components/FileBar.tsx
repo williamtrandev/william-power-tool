@@ -60,7 +60,7 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
               onClick={() => onToggleFile(f.id)}
               className="focus-ring grid size-5 place-items-center rounded text-muted hover:bg-surface-3 hover:text-fg"
             >
-              {f.on ? <Eye size={13} /> : <EyeOff size={13} />}
+              {f.on ? <Eye size={15} /> : <EyeOff size={15} />}
             </button>
             <button
               type="button"
@@ -68,7 +68,7 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
               onClick={() => onRemoveFile(f.id)}
               className="focus-ring grid size-5 place-items-center rounded text-muted hover:bg-surface-3 hover:text-fg"
             >
-              <X size={13} />
+              <X size={15} />
             </button>
           </div>
         ))}
@@ -84,7 +84,7 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
         }}
       />
       <span className="hidden items-center gap-1 text-[11.5px] text-faint lg:inline-flex" title="File được lưu trong trình duyệt này (IndexedDB) và tự mở lại khi tải lại trang">
-        <HardDriveDownload size={12} /> Đã lưu, reload không mất
+        <HardDriveDownload size={14} /> Đã lưu, reload không mất
       </span>
       <div className="relative" ref={confirmRef}>
         <Button
@@ -95,7 +95,7 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
           onClick={() => setConfirm((c) => !c)}
           title="Bỏ tất cả file và xoá bản lưu trong trình duyệt"
         >
-          <Trash2 size={13} /> Xoá tất cả
+          <Trash2 size={15} /> Xoá tất cả
         </Button>
         {confirm && (
           <div role="dialog" aria-label="Xác nhận xoá tất cả file" className="animate-in absolute top-9 right-0 z-30 w-[260px] rounded-xl border border-line bg-surface p-3 shadow-xl shadow-black/10">
@@ -114,14 +114,14 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
                   onClearAll();
                 }}
               >
-                <Trash2 size={13} /> Xoá tất cả
+                <Trash2 size={15} /> Xoá tất cả
               </Button>
             </div>
           </div>
         )}
       </div>
       <Button size="sm" onClick={() => input.current?.click()}>
-        <Plus size={13} />
+        <Plus size={15} />
         Thêm file
       </Button>
     </div>

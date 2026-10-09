@@ -52,7 +52,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative min-w-[240px] flex-1">
-        <Search size={15} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
+        <Search size={17} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
         <input
           ref={ref}
           value={p.query}
@@ -83,7 +83,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
               p.regex ? 'bg-accent text-white' : 'text-muted hover:bg-surface-2 hover:text-fg',
             )}
           >
-            <Regex size={13} />
+            <Regex size={15} />
             {p.regex && <span className="font-sans text-[11px]">Regex</span>}
           </button>
           {p.query ? (
@@ -93,7 +93,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
               onClick={() => p.onQuery('')}
               className="focus-ring grid size-6 place-items-center rounded text-muted hover:bg-surface-2 hover:text-fg"
             >
-              <X size={14} />
+              <X size={16} />
             </button>
           ) : (
             <Kbd>/</Kbd>
@@ -107,8 +107,8 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
       </div>
 
       <div className="relative" ref={helpRef}>
-        <Button variant="ghost" className="w-8 px-0" aria-label="Cú pháp tìm kiếm" aria-expanded={help} onClick={() => setHelp((h) => !h)}>
-          <HelpCircle size={16} />
+        <Button variant="ghost" size="icon" aria-label="Cú pháp tìm kiếm" aria-expanded={help} onClick={() => setHelp((h) => !h)}>
+          <HelpCircle size={18} />
         </Button>
         {help && (
           <div className="animate-in absolute top-10 right-0 z-30 w-[360px] max-w-[calc(100vw-32px)] rounded-xl border border-line bg-surface p-3 shadow-xl shadow-black/10 sm:left-0">
@@ -136,7 +136,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
               </tbody>
             </table>
             <div className="mt-3 mb-1.5 flex items-center gap-1.5 border-t border-line pt-2.5 text-xs font-semibold tracking-wide text-muted uppercase">
-              Regex <span className="font-normal normal-case">(bật nút <Regex size={11} className="inline" /> trong ô tìm)</span>
+              Regex <span className="font-normal normal-case">(bật nút <Regex size={13} className="inline" /> trong ô tìm)</span>
             </div>
             <table className="w-full text-[12.5px]">
               <tbody>
@@ -169,9 +169,9 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
         )}
       </div>
 
-      <Switch checked={p.suspiciousOnly} onChange={p.onSuspicious} label="Chỉ khả nghi" icon={<ShieldAlert size={14} />} />
+      <Switch checked={p.suspiciousOnly} onChange={p.onSuspicious} label="Chỉ khả nghi" icon={<ShieldAlert size={16} />} />
       <label className="relative inline-flex h-8 items-center">
-        <ArrowDownWideNarrow size={14} className="pointer-events-none absolute left-2.5 text-muted" />
+        <ArrowDownWideNarrow size={16} className="pointer-events-none absolute left-2.5 text-muted" />
         <select
           value={p.sort}
           onChange={(e) => p.onSort(e.target.value as Sort)}
@@ -185,7 +185,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
       </label>
       <DisplayMenu />
       <Button onClick={p.onExport} disabled={!p.canExport} title="Tải các dòng đang hiển thị về file .log">
-        <Download size={14} />
+        <Download size={16} />
         <span className="hidden sm:inline">Tải kết quả</span>
       </Button>
     </div>

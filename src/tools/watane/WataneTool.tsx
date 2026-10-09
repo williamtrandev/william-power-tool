@@ -76,8 +76,8 @@ export function WataneTool({ active, onToast }: { active: boolean; onToast: (m: 
             value={mode}
             onChange={setMode}
             items={[
-              { id: 'paste', label: 'Dán mã', icon: <ClipboardList size={13} /> },
-              { id: 'file', label: 'File CSV / Excel', icon: <FileSpreadsheet size={13} /> },
+              { id: 'paste', label: 'Dán mã', icon: <ClipboardList size={15} /> },
+              { id: 'file', label: 'File CSV / Excel', icon: <FileSpreadsheet size={15} /> },
             ]}
           />
           <Segmented
@@ -85,12 +85,12 @@ export function WataneTool({ active, onToast }: { active: boolean; onToast: (m: 
             value={dir}
             onChange={setDir}
             items={[
-              { id: 'decrypt', label: 'Giải mã', icon: <LockOpen size={13} /> },
-              { id: 'encrypt', label: 'Mã hoá', icon: <Lock size={13} /> },
+              { id: 'decrypt', label: 'Giải mã', icon: <LockOpen size={15} /> },
+              { id: 'encrypt', label: 'Mã hoá', icon: <Lock size={15} /> },
             ]}
           />
           <label className={clsx('relative ml-auto inline-flex h-8 items-center', !store.keys.length && 'opacity-50')}>
-            <KeyRound size={13} className={clsx('pointer-events-none absolute left-2.5', keyReady ? 'text-accent' : 'text-error')} />
+            <KeyRound size={15} className={clsx('pointer-events-none absolute left-2.5', keyReady ? 'text-accent' : 'text-error')} />
             <select
               value={store.selected?.id ?? ''}
               onChange={(e) => store.select(e.target.value)}
@@ -121,7 +121,7 @@ export function WataneTool({ active, onToast }: { active: boolean; onToast: (m: 
         </div>
 
         <p className="flex items-center gap-1.5 text-[12px] text-faint">
-          <ShieldCheck size={13} /> Key và dữ liệu chỉ được xử lý trong trình duyệt, không gửi đi đâu.
+          <ShieldCheck size={15} /> Key và dữ liệu chỉ được xử lý trong trình duyệt, không gửi đi đâu.
         </p>
       </div>
     </div>

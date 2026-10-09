@@ -25,7 +25,7 @@ function ActiveChip({ icon, children, onClear, label }: { icon: React.ReactNode;
       {icon}
       <span className="truncate font-mono">{children}</span>
       <button type="button" aria-label={label} onClick={onClear} className="focus-ring grid size-5 place-items-center rounded hover:bg-accent/15">
-        <X size={12} />
+        <X size={14} />
       </button>
     </span>
   );
@@ -57,12 +57,12 @@ export function FilterBar(p: Props) {
         );
       })}
       {p.timeRange && (
-        <ActiveChip icon={<Clock size={12} />} onClear={p.onClearTime} label="Bỏ lọc thời gian">
+        <ActiveChip icon={<Clock size={14} />} onClear={p.onClearTime} label="Bỏ lọc thời gian">
           {fmtDateTime(p.timeRange[0])} → {fmtDateTime(p.timeRange[1])}
         </ActiveChip>
       )}
       {p.sig && (
-        <ActiveChip icon={<Layers size={12} />} onClear={p.onClearSig} label="Bỏ lọc nhóm lỗi">
+        <ActiveChip icon={<Layers size={14} />} onClear={p.onClearSig} label="Bỏ lọc nhóm lỗi">
           {p.sig}
         </ActiveChip>
       )}

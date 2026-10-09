@@ -80,7 +80,7 @@ function Node({
   return (
     <div>
       <button type="button" onClick={() => setOpen((o) => !o)} className="flex w-full rounded py-px text-left hover:bg-surface-2" style={pad} aria-expanded={open}>
-        <ChevronRight size={12} className={clsx('mt-[3px] w-4 shrink-0 text-faint transition-transform', open && 'rotate-90')} />
+        <ChevronRight size={14} className={clsx('mt-[3px] w-4 shrink-0 text-faint transition-transform', open && 'rotate-90')} />
         <span className="min-w-0">
           {key}
           <span className="text-faint">{summary}</span>

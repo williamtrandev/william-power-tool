@@ -77,13 +77,13 @@ function KeyForm({ initial, taken, onSave, onCancel }: FormProps) {
             aria-label={show ? 'Ẩn key' : 'Hiện key'}
             className="focus-ring grid size-7 place-items-center rounded text-muted hover:bg-surface-2 hover:text-fg"
           >
-            {show ? <EyeOff size={14} /> : <Eye size={14} />}
+            {show ? <EyeOff size={16} /> : <Eye size={16} />}
           </button>
         </div>
       </div>
       <div className="flex gap-1.5">
         <Button type="submit" variant="primary" className="h-9" disabled={!canSave}>
-          <Check size={14} /> {initial ? 'Lưu' : 'Thêm'}
+          <Check size={16} /> {initial ? 'Lưu' : 'Thêm'}
         </Button>
         {onCancel && (
           <Button className="h-9" onClick={onCancel}>
@@ -126,7 +126,7 @@ function KeyRow({ k, selected, onSelect, onEdit, onDelete }: { k: SavedKey; sele
           aria-label={show ? `Ẩn key ${k.label}` : `Hiện key ${k.label}`}
           className="focus-ring grid size-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg"
         >
-          {show ? <EyeOff size={14} /> : <Eye size={14} />}
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
         </button>
         <button
           type="button"
@@ -134,7 +134,7 @@ function KeyRow({ k, selected, onSelect, onEdit, onDelete }: { k: SavedKey; sele
           aria-label={`Sửa key ${k.label}`}
           className="focus-ring grid size-7 place-items-center rounded-md text-muted hover:bg-surface-2 hover:text-fg"
         >
-          <Pencil size={13} />
+          <Pencil size={15} />
         </button>
         {confirm ? (
           <button
@@ -142,7 +142,7 @@ function KeyRow({ k, selected, onSelect, onEdit, onDelete }: { k: SavedKey; sele
             onClick={onDelete}
             className="focus-ring inline-flex h-7 items-center gap-1 rounded-md bg-error px-2 text-[11.5px] font-medium text-white"
           >
-            <Trash2 size={12} /> Xoá?
+            <Trash2 size={14} /> Xoá?
           </button>
         ) : (
           <button
@@ -151,7 +151,7 @@ function KeyRow({ k, selected, onSelect, onEdit, onDelete }: { k: SavedKey; sele
             aria-label={`Xoá key ${k.label}`}
             className="focus-ring grid size-7 place-items-center rounded-md text-muted hover:bg-error/10 hover:text-error"
           >
-            <Trash2 size={13} />
+            <Trash2 size={15} />
           </button>
         )}
       </div>
@@ -177,13 +177,13 @@ export function KeyManager({ keys, selectedId, onSelect, onAdd, onUpdate, onRemo
     <section className="rounded-xl border border-line bg-surface p-4">
       <div className="mb-3 flex items-center gap-3">
         <h2 className="flex items-center gap-1.5 text-[13px] font-semibold">
-          <KeyRound size={14} className="text-accent" /> Secret keys
+          <KeyRound size={16} className="text-accent" /> Secret keys
           {keys.length > 0 && <span className="rounded bg-surface-2 px-1.5 text-[11px] font-medium text-muted tabular-nums">{keys.length}</span>}
         </h2>
         <span className="hidden text-[11.5px] text-faint sm:inline">AES · ECB · PKCS7 · Base64</span>
         {!adding && (
           <Button size="sm" className="ml-auto" onClick={() => setAdding(true)}>
-            <Plus size={13} /> Thêm key
+            <Plus size={15} /> Thêm key
           </Button>
         )}
       </div>

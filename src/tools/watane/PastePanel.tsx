@@ -72,7 +72,7 @@ export function PastePanel({ run, decrypting, keyReady, onToast }: Props) {
               className="ml-auto"
               onClick={() => copy(rows.map((r) => (r.res?.ok ? r.res.value : `ERROR: ${r.res?.error ?? ''}`)).join('\n'), 'all')}
             >
-              {copied === 'all' ? <Check size={13} className="text-emerald-500" /> : <ClipboardCopy size={13} />}
+              {copied === 'all' ? <Check size={15} className="text-emerald-500" /> : <ClipboardCopy size={15} />}
               Copy tất cả
             </Button>
           )}
@@ -92,7 +92,7 @@ export function PastePanel({ run, decrypting, keyReady, onToast }: Props) {
                       <div className="font-mono text-[13px] break-all text-fg">{r.res.value}</div>
                     ) : (
                       <div className="flex items-center gap-1.5 text-[12.5px] text-error">
-                        <AlertCircle size={13} className="shrink-0" /> {r.res?.error}
+                        <AlertCircle size={15} className="shrink-0" /> {r.res?.error}
                       </div>
                     )}
                     <div className="mt-0.5 truncate font-mono text-[11px] text-faint" title={r.line}>
@@ -109,7 +109,7 @@ export function PastePanel({ run, decrypting, keyReady, onToast }: Props) {
                         copied === r.i ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
                       )}
                     >
-                      {copied === r.i ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+                      {copied === r.i ? <Check size={16} className="text-emerald-500" /> : <Copy size={16} />}
                     </button>
                   )}
                 </li>

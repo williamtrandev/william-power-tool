@@ -47,14 +47,14 @@ export function AppHeader({ tool, onTool, theme, onToggleTheme }: Props) {
               tool === id ? 'text-fg' : 'text-muted hover:text-fg',
             )}
           >
-            <Icon size={14} />
+            <Icon size={16} />
             <span className="hidden sm:inline">{label}</span>
             {tool === id && <span className="absolute inset-x-1.5 -bottom-px h-0.5 rounded-full bg-accent" />}
           </a>
         ))}
       </nav>
-      <Button variant="ghost" className="ml-auto w-8 px-0" aria-label="Đổi giao diện sáng/tối" onClick={onToggleTheme}>
-        {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+      <Button variant="ghost" size="icon" className="ml-auto" aria-label="Đổi giao diện sáng/tối" onClick={onToggleTheme}>
+        {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
       </Button>
     </header>
   );

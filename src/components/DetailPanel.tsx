@@ -54,9 +54,9 @@ export function DetailPanel(p: Props) {
   const trace = e?.trace ? p.traceIndex.get(e.trace.toLowerCase()) ?? [] : [];
   const tab = p.tab === 'trace' && !trace.length ? 'detail' : p.tab;
   const tabs: { id: DetailTab; label: string; icon: ReactNode; count?: number; disabled?: boolean }[] = [
-    { id: 'detail', label: 'Chi tiết', icon: <ScrollText size={13} /> },
-    { id: 'ctx', label: 'Ngữ cảnh', icon: <ListTree size={13} /> },
-    { id: 'trace', label: 'Trace', icon: <GitBranch size={13} />, count: trace.length, disabled: !trace.length },
+    { id: 'detail', label: 'Chi tiết', icon: <ScrollText size={15} /> },
+    { id: 'ctx', label: 'Ngữ cảnh', icon: <ListTree size={15} /> },
+    { id: 'trace', label: 'Trace', icon: <GitBranch size={15} />, count: trace.length, disabled: !trace.length },
   ];
 
   return (
@@ -86,18 +86,17 @@ export function DetailPanel(p: Props) {
           {p.onExpand && e && (
             <Button
               variant="ghost"
-              size="sm"
-              className="w-7 px-0"
+              size="icon-sm"
               aria-label={p.expanded ? 'Thu nhỏ' : 'Phóng to toàn màn hình'}
               title={p.expanded ? 'Thu nhỏ (Esc)' : 'Phóng to toàn màn hình'}
               onClick={p.onExpand}
             >
-              {p.expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+              {p.expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </Button>
           )}
           {p.onClose && (
-            <Button variant="ghost" size="sm" className="w-7 px-0" aria-label="Đóng chi tiết" onClick={p.onClose}>
-              <X size={15} />
+            <Button variant="ghost" size="icon-sm" aria-label="Đóng chi tiết" onClick={p.onClose}>
+              <X size={17} />
             </Button>
           )}
         </div>
@@ -217,19 +216,19 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
       <div className="flex flex-wrap gap-1.5">
         {e.trace && (
           <Button size="sm" onClick={() => p.onTab('trace')}>
-            <GitBranch size={13} /> Xem cả trace ({p.traceCount})
+            <GitBranch size={15} /> Xem cả trace ({p.traceCount})
           </Button>
         )}
         {e.trace && (
           <Button size="sm" onClick={() => p.onFilterTrace(e.trace!)}>
-            <Filter size={13} /> Lọc theo trace
+            <Filter size={15} /> Lọc theo trace
           </Button>
         )}
         <Button size="sm" onClick={() => p.onTab('ctx')}>
-          <ListTree size={13} /> Ngữ cảnh
+          <ListTree size={15} /> Ngữ cảnh
         </Button>
         <Button size="sm" onClick={() => p.onFilterSig(e)}>
-          <Layers size={13} /> Dòng giống
+          <Layers size={15} /> Dòng giống
         </Button>
       </div>
 
@@ -248,7 +247,7 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
                   v === id ? 'bg-surface-3 text-fg' : 'text-muted hover:text-fg',
                 )}
               >
-                {id === 'json' && <Braces size={11} />}
+                {id === 'json' && <Braces size={13} />}
                 {label}
               </button>
             ))}
@@ -257,21 +256,21 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
             {v === 'json' ? (
               <>
                 <Button variant="ghost" size="sm" onClick={() => setExpand((x) => ({ mode: 'all', gen: x.gen + 1 }))}>
-                  <ChevronsUpDown size={13} /> Mở hết
+                  <ChevronsUpDown size={15} /> Mở hết
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setExpand((x) => ({ mode: 'none', gen: x.gen + 1 }))}>
-                  <ChevronsDownUp size={13} /> Thu hết
+                  <ChevronsDownUp size={15} /> Thu hết
                 </Button>
               </>
             ) : (
               <>
                 {hasFrames && v === 'text' && (
                   <Button variant="ghost" size="sm" active={fold} aria-pressed={fold} onClick={() => setFold((f) => !f)} title="Thu gọn các frame của framework / thư viện trong stacktrace">
-                    <FoldVertical size={13} /> Gọn stack
+                    <FoldVertical size={15} /> Gọn stack
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" active={wrap} aria-pressed={wrap} onClick={() => setWrap((w) => !w)} title="Tự xuống dòng">
-                  <WrapText size={13} /> Xuống dòng
+                  <WrapText size={15} /> Xuống dòng
                 </Button>
               </>
             )}
@@ -288,7 +287,7 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
               Thu gọn
             </label>
             <Button variant="ghost" size="sm" onClick={copy} aria-label="Copy">
-              {copied ? <Check size={13} className="text-emerald-500" /> : <Copy size={13} />}
+              {copied ? <Check size={15} className="text-emerald-500" /> : <Copy size={15} />}
               {copied ? 'Đã copy' : 'Copy'}
             </Button>
           </div>

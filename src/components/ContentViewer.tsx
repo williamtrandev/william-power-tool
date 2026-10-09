@@ -151,7 +151,7 @@ function Fold({ block, hl, onId, gutter, gs }: { block: Extract<Block, { kind: '
           onClick={() => setOpen((o) => !o)}
           className="my-0.5 inline-flex items-center gap-1 rounded border border-dashed border-line-strong px-1.5 font-sans text-[11px] text-muted hover:border-accent hover:text-accent"
         >
-          <ChevronRight size={11} className={clsx('transition-transform', open && 'rotate-90')} />
+          <ChevronRight size={13} className={clsx('transition-transform', open && 'rotate-90')} />
           {open ? 'Ẩn' : 'Hiện'} {block.lines.length} frame framework / thư viện
         </button>
       </div>

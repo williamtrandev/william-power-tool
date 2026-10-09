@@ -144,7 +144,7 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
       <section className="flex flex-wrap items-end gap-3 rounded-xl border border-line bg-surface p-4">
         <div className="mr-auto flex min-w-0 items-center gap-3">
           <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
-            <FileSpreadsheet size={17} />
+            <FileSpreadsheet size={19} />
           </span>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
@@ -208,10 +208,10 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
           />
         </label>
         <Button onClick={() => input.current?.click()}>
-          <RefreshCw size={13} /> Đổi file
+          <RefreshCw size={15} /> Đổi file
         </Button>
         <Button variant="primary" onClick={download} disabled={!results}>
-          <Download size={14} /> Tải {table.kind === 'excel' ? 'Excel' : 'CSV'} kết quả
+          <Download size={16} /> Tải {table.kind === 'excel' ? 'Excel' : 'CSV'} kết quả
         </Button>
       </section>
 
@@ -255,7 +255,7 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
                       {table.rows[i][col]}
                     </td>
                     <td className={clsx('px-3 py-1.5 font-mono break-all', err ? 'text-error' : 'text-fg')}>
-                      {err && <AlertCircle size={12} className="mr-1 inline align-[-1px]" />}
+                      {err && <AlertCircle size={14} className="mr-1 inline align-[-1px]" />}
                       {r == null ? <span className="text-faint">—</span> : err ? r.slice(7) : r}
                     </td>
                   </tr>
