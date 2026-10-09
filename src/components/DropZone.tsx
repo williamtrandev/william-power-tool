@@ -1,7 +1,7 @@
 import { FileUp, GitBranch, Lock, Search, ShieldAlert } from 'lucide-react';
 import { useRef } from 'react';
 
-const FORMATS = ['Laravel', '.NET [dd-MM-yyyy]', 'Serilog', 'ISO timestamp', 'JSON lines'];
+const FORMATS = ['Laravel', '.NET [dd-MM-yyyy]', 'Serilog', 'ISO timestamp', 'JSON lines', 'CSV / TSV'];
 
 const FEATURES = [
   { icon: Search, title: 'Tìm tức thì', text: 'AND / OR / loại trừ / regex, hiện đoạn trích quanh từ khoá.' },

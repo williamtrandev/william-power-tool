@@ -47,7 +47,7 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
               'group flex h-7 min-w-0 max-w-full items-center gap-2 rounded-md border border-line bg-surface-2 pr-1 pl-2.5 transition-opacity',
               !f.on && 'opacity-50',
             )}
-            title={`${f.name}\n${f.format} · ${nf(f.lines)} dòng · ${fmtBytes(f.size)}\n${nf(f.traced)} entry có trace id`}
+            title={`${f.name}\n${f.format} · ${nf(f.lines)} dòng · ${fmtBytes(f.size)}\n${nf(f.traced)} entry có trace id${f.note ? '\n' + f.note : ''}`}
           >
             <span className="size-2 shrink-0 rounded-[3px]" style={{ background: f.on ? f.color : 'transparent', boxShadow: `inset 0 0 0 1.5px ${f.color}` }} />
             <span className="truncate text-[12.5px] font-medium">{shortName(f.name)}</span>

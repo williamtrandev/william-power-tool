@@ -25,7 +25,7 @@ interface Source {
   persist: boolean;
 }
 
-function parseInWorker(file: Blob, fileId: number, onProgress: (p: number) => void): Promise<ParseResult> {
+function parseInWorker(file: Blob, name: string, fileId: number, onProgress: (p: number) => void): Promise<ParseResult> {
   return new Promise((resolve, reject) => {
     const w = new ParseWorker();
     w.onmessage = (ev: MessageEvent<ParseMessage>) => {
@@ -41,7 +41,7 @@ function parseInWorker(file: Blob, fileId: number, onProgress: (p: number) => vo
       w.terminate();
       reject(new Error(e.message));
     };
-    w.postMessage({ file, fileId });
+    w.postMessage({ file, fileId, name });
   });
 }
 
@@ -70,12 +70,13 @@ export function useLogs(onError: (msg: string) => void) {
           const id = nextId.current++;
           setLoading({ name: src.name, size: src.blob.size, progress: 0, index: i + 1, total: sources.length, restoring });
           try {
-            const r = await parseInWorker(src.blob, id, (p) => setLoading((s) => (s ? { ...s, progress: p } : s)));
+            const r = await parseInWorker(src.blob, src.name, id, (p) => setLoading((s) => (s ? { ...s, progress: p } : s)));
             const lf: LogFile = {
               id,
               name: src.name,
               size: src.blob.size,
               format: r.format,
+              note: r.note,
               lines: r.lines,
               entries: r.entries,
               traced: r.entries.reduce((n, e) => n + (e.trace ? 1 : 0), 0),

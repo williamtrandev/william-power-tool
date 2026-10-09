@@ -1,3 +1,4 @@
+import { fmtColumns, looksLikeCsv, parseCsvLog } from './csvLog';
 import type { Level, LogEntry, ParseResult } from './types';
 
 export const GUID_SRC = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
@@ -169,7 +170,11 @@ function summarize(dec: string): string {
   let i = 0;
   for (const l of dec.split('\n', 12)) {
     const t = l.trim();
-    if (!t) continue;
+    // a blank line ends the headline (CSV rows put "column: value" lines after one)
+    if (!t) {
+      if (out) break;
+      continue;
+    }
     out += (out ? ' ' : '') + t;
     if (out.length > 120 || ++i > 6) break;
   }
@@ -246,9 +251,37 @@ function newEntry(f: number, ln: number, raw: string, head: number, ts: number |
   return { f, k: 0, ln, raw, head, ts, level, trace, score: 0, sum: '', lc: '' };
 }
 
-export function parseText(text: string, fileId: number, onProgress?: (p: number) => void): ParseResult {
+const LEVEL_IN_TEXT = /\b(fatal|critical|error|exception|warn(?:ing)?|info|debug|trace)\b/i;
+
+/** Shared tail of every parser: inherit missing timestamps, score, summarize, extract trace ids. */
+function finish(list: LogEntry[], wholeRaw: boolean, onProgress?: (p: number) => void, from = 0.6) {
+  let lastTs: number | null = null;
+  for (let k = 0; k < list.length; k++) {
+    const e = list[k];
+    e.k = k;
+    if (e.ts == null) e.ts = lastTs;
+    else lastTs = e.ts;
+    finalize(e, wholeRaw ? e.raw : e.raw.slice(e.head));
+    if (onProgress && (k & 2047) === 0) onProgress(from + ((1 - from) * k) / list.length);
+  }
+}
+
+function parseCsvText(text: string, fileId: number, onProgress?: (p: number) => void): ParseResult {
+  const { rows, columns } = parseCsvLog(text, onProgress);
+  const list = rows.map((r) => {
+    const lv = r.level || (LEVEL_IN_TEXT.exec(r.text.slice(0, 120)) || [])[1] || '';
+    return newEntry(fileId, r.row, r.text, 0, r.ts, normLevel(lv), r.trace);
+  });
+  finish(list, true, onProgress, 0.5);
+  return { format: 'CSV', note: 'Cột: ' + (fmtColumns(columns) || 'không nhận ra cột nào'), lines: rows.length + 1, entries: list };
+}
+
+export function parseText(text: string, fileId: number, onProgress?: (p: number) => void, fileName = ''): ParseResult {
+  if (/\.(csv|tsv)$/i.test(fileName)) return parseCsvText(text, fileId, onProgress);
   const lines = text.split(/\r?\n/);
   const fmt = detectFormat(lines);
+  // a CSV whose first column is a timestamp also matches the loose "ISO time" format
+  if ((!fmt || fmt.id === 'iso') && looksLikeCsv(text)) return parseCsvText(text, fileId, onProgress);
   const list: LogEntry[] = [];
   let cur: LogEntry | null = null;
   const push = () => {
@@ -296,15 +329,7 @@ export function parseText(text: string, fileId: number, onProgress?: (p: number)
     if (onProgress && (i & 16383) === 0) onProgress((0.6 * i) / lines.length);
   }
   push();
-  let lastTs: number | null = null;
-  for (let k = 0; k < list.length; k++) {
-    const e = list[k];
-    e.k = k;
-    if (e.ts == null) e.ts = lastTs;
-    else lastTs = e.ts;
-    finalize(e, fmt?.json ? e.raw : e.raw.slice(e.head));
-    if (onProgress && (k & 2047) === 0) onProgress(0.6 + (0.4 * k) / list.length);
-  }
+  finish(list, !!fmt?.json, onProgress);
   inferTraces(list);
   return { format: fmt ? fmt.name : 'Plain text', lines: lines.length, entries: list };
 }

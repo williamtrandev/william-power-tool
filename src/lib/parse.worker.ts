@@ -1,8 +1,9 @@
 import { parseText } from './parser';
 
 export interface ParseRequest {
-  file: File;
+  file: Blob;
   fileId: number;
+  name: string;
 }
 export type ParseMessage =
   | { type: 'progress'; value: number }
@@ -10,7 +11,7 @@ export type ParseMessage =
   | { type: 'error'; message: string };
 
 self.onmessage = async (ev: MessageEvent<ParseRequest>) => {
-  const { file, fileId } = ev.data;
+  const { file, fileId, name } = ev.data;
   try {
     const text = await file.text();
     let last = 0;
@@ -19,7 +20,7 @@ self.onmessage = async (ev: MessageEvent<ParseRequest>) => {
         last = p;
         self.postMessage({ type: 'progress', value: p } satisfies ParseMessage);
       }
-    });
+    }, name);
     self.postMessage({ type: 'done', result } satisfies ParseMessage);
   } catch (err) {
     self.postMessage({ type: 'error', message: err instanceof Error ? err.message : String(err) } satisfies ParseMessage);

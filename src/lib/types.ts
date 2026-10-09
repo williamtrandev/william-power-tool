@@ -34,12 +34,15 @@ export interface LogFile {
   traced: number;
   color: string;
   on: boolean;
+  note?: string;
   /** key of the persisted copy in IndexedDB */
   storeId: string;
 }
 
 export interface ParseResult {
   format: string;
+  /** extra detail about how the file was read, e.g. CSV column mapping */
+  note?: string;
   lines: number;
   entries: LogEntry[];
 }
