@@ -1,38 +1,23 @@
 import clsx from 'clsx';
-import { Eye, EyeOff, Moon, Plus, Sun, X } from 'lucide-react';
+import { Eye, EyeOff, Plus, X } from 'lucide-react';
 import { useRef } from 'react';
 import type { LogFile } from '../lib/types';
 import { fmtBytes, nf, shortName } from '../lib/format';
 import { Button } from './ui';
 
-export function Logo() {
-  return (
-    <div className="flex items-center gap-2">
-      <svg viewBox="0 0 32 32" className="size-6" aria-hidden>
-        <rect width="32" height="32" rx="8" fill="var(--accent)" />
-        <path d="M9 11h14M9 16h9M9 21h11" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-      </svg>
-      <span className="text-[15px] font-semibold tracking-tight">Log Lens</span>
-    </div>
-  );
-}
-
 interface Props {
   files: LogFile[];
-  theme: 'light' | 'dark';
-  onToggleTheme: () => void;
   onAdd: (files: File[]) => void;
   onToggleFile: (id: number) => void;
   onRemoveFile: (id: number) => void;
 }
 
-export function TopBar({ files, theme, onToggleTheme, onAdd, onToggleFile, onRemoveFile }: Props) {
+/** Loaded log files of the Log tool: toggle visibility, remove, add more. */
+export function FileBar({ files, onAdd, onToggleFile, onRemoveFile }: Props) {
   const input = useRef<HTMLInputElement>(null);
   return (
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line bg-surface px-4 py-2.5">
-      <Logo />
-      {files.length > 0 && <div className="hidden h-5 w-px bg-line sm:block" />}
-      <div className="order-3 flex min-w-0 basis-full flex-wrap gap-1.5 sm:order-none sm:flex-1 sm:basis-auto">
+    <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2">
+      <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
         {files.map((f) => (
           <div
             key={f.id}
@@ -66,27 +51,20 @@ export function TopBar({ files, theme, onToggleTheme, onAdd, onToggleFile, onRem
           </div>
         ))}
       </div>
-      <div className="ml-auto flex items-center gap-1.5">
-        <input
-          ref={input}
-          type="file"
-          multiple
-          hidden
-          onChange={(e) => {
-            if (e.target.files) onAdd([...e.target.files]);
-            e.target.value = '';
-          }}
-        />
-        {files.length > 0 && (
-          <Button onClick={() => input.current?.click()}>
-            <Plus size={14} />
-            Thêm file
-          </Button>
-        )}
-        <Button variant="ghost" className="w-8 px-0" aria-label="Đổi giao diện sáng/tối" onClick={onToggleTheme}>
-          {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
-        </Button>
-      </div>
-    </header>
+      <input
+        ref={input}
+        type="file"
+        multiple
+        hidden
+        onChange={(e) => {
+          if (e.target.files) onAdd([...e.target.files]);
+          e.target.value = '';
+        }}
+      />
+      <Button size="sm" onClick={() => input.current?.click()}>
+        <Plus size={13} />
+        Thêm file
+      </Button>
+    </div>
   );
 }
