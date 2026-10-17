@@ -11,10 +11,12 @@ interface Props {
   onToggleFile: (id: number) => void;
   onRemoveFile: (id: number) => void;
   onClearAll: () => void;
+  /** connect / manage a watched folder */
+  folderSlot?: React.ReactNode;
 }
 
 /** Loaded log files of the Log tool: toggle visibility, remove, add more. */
-export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }: Props) {
+export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll, folderSlot }: Props) {
   const input = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState(false);
   const confirmRef = useRef<HTMLDivElement>(null);
@@ -83,6 +85,9 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
           e.target.value = '';
         }}
       />
+      {folderSlot}
+      {files.length > 0 && (
+        <>
       <span className="hidden items-center gap-1 text-[11.5px] text-faint lg:inline-flex" title="File được lưu trong trình duyệt này (IndexedDB) và tự mở lại khi tải lại trang">
         <HardDriveDownload size={14} /> Đã lưu, reload không mất
       </span>
@@ -120,6 +125,8 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll }
           </div>
         )}
       </div>
+        </>
+      )}
       <Button size="sm" onClick={() => input.current?.click()}>
         <Plus size={15} />
         Thêm file

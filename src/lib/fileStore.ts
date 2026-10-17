@@ -14,6 +14,7 @@ export interface StoredFile {
 
 const DB = 'william-power-tool';
 const STORE = 'logFiles';
+const META = 'meta';
 
 let dbp: Promise<IDBDatabase> | null = null;
 
@@ -21,8 +22,12 @@ function db(): Promise<IDBDatabase> {
   if (!dbp) {
     dbp = new Promise((resolve, reject) => {
       if (typeof indexedDB === 'undefined') return reject(new Error('IndexedDB không khả dụng'));
-      const req = indexedDB.open(DB, 1);
-      req.onupgradeneeded = () => req.result.createObjectStore(STORE, { keyPath: 'id' });
+      const req = indexedDB.open(DB, 2);
+      req.onupgradeneeded = () => {
+        const d = req.result;
+        if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: 'id' });
+        if (!d.objectStoreNames.contains(META)) d.createObjectStore(META);
+      };
       req.onsuccess = () => resolve(req.result);
       req.onerror = () => reject(req.error);
     });
@@ -31,11 +36,11 @@ function db(): Promise<IDBDatabase> {
   return dbp;
 }
 
-async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T> | void): Promise<T | undefined> {
+async function tx<T>(mode: IDBTransactionMode, run: (s: IDBObjectStore) => IDBRequest<T> | void, store = STORE): Promise<T | undefined> {
   const d = await db();
   return new Promise((resolve, reject) => {
-    const t = d.transaction(STORE, mode);
-    const req = run(t.objectStore(STORE));
+    const t = d.transaction(store, mode);
+    const req = run(t.objectStore(store));
     t.oncomplete = () => resolve(req ? req.result : undefined);
     t.onerror = () => reject(t.error);
     t.onabort = () => reject(t.error);
@@ -61,3 +66,8 @@ export async function setStoredOn(id: string, on: boolean) {
     };
   });
 }
+
+/** Small key/value settings next to the files (e.g. the connected folder handle). */
+export const getMeta = <T>(key: string) => tx<T>('readonly', (s) => s.get(key) as IDBRequest<T>, META);
+export const setMeta = (key: string, value: unknown) => tx('readwrite', (s) => s.put(value, key), META);
+export const deleteMeta = (key: string) => tx('readwrite', (s) => s.delete(key), META);

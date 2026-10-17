@@ -35,8 +35,10 @@ export interface LogFile {
   color: string;
   on: boolean;
   note?: string;
-  /** key of the persisted copy in IndexedDB */
+  /** key of the persisted copy in IndexedDB, or "folder:<name>" for files read from a connected folder */
   storeId: string;
+  /** bumped each time the file is re-read (folder files that changed on disk) */
+  rev?: number;
 }
 
 export interface ParseResult {

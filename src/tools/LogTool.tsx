@@ -9,6 +9,8 @@ import { Histogram } from '../components/Histogram';
 import { LogTable, type LogTableHandle } from '../components/LogTable';
 import { Toolbar, type Sort } from '../components/Toolbar';
 import { FileBar } from '../components/FileBar';
+import { FolderMenu } from '../components/FolderMenu';
+import { folderKey, useFolder } from '../lib/useFolder';
 import { fmtBytes } from '../lib/format';
 import { groupSuspicious, parseQuery, runSearch, sigOf } from '../lib/search';
 import { SUS_MIN, type Level, type LogEntry } from '../lib/types';
@@ -24,6 +26,7 @@ interface Props {
 
 export function LogTool({ active, onToast: showToast }: Props) {
   const logs = useLogs(showToast);
+  const folder = useFolder({ addExternal: logs.addExternal, replaceFile: logs.replaceFile, removeByKey: logs.removeByKey }, showToast);
   const display = useLogDisplay();
 
   const [query, setQuery] = useState('');
@@ -51,10 +54,17 @@ export function LogTool({ active, onToast: showToast }: Props) {
   );
   const groups = useMemo(() => groupSuspicious(res.rows), [res]);
 
-  // When the result set changes and the current selection fell out of it, jump to the first suspicious line.
+  // When the result set changes and the current selection fell out of it, jump to the first suspicious line —
+  // unless the same line is still there (its file was just re-read from a watched folder).
   useEffect(() => {
-    setSelected((cur) => (cur && res.rows.includes(cur) ? cur : res.rows.find((e) => e.score >= SUS_MIN) ?? res.rows[0] ?? null));
+    setSelected((cur) => {
+      if (cur && res.rows.includes(cur)) return cur;
+      const same = cur && res.rows.find((e) => e.f === cur.f && e.ln === cur.ln);
+      return same ?? res.rows.find((e) => e.score >= SUS_MIN) ?? res.rows[0] ?? null;
+    });
   }, [res]);
+  // scroll the table back to the top only when the search / filters change, not when data is re-read
+  const scrollKey = [deferredQuery, regex, [...levels].join(), suspiciousOnly, timeRange?.join('-'), sig, sort].join('|');
 
   const select = useCallback((e: LogEntry) => {
     setSelected(e);
@@ -176,25 +186,40 @@ export function LogTool({ active, onToast: showToast }: Props) {
     onToast: showToast,
   };
 
+  const fileBar = (
+    <FileBar
+      files={logs.files}
+      onAdd={logs.addFiles}
+      onToggleFile={logs.toggleFile}
+      onRemoveFile={(id) => {
+        const f = logs.fileById.get(id);
+        if (f && f.storeId === folderKey(f.name)) folder.unselect(f.name);
+        logs.removeFile(id);
+      }}
+      onClearAll={() => {
+        folder.unselectAll();
+        logs.clearFiles();
+        clearAll();
+        setSelected(null);
+      }}
+      folderSlot={<FolderMenu folder={folder} compact />}
+    />
+  );
+
   return (
     <div className={clsx('flex min-h-0 flex-1 flex-col', !active && 'hidden')} style={{ '--log-fs': `${display.fontSize}px` } as React.CSSProperties}>
+      {/* one stable spot for the file bar, so its popovers survive the 0 → 1 file transition */}
+      {logs.ready && (logs.files.length > 0 || folder.connected) && fileBar}
       {!logs.ready ? (
         <div className="flex-1" />
       ) : logs.files.length === 0 ? (
-        logs.loading ? <div className="flex-1" /> : <DropZone onAdd={logs.addFiles} />
+        logs.loading ? (
+          <div className="flex-1" />
+        ) : (
+          <DropZone onAdd={logs.addFiles} extra={!folder.connected && <FolderMenu folder={folder} />} />
+        )
       ) : (
         <>
-          <FileBar
-            files={logs.files}
-            onAdd={logs.addFiles}
-            onToggleFile={logs.toggleFile}
-            onRemoveFile={logs.removeFile}
-            onClearAll={() => {
-              logs.clearFiles();
-              clearAll();
-              setSelected(null);
-            }}
-          />
           <div className="shrink-0 space-y-2.5 border-b border-line px-4 py-3">
             <Toolbar
               ref={searchRef}
@@ -250,6 +275,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
               onMove={move}
               fileById={logs.fileById}
               hl={q.hl}
+              scrollKey={scrollKey}
               emptyHint={suspiciousOnly ? 'Thử tắt "Chỉ khả nghi" hoặc bớt từ khoá.' : 'Thử bớt từ khoá hoặc xoá bộ lọc.'}
             />
             <div className="relative hidden min-h-0 min-w-0 md:flex">

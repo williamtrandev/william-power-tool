@@ -9,7 +9,7 @@ const FEATURES = [
   { icon: GitBranch, title: 'Ghép theo trace', text: 'Tự lấy trace_id / request id, xem toàn bộ request xuyên nhiều file.' },
 ];
 
-export function DropZone({ onAdd }: { onAdd: (files: File[]) => void }) {
+export function DropZone({ onAdd, extra }: { onAdd: (files: File[]) => void; extra?: React.ReactNode }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <div className="grid flex-1 place-items-center overflow-auto px-4 py-10">
@@ -45,6 +45,11 @@ export function DropZone({ onAdd }: { onAdd: (files: File[]) => void }) {
             e.target.value = '';
           }}
         />
+        {extra && (
+          <div className="mt-3 flex items-center justify-center gap-2 text-[12.5px] text-muted">
+            hoặc {extra} <span className="hidden sm:inline">để tự mở file log mới được copy vào</span>
+          </div>
+        )}
         <ul className="mt-6 grid gap-4 sm:grid-cols-3">
           {FEATURES.map(({ icon: Icon, title, text }) => (
             <li key={title} className="flex gap-3 sm:flex-col sm:gap-2">

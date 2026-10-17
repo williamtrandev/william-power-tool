@@ -45,6 +45,8 @@ interface Props {
   fileById: Map<number, LogFile>;
   hl: RegExp | null;
   emptyHint: string;
+  /** table scrolls back to the top when this changes (search / filters), not on data refresh */
+  scrollKey: string;
 }
 
 const Row = memo(function Row({
@@ -114,7 +116,7 @@ const Row = memo(function Row({
   );
 });
 
-export const LogTable = forwardRef<LogTableHandle, Props>(function LogTable({ rows, selected, onSelect, onMove, fileById, hl, emptyHint }, ref) {
+export const LogTable = forwardRef<LogTableHandle, Props>(function LogTable({ rows, selected, onSelect, onMove, fileById, hl, emptyHint, scrollKey }, ref) {
   const scroller = useRef<HTMLDivElement>(null);
   useImperativeHandle(ref, () => ({ focus: () => scroller.current?.focus() }), []);
   const display = useLogDisplay();
@@ -140,12 +142,17 @@ export const LogTable = forwardRef<LogTableHandle, Props>(function LogTable({ ro
 
   useEffect(() => {
     scroller.current?.scrollTo({ top: 0 });
-  }, [rows]);
+  }, [scrollKey]);
 
   const selIdx = selected ? rows.indexOf(selected) : -1;
+  const selIdxRef = useRef(selIdx);
+  selIdxRef.current = selIdx;
+  // Follow the selection only when the user picks another line or changes the search —
+  // not when a watched file is re-read (the same line comes back as a new object).
+  const selKey = selected ? `${selected.f}:${selected.ln}` : '';
   useEffect(() => {
-    if (selIdx >= 0) v.scrollToIndex(selIdx, { align: 'auto' });
-  }, [selIdx, v]);
+    if (selIdxRef.current >= 0) v.scrollToIndex(selIdxRef.current, { align: 'auto' });
+  }, [selKey, scrollKey, v]);
 
   return (
     <section className="flex min-h-0 min-w-0 flex-col bg-surface" aria-label="Danh sách log">

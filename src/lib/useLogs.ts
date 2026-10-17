@@ -50,6 +50,8 @@ export function useLogs(onError: (msg: string) => void) {
   const [loading, setLoading] = useState<LoadingState | null>(null);
   const nextId = useRef(0);
 
+  const filesRef = useRef(files);
+  filesRef.current = files;
   const queue = useRef<Promise<void>>(Promise.resolve());
   const warnedStore = useRef(false);
   const storeFailed = useCallback(
@@ -97,6 +99,51 @@ export function useLogs(onError: (msg: string) => void) {
     [onError, storeFailed],
   );
 
+  /** Load files that live in a connected folder: not copied to IndexedDB, keyed "folder:<name>". */
+  const addExternal = useCallback(
+    (items: { key: string; name: string; blob: Blob }[]) => {
+      const fresh = items.filter((it) => it.blob.size > 0 && !filesRef.current.some((f) => f.storeId === it.key));
+      if (!fresh.length) return queue.current;
+      return load(
+        fresh.map((it, i) => ({ blob: it.blob, name: it.name, storeId: it.key, on: true, addedAt: Date.now() + i, persist: false })),
+        false,
+      );
+    },
+    [load],
+  );
+
+  /** Re-parse a loaded file in the background (it changed on disk); keeps its id, colour and visibility. */
+  const replaceFile = useCallback(
+    (key: string, blob: Blob) => {
+      queue.current = queue.current.then(async () => {
+        const f = filesRef.current.find((x) => x.storeId === key);
+        if (!f) return;
+        try {
+          const r = await parseInWorker(blob, f.name, f.id, () => {});
+          setFiles((fs) =>
+            fs.map((x) =>
+              x.storeId === key
+                ? {
+                    ...x,
+                    size: blob.size,
+                    format: r.format,
+                    note: r.note,
+                    lines: r.lines,
+                    entries: r.entries,
+                    traced: r.entries.reduce((n, e) => n + (e.trace ? 1 : 0), 0),
+                    rev: (x.rev ?? 0) + 1,
+                  }
+                : x,
+            ),
+          );
+        } catch (err) {
+          onError(`Không đọc lại được ${f.name}: ${(err as Error).message}`);
+        }
+      });
+    },
+    [onError],
+  );
+
   const addFiles = useCallback(
     (input: File[]) =>
       load(
@@ -124,19 +171,19 @@ export function useLogs(onError: (msg: string) => void) {
       .finally(() => setReady(true));
   }, [load]);
 
-  const filesRef = useRef(files);
-  filesRef.current = files;
   const storeIdOf = (id: number) => filesRef.current.find((f) => f.id === id)?.storeId;
 
   const removeFile = useCallback((id: number) => {
     const sid = storeIdOf(id);
-    if (sid) deleteStored(sid).catch(() => {});
+    if (sid && !sid.startsWith('folder:')) deleteStored(sid).catch(() => {});
     setFiles((fs) => fs.filter((f) => f.id !== id));
   }, []);
 
+  const removeByKey = useCallback((key: string) => setFiles((fs) => fs.filter((f) => f.storeId !== key)), []);
+
   const toggleFile = useCallback((id: number) => {
     const f = filesRef.current.find((x) => x.id === id);
-    if (f) setStoredOn(f.storeId, !f.on).catch(() => {});
+    if (f && !f.storeId.startsWith('folder:')) setStoredOn(f.storeId, !f.on).catch(() => {});
     setFiles((fs) => fs.map((x) => (x.id === id ? { ...x, on: !x.on } : x)));
   }, []);
 
@@ -146,7 +193,7 @@ export function useLogs(onError: (msg: string) => void) {
   }, []);
 
   // Only re-merge when the set of files changes, not when one is toggled on/off.
-  const idsKey = files.map((f) => f.id).join(',');
+  const idsKey = files.map((f) => `${f.id}.${f.rev ?? 0}`).join(',');
   const { entries, traceIndex, byId } = useMemo(() => {
     const all: LogEntry[] = [];
     const byId = new Map<number, LogFile>();
@@ -173,5 +220,5 @@ export function useLogs(onError: (msg: string) => void) {
     return m;
   }, [byId, files]);
 
-  return { ready, files, fileById, entries, traceIndex, loading, addFiles, removeFile, toggleFile, clearFiles };
+  return { ready, files, fileById, entries, traceIndex, loading, addFiles, addExternal, replaceFile, removeFile, removeByKey, toggleFile, clearFiles };
 }
