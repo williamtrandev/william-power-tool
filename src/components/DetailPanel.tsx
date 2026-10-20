@@ -10,6 +10,7 @@ import {
   GitBranch,
   Layers,
   ListTree,
+  Loader2,
   Maximize2,
   Minimize2,
   MousePointerClick,
@@ -19,7 +20,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { decode, embeddedJson, scoreOf, type Reason } from '../lib/parser';
-import { fullText } from '../lib/search';
+import { decodedText, useRaw } from '../lib/rawCache';
 import { setViewPrefs, useViewPrefs, type ViewPrefs } from '../lib/useViewPrefs';
 import { SUS_MIN, type LogEntry, type LogFile } from '../lib/types';
 import { fmtDuration, fmtFull, fmtTime, nf, shortName } from '../lib/format';
@@ -132,24 +133,28 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
   const setFold = (f: (w: boolean) => boolean) => setViewPrefs({ fold: f(fold) });
   const [expand, setExpand] = useState<{ mode: ExpandMode; gen: number }>({ mode: 'auto', gen: 0 });
   const [copied, setCopied] = useState(false);
+  // entry text is read from the file on demand (null while loading)
+  const rawOrNull = useRaw(e);
+  const loadingText = rawOrNull == null;
+  const raw = rawOrNull ?? '';
   const reasons = useMemo(() => {
     const r: Reason[] = [];
-    scoreOf(e.level, decode(e.raw.slice(e.head)).toLowerCase(), r);
+    scoreOf(e.level, decode(raw.slice(e.head)).toLowerCase(), r);
     return r;
-  }, [e]);
-  const json = useMemo(() => (e.raw.length < 2_000_000 ? embeddedJson(e.raw.slice(e.head)) : null), [e]);
-  const v: View = view === 'json' && !json ? 'text' : view;
+  }, [e, raw]);
+  const json = useMemo(() => (raw.length < 2_000_000 ? embeddedJson(raw.slice(e.head)) : null), [e, raw]);
+  const v: View = view === 'json' && !json && !loadingText ? 'text' : view;
   const text = useMemo(() => {
-    const t = v === 'raw' ? e.raw : fullText(e);
+    const t = v === 'raw' ? raw : decodedText(raw, e.head);
     return t.length > MAX_RENDER ? t.slice(0, MAX_RENDER) : t;
-  }, [e, v]);
-  const truncated = (v === 'raw' ? e.raw.length : text.length) >= MAX_RENDER;
+  }, [e, v, raw]);
+  const truncated = (v === 'raw' ? raw.length : text.length) >= MAX_RENDER;
   const hasFrames = useMemo(() => HAS_FRAME.test(text), [text]);
   const sus = e.score >= SUS_MIN;
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(v === 'json' && json ? JSON.stringify(json, null, 2) : e.raw);
+      await navigator.clipboard.writeText(v === 'json' && json ? JSON.stringify(json, null, 2) : raw);
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
     } catch {
@@ -293,7 +298,11 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
           </div>
         </div>
         <div className="overflow-x-auto bg-surface px-2 py-2.5">
-          {v === 'json' && json ? (
+          {loadingText ? (
+            <div className="flex items-center gap-2 px-1 py-3 text-[12.5px] text-muted">
+              <Loader2 size={15} className="animate-spin" /> Đang đọc nội dung từ file…
+            </div>
+          ) : v === 'json' && json ? (
             <JsonTree key={`${e.f}:${e.k}:${expand.gen}`} value={json} mode={expand.mode} hl={p.hl} collapse={collapse} />
           ) : (
             <ContentViewer key={`${e.f}:${e.k}:${v}`} text={text} hl={p.hl} onId={p.onFilterTrace} wrap={wrap} fold={fold && v === 'text'} collapse={collapse} />

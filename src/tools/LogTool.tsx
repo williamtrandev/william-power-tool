@@ -15,6 +15,7 @@ import { fmtBytes } from '../lib/format';
 import { groupSuspicious, parseQuery, runSearch, sigOf } from '../lib/search';
 import { SUS_MIN, type Level, type LogEntry } from '../lib/types';
 import { useLogs } from '../lib/useLogs';
+import { loadRaws } from '../lib/rawCache';
 import { useLogDisplay } from '../lib/useLogDisplay';
 import { usePanelWidth } from '../lib/usePanelWidth';
 
@@ -30,7 +31,16 @@ export function LogTool({ active, onToast: showToast }: Props) {
   const display = useLogDisplay();
 
   const [query, setQuery] = useState('');
-  const deferredQuery = useDeferredValue(query);
+  // With hundreds of thousands of entries a search pass takes a few hundred ms —
+  // wait for a short pause in typing instead of re-running it on every keystroke.
+  const [typedQuery, setTypedQuery] = useState('');
+  const big = logs.entries.length > 50_000;
+  useEffect(() => {
+    if (!big) return setTypedQuery(query);
+    const t = setTimeout(() => setTypedQuery(query), 300);
+    return () => clearTimeout(t);
+  }, [query, big]);
+  const deferredQuery = useDeferredValue(typedQuery);
   const [regex, setRegex] = useState(false);
   const [suspiciousOnly, setSuspiciousOnly] = useState(false);
   const [sort, setSort] = useState<Sort>('asc');
@@ -100,13 +110,25 @@ export function LogTool({ active, onToast: showToast }: Props) {
     setSuspiciousOnly(false);
   }, []);
 
-  const exportResults = () => {
-    const txt = res.rows.map((e) => `### ${logs.fileById.get(e.f)?.name}:${e.ln}\n${e.raw}`).join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
-    a.download = 'ket-qua-log.log';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  const [exporting, setExporting] = useState(false);
+  const exportResults = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      // entry text lives in the files, read it back in batches
+      const rows = res.rows;
+      const texts = await loadRaws(rows);
+      const txt = rows.map((e, i) => `### ${logs.fileById.get(e.f)?.name}:${e.ln}\n${texts[i]}`).join('\n');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
+      a.download = 'ket-qua-log.log';
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (e) {
+      showToast('Không tạo được file kết quả: ' + (e as Error).message);
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Global shortcuts
@@ -233,7 +255,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
               sort={sort}
               onSort={setSort}
               onExport={exportResults}
-              canExport={res.rows.length > 0}
+              canExport={res.rows.length > 0 && !exporting}
             />
             <FilterBar
               levelCounts={res.levelCounts}

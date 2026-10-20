@@ -1,4 +1,5 @@
-import { decode, GUID_SRC, normLevel } from './parser';
+import { GUID_SRC, normLevel } from './parser';
+import { decodedText } from './rawCache';
 import { LEVELS, SUS_MIN, type Level, type LogEntry, type LogFile } from './types';
 
 type Term = { rx: RegExp } | { alts: string[] };
@@ -198,27 +199,31 @@ export function histogram(rows: LogEntry[], range: [number, number] | null, maxB
   return { start, step, all, bad };
 }
 
+/** Does the one-line summary already show a search hit? (then no snippet is needed) */
+export function sumHasHit(e: LogEntry, hl: RegExp | null): boolean {
+  if (!hl) return true;
+  hl.lastIndex = 0;
+  const r = hl.test(e.sum);
+  hl.lastIndex = 0;
+  return r;
+}
+
 const snipCache = new WeakMap<LogEntry, { q: RegExp; s: string }>();
-/** Short excerpt around the first hit, for rows whose summary doesn't contain it. */
-export function snippetOf(e: LogEntry, hl: RegExp | null): string {
-  if (!hl) return '';
+/** Short excerpt around the first hit in the entry text (read lazily from the file). */
+export function snippetOf(e: LogEntry, hl: RegExp | null, raw: string | null): string {
+  if (!hl || raw == null) return '';
   const c = snipCache.get(e);
   if (c && c.q === hl) return c.s;
+  const text = decodedText(raw, e.head);
+  hl.lastIndex = 0;
+  const m = hl.exec(text);
+  hl.lastIndex = 0;
   let s = '';
-  hl.lastIndex = 0;
-  if (!hl.test(e.sum)) {
-    const text = fullText(e);
-    hl.lastIndex = 0;
-    const m = hl.exec(text);
-    if (m) {
-      const a = Math.max(0, m.index - 24);
-      const b = Math.min(text.length, m.index + m[0].length + 100);
-      s = (a ? '…' : '') + text.slice(a, b).replace(/\s+/g, ' ') + (b < text.length ? '…' : '');
-    }
+  if (m) {
+    const a = Math.max(0, m.index - 24);
+    const b = Math.min(text.length, m.index + m[0].length + 100);
+    s = (a ? '…' : '') + text.slice(a, b).replace(/\s+/g, ' ') + (b < text.length ? '…' : '');
   }
-  hl.lastIndex = 0;
   snipCache.set(e, { q: hl, s });
   return s;
 }
-
-export const fullText = (e: LogEntry) => e.raw.slice(0, e.head) + decode(e.raw.slice(e.head));

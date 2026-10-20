@@ -2,7 +2,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import clsx from 'clsx';
 import { SearchX } from 'lucide-react';
 import { forwardRef, memo, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
-import { snippetOf } from '../lib/search';
+import { snippetOf, sumHasHit } from '../lib/search';
+import { useRaw } from '../lib/rawCache';
 import { SUS_MIN, type LogEntry, type LogFile } from '../lib/types';
 import { fmtDate, fmtTime } from '../lib/format';
 import { useLogDisplay, useMedia } from '../lib/useLogDisplay';
@@ -66,7 +67,10 @@ const Row = memo(function Row({
   cols: Cols;
   grid: string;
 }) {
-  const snip = snippetOf(e, hl);
+  // the summary may not contain the hit — then read the entry text (visible rows only) for an excerpt
+  const needsSnip = !sumHasHit(e, hl);
+  const raw = useRaw(needsSnip ? e : null);
+  const snip = needsSnip ? snippetOf(e, hl, raw) : '';
   return (
     <div
       role="row"

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ParseWorker from './parse.worker?worker&inline';
 import type { ParseMessage } from './parse.worker';
-import type { LogEntry, LogFile, ParseResult } from './types';
+import type { LogEntry, LogFile, ParseResult, ResumeFrom } from './types';
+import { syncBlobs } from './rawCache';
+import { inferTraces } from './parser';
 import { FILE_COLORS } from './format';
 import { clearStored, deleteStored, listStored, newStoreId, putStored, setStoredOn } from './fileStore';
 
@@ -25,23 +27,30 @@ interface Source {
   persist: boolean;
 }
 
-function parseInWorker(file: Blob, name: string, fileId: number, onProgress: (p: number) => void): Promise<ParseResult> {
+function parseInWorker(file: Blob, name: string, fileId: number, onProgress: (p: number) => void, from?: ResumeFrom): Promise<ParseResult> {
   return new Promise((resolve, reject) => {
     const w = new ParseWorker();
+    // entries arrive in batches while the worker parses (keeps peak memory ~1x the result)
+    const parts: LogEntry[][] = [];
     w.onmessage = (ev: MessageEvent<ParseMessage>) => {
       const m = ev.data;
       if (m.type === 'progress') onProgress(m.value);
+      else if (m.type === 'batch') parts.push(m.entries);
       else {
         w.terminate();
-        if (m.type === 'done') resolve(m.result);
-        else reject(new Error(m.message));
+        if (m.type === 'done') {
+          parts.push(m.result.entries);
+          const entries = parts.length === 1 ? parts[0] : parts.flat();
+          inferTraces(entries);
+          resolve({ ...m.result, entries });
+        } else reject(new Error(m.message));
       }
     };
     w.onerror = (e) => {
       w.terminate();
       reject(new Error(e.message));
     };
-    w.postMessage({ file, fileId, name });
+    w.postMessage({ file, fileId, name, from });
   });
 }
 
@@ -82,6 +91,8 @@ export function useLogs(onError: (msg: string) => void) {
               lines: r.lines,
               entries: r.entries,
               traced: r.entries.reduce((n, e) => n + (e.trace ? 1 : 0), 0),
+              blob: src.blob,
+              fmtId: r.fmtId,
               color: FILE_COLORS[id % FILE_COLORS.length],
               on: src.on,
               storeId: src.storeId,
@@ -112,25 +123,36 @@ export function useLogs(onError: (msg: string) => void) {
     [load],
   );
 
-  /** Re-parse a loaded file in the background (it changed on disk); keeps its id, colour and visibility. */
+  /**
+   * A loaded file changed on disk: re-read it in the background, keeping id, colour and visibility.
+   * When it only grew (log being appended), parse just the tail from its last entry onwards.
+   */
   const replaceFile = useCallback(
     (key: string, blob: Blob) => {
       queue.current = queue.current.then(async () => {
         const f = filesRef.current.find((x) => x.storeId === key);
         if (!f) return;
+        const last = f.entries[f.entries.length - 1];
+        const append = f.fmtId !== 'csv' && last && blob.size > f.size && last.text == null;
         try {
-          const r = await parseInWorker(blob, f.name, f.id, () => {});
+          const from: ResumeFrom | undefined = append
+            ? { byte: last.bs, k: last.k, ln: last.ln, lastTs: f.entries[f.entries.length - 2]?.ts ?? null, fmtId: f.fmtId }
+            : undefined;
+          const r = await parseInWorker(blob, f.name, f.id, () => {}, from);
+          const entries = append ? f.entries.slice(0, -1).concat(r.entries) : r.entries;
           setFiles((fs) =>
             fs.map((x) =>
               x.storeId === key
                 ? {
                     ...x,
+                    blob,
                     size: blob.size,
-                    format: r.format,
-                    note: r.note,
+                    format: append ? x.format : r.format,
+                    fmtId: append ? x.fmtId : r.fmtId,
+                    note: append ? x.note : r.note,
                     lines: r.lines,
-                    entries: r.entries,
-                    traced: r.entries.reduce((n, e) => n + (e.trace ? 1 : 0), 0),
+                    entries,
+                    traced: entries.reduce((n, e) => n + (e.trace ? 1 : 0), 0),
                     rev: (x.rev ?? 0) + 1,
                   }
                 : x,
@@ -193,6 +215,9 @@ export function useLogs(onError: (msg: string) => void) {
   }, []);
 
   // Only re-merge when the set of files changes, not when one is toggled on/off.
+  // entry text is sliced lazily from each file's Blob
+  syncBlobs(files);
+
   const idsKey = files.map((f) => `${f.id}.${f.rev ?? 0}`).join(',');
   const { entries, traceIndex, byId } = useMemo(() => {
     const all: LogEntry[] = [];
