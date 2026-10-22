@@ -16,7 +16,7 @@ interface Props {
 
 export function GroupsPanel({ groups, active, onPick, fileById, hl, className }: Props) {
   return (
-    <aside className={clsx('min-h-0 flex-col border-r border-line bg-surface', className)}>
+    <aside data-tour="groups" className={clsx('min-h-0 flex-col border-r border-line bg-surface', className)}>
       <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3">
         <h2 className="text-[11px] font-semibold tracking-wider text-muted uppercase">Nhóm lỗi</h2>
         <span className="text-[11px] text-faint tabular-nums">{groups.length}</span>

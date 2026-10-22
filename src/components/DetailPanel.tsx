@@ -63,7 +63,7 @@ export function DetailPanel(p: Props) {
   return (
     <section className={clsx('flex min-h-0 min-w-0 flex-col border-l border-line bg-surface', p.className)} aria-label="Chi tiết log">
       <div className="flex h-9 shrink-0 items-center gap-1 border-b border-line px-2">
-        <div role="tablist" className="flex items-center gap-0.5">
+        <div role="tablist" data-tour="detail-tabs" className="flex items-center gap-0.5">
           {tabs.map((t) => (
             <button
               key={t.id}
@@ -238,7 +238,7 @@ function DetailTabView(p: Props & { entry: LogEntry; traceCount: number }) {
       </div>
 
       <div className="overflow-hidden rounded-lg border border-line">
-        <div className="flex flex-wrap items-center gap-1.5 border-b border-line bg-surface-2 px-2 py-1.5">
+        <div data-tour="view-modes" className="flex flex-wrap items-center gap-1.5 border-b border-line bg-surface-2 px-2 py-1.5">
           <div role="tablist" aria-label="Chế độ xem" className="flex rounded-md border border-line bg-surface p-0.5">
             {views.map(([id, label]) => (
               <button

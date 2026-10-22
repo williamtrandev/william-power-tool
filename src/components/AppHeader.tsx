@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { KeyRound, Moon, ScrollText, Sun } from 'lucide-react';
+import { CircleHelp, KeyRound, Moon, ScrollText, Sun } from 'lucide-react';
 import { Button } from './ui';
 
 export type ToolId = 'log' | 'watane';
@@ -26,13 +26,14 @@ interface Props {
   onTool: (t: ToolId) => void;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  onHelp: () => void;
 }
 
-export function AppHeader({ tool, onTool, theme, onToggleTheme }: Props) {
+export function AppHeader({ tool, onTool, theme, onToggleTheme, onHelp }: Props) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-line bg-surface px-4">
       <Logo />
-      <nav aria-label="Công cụ" className="flex h-full items-stretch gap-1">
+      <nav data-tour="tool-tabs" aria-label="Công cụ" className="flex h-full items-stretch gap-1">
         {TOOLS.map(({ id, label, icon: Icon }) => (
           <a
             key={id}
@@ -53,7 +54,11 @@ export function AppHeader({ tool, onTool, theme, onToggleTheme }: Props) {
           </a>
         ))}
       </nav>
-      <Button variant="ghost" size="icon" className="ml-auto" aria-label="Đổi giao diện sáng/tối" onClick={onToggleTheme}>
+      <Button variant="ghost" size="sm" className="ml-auto" data-tour="help" onClick={onHelp} title="Hướng dẫn sử dụng từng bước">
+        <CircleHelp size={16} />
+        <span className="hidden sm:inline">Hướng dẫn</span>
+      </Button>
+      <Button variant="ghost" size="icon" aria-label="Đổi giao diện sáng/tối" onClick={onToggleTheme}>
         {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
       </Button>
     </header>

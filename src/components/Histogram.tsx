@@ -28,7 +28,7 @@ export function Histogram({ rows, range, onPick }: Props) {
   const h = useMemo(() => histogram(rows, range, maxBuckets), [rows, range, maxBuckets]);
 
   return (
-    <div ref={wrap} className="rounded-lg border border-line bg-surface px-3 pt-2 pb-1.5" onMouseLeave={() => setHover(null)}>
+    <div ref={wrap} data-tour="histogram" className="rounded-lg border border-line bg-surface px-3 pt-2 pb-1.5" onMouseLeave={() => setHover(null)}>
       {h && width > 0 ? renderBars() : <div style={{ height: H + 18 }} />}
     </div>
   );

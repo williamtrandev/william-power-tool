@@ -102,7 +102,7 @@ export function ScrollRail({ rows, pos, perView, selIdx, onPos }: Props) {
   const hoverRow = hoverIdx >= 0 ? rows[hoverIdx] : undefined;
 
   return (
-    <div className="flex h-full shrink-0 flex-col border-l border-line bg-surface-2/60" style={{ width: RAIL_W }}>
+    <div data-tour="scroll-rail" className="flex h-full shrink-0 flex-col border-l border-line bg-surface-2/60" style={{ width: RAIL_W }}>
       <button
         type="button"
         title="Lên đầu danh sách (Home)"

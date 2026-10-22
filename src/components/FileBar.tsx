@@ -41,7 +41,7 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll, 
   }, [confirm]);
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2">
-      <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+      <div data-tour="file-bar" className="flex min-w-0 flex-1 flex-wrap gap-1.5">
         {files.map((f) => (
           <div
             key={f.id}
@@ -85,13 +85,17 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll, 
           e.target.value = '';
         }}
       />
-      {folderSlot}
+      {folderSlot && (
+        <div data-tour="folder" className="flex">
+          {folderSlot}
+        </div>
+      )}
       {files.length > 0 && (
         <>
       <span className="hidden items-center gap-1 text-[11.5px] text-faint lg:inline-flex" title="File được lưu trong trình duyệt này (IndexedDB) và tự mở lại khi tải lại trang">
         <HardDriveDownload size={14} /> Đã lưu, reload không mất
       </span>
-      <div className="relative" ref={confirmRef}>
+      <div className="relative" ref={confirmRef} data-tour="clear-all">
         <Button
           size="sm"
           variant="ghost"
@@ -127,7 +131,7 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll, 
       </div>
         </>
       )}
-      <Button size="sm" onClick={() => input.current?.click()}>
+      <Button size="sm" data-tour="add-file" onClick={() => input.current?.click()}>
         <Plus size={15} />
         Thêm file
       </Button>

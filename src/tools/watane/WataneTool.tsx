@@ -14,14 +14,16 @@ function Segmented<T extends string>({
   onChange,
   items,
   label,
+  tour,
 }: {
   value: T;
   onChange: (v: T) => void;
   items: { id: T; label: string; icon: React.ReactNode }[];
   label: string;
+  tour?: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="inline-flex rounded-lg border border-line bg-surface p-0.5">
+    <div role="tablist" aria-label={label} data-tour={tour} className="inline-flex rounded-lg border border-line bg-surface p-0.5">
       {items.map((it) => (
         <button
           key={it.id}
@@ -73,6 +75,7 @@ export function WataneTool({ active, onToast }: { active: boolean; onToast: (m: 
         <div className="sticky top-0 z-20 -mx-4 flex flex-wrap items-center gap-2 bg-bg/90 px-4 py-2 backdrop-blur">
           <Segmented
             label="Nguồn dữ liệu"
+            tour="w-source"
             value={mode}
             onChange={setMode}
             items={[
@@ -82,6 +85,7 @@ export function WataneTool({ active, onToast }: { active: boolean; onToast: (m: 
           />
           <Segmented
             label="Chiều xử lý"
+            tour="w-direction"
             value={dir}
             onChange={setDir}
             items={[
@@ -89,7 +93,7 @@ export function WataneTool({ active, onToast }: { active: boolean; onToast: (m: 
               { id: 'encrypt', label: 'Mã hoá', icon: <Lock size={15} /> },
             ]}
           />
-          <label className={clsx('relative ml-auto inline-flex h-8 items-center', !store.keys.length && 'opacity-50')}>
+          <label data-tour="w-key-select" className={clsx('relative ml-auto inline-flex h-8 items-center', !store.keys.length && 'opacity-50')}>
             <KeyRound size={15} className={clsx('pointer-events-none absolute left-2.5', keyReady ? 'text-accent' : 'text-error')} />
             <select
               value={store.selected?.id ?? ''}
@@ -113,10 +117,10 @@ export function WataneTool({ active, onToast }: { active: boolean; onToast: (m: 
         </div>
 
         {/* keep both mounted so switching modes doesn't lose pasted text or the loaded file */}
-        <div className={clsx(mode !== 'paste' && 'hidden')}>
+        <div data-tour="w-paste" className={clsx(mode !== 'paste' && 'hidden')}>
           <PastePanel {...panelProps} />
         </div>
-        <div className={clsx(mode !== 'file' && 'hidden')}>
+        <div data-tour="w-file" className={clsx(mode !== 'file' && 'hidden')}>
           <FilePanel {...panelProps} />
         </div>
 

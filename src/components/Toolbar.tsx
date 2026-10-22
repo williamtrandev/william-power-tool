@@ -53,7 +53,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <div className="relative min-w-[240px] flex-1">
+      <div data-tour="search" className="relative min-w-[240px] flex-1">
         <Search size={17} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-faint" />
         <input
           ref={ref}
@@ -77,6 +77,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
         <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
           <button
             type="button"
+            data-tour="regex"
             aria-pressed={p.regex}
             onClick={() => p.onRegex(!p.regex)}
             title={p.regex ? 'Đang dùng regex — bấm để tìm theo chữ thường' : 'Bật regex: mỗi từ khoá là một biểu thức chính quy (vd: HTTP [45]\\d\\d)'}
@@ -108,7 +109,7 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
         )}
       </div>
 
-      <div className="relative" ref={helpRef}>
+      <div className="relative" ref={helpRef} data-tour="syntax-help">
         <Button variant="ghost" size="icon" aria-label="Cú pháp tìm kiếm" aria-expanded={help} onClick={() => setHelp((h) => !h)}>
           <HelpCircle size={18} />
         </Button>
@@ -171,8 +172,10 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
         )}
       </div>
 
-      <Switch checked={p.suspiciousOnly} onChange={p.onSuspicious} label="Chỉ khả nghi" icon={<ShieldAlert size={16} />} />
-      <label className="relative inline-flex h-8 items-center">
+      <span data-tour="suspicious" className="inline-flex">
+        <Switch checked={p.suspiciousOnly} onChange={p.onSuspicious} label="Chỉ khả nghi" icon={<ShieldAlert size={16} />} />
+      </span>
+      <label data-tour="sort" className="relative inline-flex h-8 items-center">
         <ArrowDownWideNarrow size={16} className="pointer-events-none absolute left-2.5 text-muted" />
         <select
           value={p.sort}
@@ -185,8 +188,10 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
           <option value="score">Khả nghi nhất</option>
         </select>
       </label>
-      <DisplayMenu />
-      <Button onClick={p.onExport} disabled={!p.canExport} title="Tải các dòng đang hiển thị về file .log">
+      <span data-tour="display" className="inline-flex">
+        <DisplayMenu />
+      </span>
+      <Button data-tour="export" onClick={p.onExport} disabled={!p.canExport} title="Tải các dòng đang hiển thị về file .log">
         <Download size={16} />
         <span className="hidden sm:inline">{p.exportProgress != null ? `Đang xuất ${Math.round(p.exportProgress * 100)}%` : 'Tải kết quả'}</span>
       </Button>

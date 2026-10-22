@@ -1,4 +1,4 @@
-import { FileUp, GitBranch, Lock, Search, ShieldAlert } from 'lucide-react';
+import { FileUp, FlaskConical, GitBranch, Lock, Search, ShieldAlert } from 'lucide-react';
 import { useRef } from 'react';
 
 const FORMATS = ['Laravel', '.NET [dd-MM-yyyy]', 'Serilog', 'ISO timestamp', 'JSON lines', 'CSV / TSV'];
@@ -9,13 +9,14 @@ const FEATURES = [
   { icon: GitBranch, title: 'Ghép theo trace', text: 'Tự lấy trace_id / request id, xem toàn bộ request xuyên nhiều file.' },
 ];
 
-export function DropZone({ onAdd, extra }: { onAdd: (files: File[]) => void; extra?: React.ReactNode }) {
+export function DropZone({ onAdd, extra, onSample }: { onAdd: (files: File[]) => void; extra?: React.ReactNode; onSample?: () => void }) {
   const input = useRef<HTMLInputElement>(null);
   return (
     <div className="grid flex-1 place-items-center overflow-auto px-4 py-10">
       <div className="w-full max-w-[640px] animate-in">
         <button
           type="button"
+          data-tour="dropzone"
           onClick={() => input.current?.click()}
           className="focus-ring group flex w-full flex-col items-center rounded-2xl border-2 border-dashed border-line-strong bg-surface px-6 py-14 text-center transition-colors hover:border-accent hover:bg-accent-soft/40"
         >
@@ -46,8 +47,20 @@ export function DropZone({ onAdd, extra }: { onAdd: (files: File[]) => void; ext
           }}
         />
         {extra && (
-          <div className="mt-3 flex items-center justify-center gap-2 text-[12.5px] text-muted">
+          <div data-tour="folder-connect" className="mt-3 flex items-center justify-center gap-2 text-[12.5px] text-muted">
             hoặc {extra} <span className="hidden sm:inline">để tự mở file log mới được copy vào</span>
+          </div>
+        )}
+        {onSample && (
+          <div className="mt-2 flex justify-center">
+            <button
+              type="button"
+              data-tour="sample"
+              onClick={onSample}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12.5px] font-medium text-accent hover:bg-accent-soft"
+            >
+              <FlaskConical size={15} /> Chưa có file? Dùng thử log mẫu
+            </button>
           </div>
         )}
         <ul className="mt-6 grid gap-4 sm:grid-cols-3">

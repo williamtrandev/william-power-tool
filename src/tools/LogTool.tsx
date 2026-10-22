@@ -16,6 +16,7 @@ import { groupSuspicious, parseQuery, runSearch, sigOf } from '../lib/search';
 import { SUS_MIN, type Level, type LogEntry } from '../lib/types';
 import { useLogs } from '../lib/useLogs';
 import { exportBlob } from '../lib/rawCache';
+import { sampleLogFiles } from '../lib/sampleLogs';
 import { setLogDisplay, useLogDisplay } from '../lib/useLogDisplay';
 import { usePanelWidth } from '../lib/usePanelWidth';
 
@@ -131,6 +132,15 @@ export function LogTool({ active, onToast: showToast }: Props) {
     }
   };
 
+  // the guided tour asks for demo data so it can show every feature
+  useEffect(() => {
+    const load = () => {
+      if (!logs.files.length) logs.addFiles(sampleLogFiles());
+    };
+    addEventListener('wpt:load-sample', load);
+    return () => removeEventListener('wpt:load-sample', load);
+  }, [logs]);
+
   // Global shortcuts
   useEffect(() => {
     if (!active) return;
@@ -238,7 +248,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
         logs.loading ? (
           <div className="flex-1" />
         ) : (
-          <DropZone onAdd={logs.addFiles} extra={!folder.connected && <FolderMenu folder={folder} />} />
+          <DropZone onAdd={logs.addFiles} extra={!folder.connected && <FolderMenu folder={folder} />} onSample={() => logs.addFiles(sampleLogFiles())} />
         )
       ) : (
         <>
@@ -303,6 +313,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
             />
             <div className="relative hidden min-h-0 min-w-0 md:flex">
               <div
+                data-tour="panel-resize"
                 role="separator"
                 aria-orientation="vertical"
                 aria-label="Kéo để đổi độ rộng panel chi tiết"

@@ -174,7 +174,7 @@ export function KeyManager({ keys, selectedId, onSelect, onAdd, onUpdate, onRemo
   const labels = (except?: string) => keys.filter((k) => k.id !== except).map((k) => k.label.trim().toLowerCase());
 
   return (
-    <section className="rounded-xl border border-line bg-surface p-4">
+    <section data-tour="w-keys" className="rounded-xl border border-line bg-surface p-4">
       <div className="mb-3 flex items-center gap-3">
         <h2 className="flex items-center gap-1.5 text-[13px] font-semibold">
           <KeyRound size={16} className="text-accent" /> Secret keys
@@ -182,7 +182,7 @@ export function KeyManager({ keys, selectedId, onSelect, onAdd, onUpdate, onRemo
         </h2>
         <span className="hidden text-[11.5px] text-faint sm:inline">AES · ECB · PKCS7 · Base64</span>
         {!adding && (
-          <Button size="sm" className="ml-auto" onClick={() => setAdding(true)}>
+          <Button data-tour="w-add-key" size="sm" className="ml-auto" onClick={() => setAdding(true)}>
             <Plus size={15} /> Thêm key
           </Button>
         )}

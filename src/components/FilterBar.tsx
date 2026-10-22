@@ -34,7 +34,7 @@ function ActiveChip({ icon, children, onClear, label }: { icon: React.ReactNode;
 export function FilterBar(p: Props) {
   const visible = LEVELS.filter((l) => p.levelCounts[l] || p.levels.has(l));
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div data-tour="filters" className="flex flex-wrap items-center gap-1.5">
       {visible.map((l) => {
         const on = p.levels.has(l);
         const n = p.levelCounts[l];

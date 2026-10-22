@@ -241,7 +241,7 @@ export const LogTable = forwardRef<LogTableHandle, Props>(function LogTable({ ro
   }
 
   return (
-    <section className="flex min-h-0 min-w-0 flex-col bg-surface" aria-label="Danh sách log">
+    <section data-tour="log-table" className="flex min-h-0 min-w-0 flex-col bg-surface" aria-label="Danh sách log">
       <div
         className="grid h-9 shrink-0 items-center gap-2.5 border-b border-line pr-3 text-[11px] font-semibold tracking-wider whitespace-nowrap text-muted uppercase"
         style={{ gridTemplateColumns: grid, marginRight: RAIL_W }}
