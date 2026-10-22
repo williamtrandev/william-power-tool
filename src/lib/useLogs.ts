@@ -54,6 +54,29 @@ function parseInWorker(file: Blob, name: string, fileId: number, onProgress: (p:
   });
 }
 
+const byTime = (a: LogEntry, b: LogEntry) => (a.ts ?? 0) - (b.ts ?? 0) || a.f - b.f || a.k - b.k;
+
+function isSorted(list: LogEntry[]): boolean {
+  for (let i = 1; i < list.length; i++) if (byTime(list[i - 1], list[i]) > 0) return false;
+  return true;
+}
+
+/** Merge per-file entry lists into one time-ordered list (sorting a file only if it is out of order). */
+function mergeByTime(lists: LogEntry[][]): LogEntry[] {
+  const parts = lists.filter((l) => l.length).map((l) => (isSorted(l) ? l : [...l].sort(byTime)));
+  if (parts.length <= 1) return parts[0] ? parts[0].slice() : [];
+  const out = new Array<LogEntry>(parts.reduce((n, p) => n + p.length, 0));
+  const idx = new Array<number>(parts.length).fill(0);
+  for (let o = 0; o < out.length; o++) {
+    let best = -1;
+    for (let p = 0; p < parts.length; p++) {
+      if (idx[p] < parts[p].length && (best < 0 || byTime(parts[p][idx[p]], parts[best][idx[best]]) < 0)) best = p;
+    }
+    out[o] = parts[best][idx[best]++];
+  }
+  return out;
+}
+
 export function useLogs(onError: (msg: string) => void) {
   const [files, setFiles] = useState<LogFile[]>([]);
   const [loading, setLoading] = useState<LoadingState | null>(null);
@@ -220,13 +243,11 @@ export function useLogs(onError: (msg: string) => void) {
 
   const idsKey = files.map((f) => `${f.id}.${f.rev ?? 0}`).join(',');
   const { entries, traceIndex, byId } = useMemo(() => {
-    const all: LogEntry[] = [];
     const byId = new Map<number, LogFile>();
-    for (const f of files) {
-      byId.set(f.id, f);
-      for (const e of f.entries) all.push(e);
-    }
-    all.sort((a, b) => (a.ts ?? 0) - (b.ts ?? 0) || a.f - b.f || a.k - b.k);
+    for (const f of files) byId.set(f.id, f);
+    // each file is (almost always) already in time order: k-way merge instead of re-sorting
+    // everything — matters when a watched multi-GB file grows every few seconds
+    const all = mergeByTime(files.map((f) => f.entries));
     const traceIndex = new Map<string, LogEntry[]>();
     for (const e of all)
       if (e.trace) {

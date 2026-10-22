@@ -18,6 +18,8 @@ interface Props {
   onSort: (s: Sort) => void;
   onExport: () => void;
   canExport: boolean;
+  /** 0..1 while an export is being written */
+  exportProgress?: number | null;
 }
 
 const SYNTAX: [string, string][] = [
@@ -178,15 +180,15 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
           aria-label="Sắp xếp"
           className="focus-ring h-8 cursor-pointer appearance-none rounded-md border border-line bg-surface pr-3 pl-8 text-[13px] font-medium text-fg-2 hover:border-line-strong"
         >
-          <option value="asc">Cũ → mới</option>
           <option value="desc">Mới → cũ</option>
+          <option value="asc">Cũ → mới</option>
           <option value="score">Khả nghi nhất</option>
         </select>
       </label>
       <DisplayMenu />
       <Button onClick={p.onExport} disabled={!p.canExport} title="Tải các dòng đang hiển thị về file .log">
         <Download size={16} />
-        <span className="hidden sm:inline">Tải kết quả</span>
+        <span className="hidden sm:inline">{p.exportProgress != null ? `Đang xuất ${Math.round(p.exportProgress * 100)}%` : 'Tải kết quả'}</span>
       </Button>
     </div>
   );

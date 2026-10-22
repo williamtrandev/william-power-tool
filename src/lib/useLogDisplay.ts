@@ -7,6 +7,8 @@ export interface LogDisplay {
   histogram: boolean;
   /** px size of log text (table, detail, JSON, timeline) */
   fontSize: number;
+  /** list order — newest first by default */
+  sort: 'asc' | 'desc' | 'score';
 }
 
 export const FONT_SIZES = [
@@ -22,6 +24,7 @@ const DEFAULTS: LogDisplay = {
   groups: true,
   histogram: true,
   fontSize: 12,
+  sort: 'desc',
 };
 
 let state: LogDisplay = DEFAULTS;

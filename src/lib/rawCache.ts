@@ -35,16 +35,20 @@ export async function loadRaw(e: LogEntry): Promise<string> {
   return t;
 }
 
-/** Load many entries' text (export), a few hundred reads in flight at a time. */
-export async function loadRaws(list: LogEntry[], onProgress?: (done: number) => void): Promise<string[]> {
-  const out = new Array<string>(list.length);
-  const BATCH = 256;
+/**
+ * Build an export of many entries without holding it all as one JS string: each batch of
+ * text becomes a small Blob (stored outside the JS heap) and the parts are joined at the end.
+ */
+export async function exportBlob(list: LogEntry[], header: (e: LogEntry) => string, onProgress?: (done: number) => void): Promise<Blob> {
+  const parts: Blob[] = [];
+  const BATCH = 512;
   for (let i = 0; i < list.length; i += BATCH) {
-    const part = await Promise.all(list.slice(i, i + BATCH).map((e) => (e.text != null ? e.text : readUncached(e))));
-    part.forEach((t, j) => (out[i + j] = t));
+    const slice = list.slice(i, i + BATCH);
+    const texts = await Promise.all(slice.map((e) => (e.text != null ? e.text : readUncached(e))));
+    parts.push(new Blob([slice.map((e, j) => `${header(e)}\n${texts[j]}\n`).join('')]));
     onProgress?.(Math.min(list.length, i + BATCH));
   }
-  return out;
+  return new Blob(parts, { type: 'text/plain' });
 }
 
 async function readUncached(e: LogEntry): Promise<string> {

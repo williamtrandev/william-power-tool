@@ -30,6 +30,9 @@ interface Api {
 
 const META_KEY = 'log-folder';
 const SCAN_MS = 3000;
+/** big watched files are re-read at most this often (each re-read touches the whole entry list) */
+const BIG_FILE = 50 * 1024 * 1024;
+const BIG_REREAD_MS = 10_000;
 /** .log/.txt/.csv… plus rotated names like app.log.1 or app.log.2026-10-08 */
 export const LOG_LIKE = /\.(log|txt|csv|tsv|json|jsonl|out)(\.[\w-]+)?$/i;
 export const folderKey = (name: string) => `folder:${name}`;
@@ -53,6 +56,7 @@ export function useFolder(api: Api, onToast: (m: string) => void) {
   const scanRef = useRef<() => void>(() => {});
   const seen = useRef<Map<string, Stat> | null>(null); // every file seen in the last scan (null = first scan pending)
   const loaded = useRef(new Map<string, Stat>()); // files opened in the Log tool, with the stat they were read at
+  const lastReread = useRef(new Map<string, number>());
   const selRef = useRef(selected);
   selRef.current = selected;
   const autoRef = useRef(autoOpen);
@@ -120,7 +124,11 @@ export function useFolder(api: Api, onToast: (m: string) => void) {
         const st = stats.get(name)!;
         const was = loaded.current.get(name);
         if (!was) toAdd.push({ key: folderKey(name), name, blob: blobs.get(name)! });
-        else if (was.size !== st.size || was.lastModified !== st.lastModified) replaceFile(folderKey(name), blobs.get(name)!);
+        else if (was.size !== st.size || was.lastModified !== st.lastModified) {
+          if (st.size > BIG_FILE && Date.now() - (lastReread.current.get(name) ?? 0) < BIG_REREAD_MS) continue; // try again next scan
+          replaceFile(folderKey(name), blobs.get(name)!);
+          lastReread.current.set(name, Date.now());
+        }
         loaded.current.set(name, st);
       }
       for (const name of [...loaded.current.keys()]) {

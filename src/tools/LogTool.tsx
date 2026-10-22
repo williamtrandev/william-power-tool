@@ -15,8 +15,8 @@ import { fmtBytes } from '../lib/format';
 import { groupSuspicious, parseQuery, runSearch, sigOf } from '../lib/search';
 import { SUS_MIN, type Level, type LogEntry } from '../lib/types';
 import { useLogs } from '../lib/useLogs';
-import { loadRaws } from '../lib/rawCache';
-import { useLogDisplay } from '../lib/useLogDisplay';
+import { exportBlob } from '../lib/rawCache';
+import { setLogDisplay, useLogDisplay } from '../lib/useLogDisplay';
 import { usePanelWidth } from '../lib/usePanelWidth';
 
 interface Props {
@@ -43,7 +43,8 @@ export function LogTool({ active, onToast: showToast }: Props) {
   const deferredQuery = useDeferredValue(typedQuery);
   const [regex, setRegex] = useState(false);
   const [suspiciousOnly, setSuspiciousOnly] = useState(false);
-  const [sort, setSort] = useState<Sort>('asc');
+  const sort: Sort = display.sort;
+  const setSort = (v: Sort) => setLogDisplay({ sort: v });
   const [levels, setLevels] = useState<Set<Level>>(new Set());
   const [timeRange, setTimeRange] = useState<[number, number] | null>(null);
   const [sig, setSig] = useState<string | null>(null);
@@ -110,24 +111,23 @@ export function LogTool({ active, onToast: showToast }: Props) {
     setSuspiciousOnly(false);
   }, []);
 
-  const [exporting, setExporting] = useState(false);
+  const [exporting, setExporting] = useState<number | null>(null);
   const exportResults = async () => {
-    if (exporting) return;
-    setExporting(true);
+    if (exporting != null) return;
+    const rows = res.rows;
+    setExporting(0);
     try {
-      // entry text lives in the files, read it back in batches
-      const rows = res.rows;
-      const texts = await loadRaws(rows);
-      const txt = rows.map((e, i) => `### ${logs.fileById.get(e.f)?.name}:${e.ln}\n${texts[i]}`).join('\n');
+      // entry text lives in the files: read it back in batches into a Blob (not one huge string)
+      const blob = await exportBlob(rows, (e) => `### ${logs.fileById.get(e.f)?.name}:${e.ln}`, (done) => setExporting(done / rows.length));
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob([txt], { type: 'text/plain' }));
+      a.href = URL.createObjectURL(blob);
       a.download = 'ket-qua-log.log';
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } catch (e) {
       showToast('Không tạo được file kết quả: ' + (e as Error).message);
     } finally {
-      setExporting(false);
+      setExporting(null);
     }
   };
 
@@ -255,7 +255,8 @@ export function LogTool({ active, onToast: showToast }: Props) {
               sort={sort}
               onSort={setSort}
               onExport={exportResults}
-              canExport={res.rows.length > 0 && !exporting}
+              canExport={res.rows.length > 0 && exporting == null}
+              exportProgress={exporting}
             />
             <FilterBar
               levelCounts={res.levelCounts}
@@ -313,9 +314,9 @@ export function LogTool({ active, onToast: showToast }: Props) {
                   else if (e.key === 'ArrowRight') panel.nudge(-24);
                 }}
                 title="Kéo để đổi độ rộng · nhấp đúp để về mặc định"
-                className="group focus-ring absolute inset-y-0 -left-1.5 z-10 w-3 cursor-col-resize"
+                className="group focus-ring absolute inset-y-0 left-0 z-10 w-2 cursor-col-resize"
               >
-                <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition-colors group-hover:w-0.5 group-hover:bg-accent group-active:bg-accent" />
+                <span className="absolute inset-y-0 left-0 w-px bg-transparent transition-colors group-hover:w-0.5 group-hover:bg-accent group-active:bg-accent" />
               </div>
               <DetailPanel {...detailProps} className="flex-1" onExpand={() => setExpanded(true)} />
             </div>
