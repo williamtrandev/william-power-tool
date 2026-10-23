@@ -10,6 +10,7 @@ import { LogTable, type LogTableHandle } from '../components/LogTable';
 import { Toolbar, type Sort } from '../components/Toolbar';
 import { FileBar } from '../components/FileBar';
 import { FolderMenu } from '../components/FolderMenu';
+import { JourneyPanel } from '../components/JourneyPanel';
 import { folderKey, useFolder } from '../lib/useFolder';
 import { fmtBytes } from '../lib/format';
 import { groupSuspicious, parseQuery, runSearch, sigOf } from '../lib/search';
@@ -53,6 +54,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
   const [tab, setTab] = useState<DetailTab>('detail');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  const [journey, setJourney] = useState(false);
   const panel = usePanelWidth();
   const [dragging, setDragging] = useState(false);
 
@@ -147,7 +149,10 @@ export function LogTool({ active, onToast: showToast }: Props) {
     const onKey = (e: KeyboardEvent) => {
       const el = document.activeElement as HTMLElement | null;
       const typing = !!el && /INPUT|TEXTAREA|SELECT/.test(el.tagName);
-      if (e.key === '/' && !typing) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        if (logs.files.length) setJourney(true);
+      } else if (e.key === '/' && !typing) {
         e.preventDefault();
         searchRef.current?.focus();
         searchRef.current?.select();
@@ -166,7 +171,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
-  }, [active, clearAll, move, sheetOpen, expanded]);
+  }, [active, clearAll, move, sheetOpen, expanded, logs.files.length]);
 
   // Drag & drop anywhere on the page
   useEffect(() => {
@@ -267,6 +272,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
               onExport={exportResults}
               canExport={res.rows.length > 0 && exporting == null}
               exportProgress={exporting}
+              onJourney={() => setJourney(true)}
             />
             <FilterBar
               levelCounts={res.levelCounts}
@@ -332,6 +338,24 @@ export function LogTool({ active, onToast: showToast }: Props) {
               <DetailPanel {...detailProps} className="flex-1" onExpand={() => setExpanded(true)} />
             </div>
           </main>
+
+          {journey && (
+            <JourneyPanel
+              entries={logs.entries}
+              traceIndex={logs.traceIndex}
+              fileById={logs.fileById}
+              timeRange={timeRange}
+              onToast={showToast}
+              onClose={() => setJourney(false)}
+              onOpenEntry={(e) => {
+                // show the line in the main list: drop filters that could hide it, then select it
+                setJourney(false);
+                clearAll();
+                setSelected(e);
+                setTab('detail');
+              }}
+            />
+          )}
 
           {expanded && selected && (
             <div className="fixed inset-0 z-40 hidden bg-black/45 p-4 backdrop-blur-[2px] md:flex lg:p-8" onClick={() => setExpanded(false)}>

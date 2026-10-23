@@ -108,6 +108,16 @@ export const LOG_STEPS: TourStep[] = [
     body: <>Bấm dấu <b>?</b> để xem bảng cú pháp và ví dụ — bấm vào ví dụ là điền sẵn vào ô tìm.</>,
   },
   {
+    target: 'journey',
+    title: 'Tra cứu hành trình',
+    body: (
+      <>
+        Dán SĐT, email, mã merchant, mã đơn… để xem khách đó đã làm gì: từng request theo thời gian, xuyên gateway / core, bước nào lỗi và lỗi gì. Có nút copy tóm
+        tắt để trả lời khách hoặc dán vào ticket. Phím tắt <kbd>Ctrl</kbd>/<kbd>⌘</kbd> + <kbd>K</kbd>.
+      </>
+    ),
+  },
+  {
     target: 'suspicious',
     title: 'Chỉ xem dòng khả nghi',
     body: <>Bật để ẩn log bình thường, chỉ giữ dòng có dấu hiệu lỗi: level ERROR/WARN, exception, timeout, success:false, HTTP 4xx/5xx…</>,

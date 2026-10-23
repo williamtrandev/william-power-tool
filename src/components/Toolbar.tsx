@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { ArrowDownWideNarrow, Download, HelpCircle, Regex, Search, ShieldAlert, X } from 'lucide-react';
+import { ArrowDownWideNarrow, Download, HelpCircle, Regex, Route, Search, ShieldAlert, X } from 'lucide-react';
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { DisplayMenu } from './DisplayMenu';
 import { Button, Kbd, Switch } from './ui';
@@ -20,6 +20,7 @@ interface Props {
   canExport: boolean;
   /** 0..1 while an export is being written */
   exportProgress?: number | null;
+  onJourney: () => void;
 }
 
 const SYNTAX: [string, string][] = [
@@ -173,7 +174,11 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
       </div>
 
       <span data-tour="suspicious" className="inline-flex">
-        <Switch checked={p.suspiciousOnly} onChange={p.onSuspicious} label="Chỉ khả nghi" icon={<ShieldAlert size={16} />} />
+        <Button data-tour="journey" onClick={p.onJourney} title="Tra cứu hành trình theo SĐT, email, mã merchant, mã đơn… (Ctrl/⌘ + K)">
+        <Route size={16} />
+        <span className="hidden sm:inline">Hành trình</span>
+      </Button>
+      <Switch checked={p.suspiciousOnly} onChange={p.onSuspicious} label="Chỉ khả nghi" icon={<ShieldAlert size={16} />} />
       </span>
       <label data-tour="sort" className="relative inline-flex h-8 items-center">
         <ArrowDownWideNarrow size={16} className="pointer-events-none absolute left-2.5 text-muted" />
