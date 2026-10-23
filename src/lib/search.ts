@@ -161,44 +161,6 @@ export function groupSuspicious(rows: LogEntry[], limit = 80): Group[] {
     .slice(0, limit);
 }
 
-const STEPS = [1, 5, 10, 30, 60, 300, 600, 1800, 3600, 10800, 21600, 43200, 86400, 604800].map((s) => s * 1000);
-
-export interface Histogram {
-  start: number;
-  step: number;
-  all: number[];
-  bad: number[];
-}
-
-export function histogram(rows: LogEntry[], range: [number, number] | null, maxBuckets: number): Histogram | null {
-  let t0 = Infinity;
-  let t1 = -Infinity;
-  for (const e of rows)
-    if (e.ts != null) {
-      if (e.ts < t0) t0 = e.ts;
-      if (e.ts > t1) t1 = e.ts;
-    }
-  if (range) {
-    t0 = range[0];
-    t1 = range[1] - 1;
-  }
-  if (!isFinite(t0)) return null;
-  const step = STEPS.find((s) => (t1 - t0) / s < maxBuckets) ?? STEPS[STEPS.length - 1];
-  const start = Math.floor(t0 / step) * step;
-  const nb = Math.floor((t1 - start) / step) + 1;
-  const all = new Array<number>(nb).fill(0);
-  const bad = new Array<number>(nb).fill(0);
-  for (const e of rows)
-    if (e.ts != null) {
-      const b = Math.floor((e.ts - start) / step);
-      if (b >= 0 && b < nb) {
-        all[b]++;
-        if (e.score >= SUS_MIN) bad[b]++;
-      }
-    }
-  return { start, step, all, bad };
-}
-
 /** Does the one-line summary already show a search hit? (then no snippet is needed) */
 export function sumHasHit(e: LogEntry, hl: RegExp | null): boolean {
   if (!hl) return true;

@@ -295,7 +295,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
               shown={res.rows.length}
               suspicious={res.suspicious}
             />
-            {display.histogram && <Histogram rows={res.rows} range={timeRange} onPick={setTimeRange} />}
+            {display.histogram && <Histogram rows={res.rows} range={timeRange} onPick={setTimeRange} onClear={() => setTimeRange(null)} />}
           </div>
 
           <main
