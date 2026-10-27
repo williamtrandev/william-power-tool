@@ -305,7 +305,7 @@ export const COMMAND_STEPS: TourStep[] = [
   {
     target: 'c-kind',
     title: 'Lọc theo loại và nhóm',
-    body: <>Chọn Server, SQL hoặc Ghi chú. Hàng bên dưới lọc theo nhóm; “Của tôi” chỉ hiện mục bạn tạo.</>,
+    body: <>Chọn Server, SQL hoặc Ghi chú. Hàng bên dưới lọc theo nhóm; “Của tôi” chỉ hiện mục bạn tạo, “Riêng tư” chỉ hiện mục chỉ mình bạn thấy.</>,
   },
   {
     target: 'c-list',
@@ -345,7 +345,7 @@ export const COMMAND_STEPS: TourStep[] = [
     placement: 'left',
     body: (
       <>
-        Bấm <b>Thêm mới</b>, chọn loại Server / SQL / Ghi chú. Nút <b>Nhập / Xuất</b> bên cạnh để tải toàn bộ kho về file JSON (sao lưu) hoặc nhập hàng loạt từ file.
+        Bấm <b>Thêm mới</b>, chọn loại Server / SQL / Ghi chú, và chọn <b>Cả team</b> hay <b>Chỉ mình tôi</b> (riêng tư — người khác, kể cả admin, không thấy). Muốn sửa lệnh của người khác cho hợp với mình? Bấm <b>Nhân bản</b> trên lệnh đó để có bản sao của riêng bạn. Nút <b>Nhập / Xuất</b> bên cạnh để tải toàn bộ kho về file JSON (sao lưu) hoặc nhập hàng loạt từ file.
       </>
     ),
   },

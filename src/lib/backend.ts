@@ -76,6 +76,8 @@ function friendly(e: { message?: string; code?: string } | null | undefined): Er
   if (/signups? not allowed|signup is disabled/i.test(m)) return new Error('Supabase đang tắt đăng ký người dùng mới — admin cần bật “Allow new users to sign up”');
   if (/provider is not enabled|unsupported provider/i.test(m)) return new Error('Đăng nhập Google chưa được bật — admin cần cấu hình Google trong Supabase');
   if (/rate limit/i.test(m)) return new Error('Thao tác quá nhiều lần, thử lại sau ít phút');
+  if (/is_private|could not find the .* column/i.test(m)) return new Error('Database chưa cập nhật — admin cần chạy lại supabase/setup.sql');
+  if (/only the owner can make a command private/i.test(m)) return new Error('Chỉ người tạo mới đặt lệnh thành riêng tư được');
   if (/relation .* does not exist|could not find the (table|function)|schema cache/i.test(m)) return new Error('Database chưa được cài — admin cần chạy supabase/setup.sql');
   if (/row-level security|permission denied|not allowed/i.test(m) || e?.code === '42501') return new Error('Bạn không có quyền thực hiện thao tác này');
   if (/cannot change your own account/i.test(m)) return new Error('Không thể tự đổi quyền của chính mình');
@@ -203,7 +205,7 @@ function demoBackend(): Backend {
       members: [m('admin@demo', 'Admin Demo', 'approved', 'admin'), m('qc@demo', 'Lan QC', 'approved', 'member'), m('newbie@demo', 'Minh Newbie', 'pending', 'member')],
       commands: SAMPLE_COMMANDS.map((c, i) => {
         const by = i % 3 === 2 ? 'qc@demo' : 'admin@demo';
-        return { ...c, id: id(), uses: [12, 9, 6, 4, 1, 15, 7, 2][i] ?? 0, owner_id: by, created_by: by, updated_by: by, created_at: t, updated_at: t };
+        return { ...c, is_private: false, id: id(), uses: [12, 9, 6, 4, 1, 15, 7, 2][i] ?? 0, owner_id: by, created_by: by, updated_by: by, created_at: t, updated_at: t };
       }),
       history: [],
     };
@@ -225,7 +227,8 @@ function demoBackend(): Backend {
   const deny = () => new Error('Bạn không có quyền thực hiện thao tác này');
   const log = (s: Store, c: Command, action: HistoryRow['action']) =>
     s.history.unshift({ id: Date.now() + Math.random(), command_id: c.id, action, data: c, changed_by: sessionEmail(), changed_at: now() });
-  const own = (s: Store, c: Command) => admin(s) || (member(s) && c.owner_id === sessionEmail());
+  const visible = (c: Command) => !c.is_private || c.owner_id === sessionEmail();
+  const own = (s: Store, c: Command) => member(s) && (c.owner_id === sessionEmail() || (admin(s) && !c.is_private));
 
   return {
     mode: 'demo',
@@ -272,13 +275,13 @@ function demoBackend(): Backend {
     },
     async list() {
       const s = read();
-      return member(s) ? s.commands.sort((a, b) => b.uses - a.uses) : [];
+      return member(s) ? s.commands.filter(visible).sort((a, b) => b.uses - a.uses) : [];
     },
     async create(input) {
       const s = read();
       if (!member(s)) throw deny();
       const me = sessionEmail();
-      const c: Command = { ...input, id: id(), uses: 0, owner_id: me, created_by: me, updated_by: me, created_at: now(), updated_at: now() };
+      const c: Command = { ...input, is_private: !!input.is_private, id: id(), uses: 0, owner_id: me, created_by: me, updated_by: me, created_at: now(), updated_at: now() };
       s.commands.push(c);
       log(s, c, 'insert');
       write(s);
@@ -288,6 +291,7 @@ function demoBackend(): Backend {
       const s = read();
       const i = s.commands.findIndex((c) => c.id === cid);
       if (i < 0 || !own(s, s.commands[i])) throw new Error('Bạn chỉ sửa được lệnh do mình tạo');
+      if (input.is_private && !s.commands[i].is_private && s.commands[i].owner_id !== sessionEmail()) throw new Error('Chỉ người tạo mới đặt lệnh thành riêng tư được');
       log(s, s.commands[i], 'update');
       s.commands[i] = { ...s.commands[i], ...input, updated_by: sessionEmail(), updated_at: now() };
       write(s);
@@ -309,7 +313,7 @@ function demoBackend(): Backend {
     },
     async history(cid) {
       const s = read();
-      return member(s) ? s.history.filter((h) => h.command_id === cid) : [];
+      return member(s) ? s.history.filter((h) => h.command_id === cid && visible(h.data)) : [];
     },
   };
 }

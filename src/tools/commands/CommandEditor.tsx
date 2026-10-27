@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Braces, Database, Info, Loader2, RotateCcw, SquareTerminal, StickyNote, TriangleAlert, X } from 'lucide-react';
+import { Braces, Database, Info, Loader2, Lock, RotateCcw, SquareTerminal, StickyNote, TriangleAlert, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Kbd, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
@@ -60,20 +60,28 @@ function Prop({ label, children, className }: { label: string; children: ReactNo
 }
 
 interface EditorProps {
+  /** the command being edited; null when creating */
   initial: Command | null;
+  /** when creating: start from a copy of this command */
+  template?: Command;
   categories: string[];
   tagSuggestions: string[];
+  /** only the owner (or whoever creates it) may change who can see a command */
+  canPrivate: boolean;
   onSave: (input: CommandInput) => Promise<void>;
   onClose: () => void;
 }
 
-export function CommandEditor({ initial, categories, tagSuggestions, onSave, onClose }: EditorProps) {
-  const [title, setTitle] = useState(initial?.title ?? '');
-  const [kind, setKind] = useState(initial?.kind ?? 'shell');
-  const [category, setCategory] = useState(initial?.category ?? '');
-  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
-  const [description, setDescription] = useState(initial?.description ?? '');
-  const [body, setBody] = useState(initial?.body ?? '');
+export function CommandEditor({ initial, template, categories, tagSuggestions, canPrivate, onSave, onClose }: EditorProps) {
+  const from = initial ?? template;
+  const [title, setTitle] = useState(initial?.title ?? (template ? `${template.title} (bản sao)` : ''));
+  const [kind, setKind] = useState(from?.kind ?? 'shell');
+  const [category, setCategory] = useState(from?.category ?? '');
+  const [tags, setTags] = useState<string[]>(from?.tags ?? []);
+  const [description, setDescription] = useState(from?.description ?? '');
+  const [body, setBody] = useState(from?.body ?? '');
+  // a copy keeps the original's visibility; a copy of a shared command stays shared until you change it
+  const [isPrivate, setIsPrivate] = useState(from?.is_private ?? false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -96,6 +104,7 @@ export function CommandEditor({ initial, categories, tagSuggestions, onSave, onC
         tags,
         description: description.trim(),
         body: body.replace(/\s+$/, ''),
+        is_private: isPrivate,
       });
       onClose();
     } catch (e) {
@@ -121,7 +130,7 @@ export function CommandEditor({ initial, categories, tagSuggestions, onSave, onC
   return (
     <Modal
       wide
-      title={initial ? (note ? 'Sửa ghi chú' : 'Sửa lệnh') : 'Thêm mới'}
+      title={initial ? (note ? 'Sửa ghi chú' : 'Sửa lệnh') : template ? `Nhân bản từ “${template.title}”` : 'Thêm mới'}
       onClose={onClose}
       footer={
         <>
@@ -204,6 +213,26 @@ export function CommandEditor({ initial, categories, tagSuggestions, onSave, onC
           <Prop label="Tag" className="sm:col-span-2">
             <TagInput tags={tags} onChange={setTags} suggestions={tagSuggestions} />
           </Prop>
+          <Prop label="Ai thấy được" className="sm:col-span-2">
+            {canPrivate ? (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <Segmented
+                  label="Ai thấy được"
+                  value={isPrivate ? 'private' : 'shared'}
+                  onChange={(v) => setIsPrivate(v === 'private')}
+                  items={[
+                    { id: 'shared', label: 'Cả team', icon: <Users size={15} /> },
+                    { id: 'private', label: 'Chỉ mình tôi', icon: <Lock size={15} /> },
+                  ]}
+                />
+                <span className="text-[12px] text-muted">
+                  {isPrivate ? 'Riêng tư: thành viên khác và cả admin đều không thấy, không tìm được.' : 'Mọi thành viên đã duyệt đều thấy và copy được.'}
+                </span>
+              </div>
+            ) : (
+              <p className="text-[12.5px] text-muted">Dùng chung cho cả team — chỉ người tạo mới đổi được chế độ hiển thị.</p>
+            )}
+          </Prop>
         </div>
 
         {/* code editor */}
@@ -275,7 +304,9 @@ export function CommandEditor({ initial, categories, tagSuggestions, onSave, onC
         {note && (
           <p className="flex items-start gap-2 rounded-lg bg-warn/10 px-3 py-2.5 text-[12.5px] text-warn">
             <Info size={15} className="mt-px shrink-0" />
-            Ghi chú hiển thị cho mọi thành viên đã được duyệt. Chỉ lưu tài khoản test / UAT — không lưu mật khẩu production, hãy dùng trình quản lý mật khẩu cho những thứ đó.
+            {isPrivate
+              ? 'Ghi chú riêng tư chỉ bạn thấy trong app, nhưng vẫn lưu dạng chữ thường trên Supabase. Không lưu mật khẩu production — hãy dùng trình quản lý mật khẩu.'
+              : 'Ghi chú hiển thị cho mọi thành viên đã được duyệt. Chỉ lưu tài khoản test / UAT — không lưu mật khẩu production, hãy dùng trình quản lý mật khẩu cho những thứ đó.'}
           </p>
         )}
 

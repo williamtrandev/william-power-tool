@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Check, Copy, Database, Eye, EyeOff, History, Pencil, SquareTerminal, StickyNote, Trash2, TriangleAlert } from 'lucide-react';
+import { Check, Copy, CopyPlus, Database, Eye, EyeOff, History, Lock, Pencil, SquareTerminal, StickyNote, Trash2, TriangleAlert } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { Button } from '../../components/ui';
 import { commandVars, dangerOf, fillCommand, parseNote, tokenize, URL_RE, type Command, type CommandKind, type Tok } from '../../lib/commands';
@@ -146,10 +146,12 @@ interface Props {
   onEdit: (cmd: Command) => void;
   onDelete: (cmd: Command) => void;
   onHistory: (cmd: Command) => void;
+  /** open the editor pre-filled with a copy of this command */
+  onClone: (cmd: Command) => void;
   onTag: (tag: string) => void;
 }
 
-export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onValue, onCopy, onEdit, onDelete, onHistory, onTag }: Props) {
+export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onValue, onCopy, onEdit, onDelete, onHistory, onClone, onTag }: Props) {
   const note = cmd.kind === 'note';
   const vars = useMemo(() => (note ? [] : commandVars(cmd.body)), [note, cmd.body]);
   const danger = useMemo(() => dangerOf(cmd), [cmd]);
@@ -167,6 +169,11 @@ export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onV
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <KindBadge kind={cmd.kind} />
+            {cmd.is_private && (
+              <span className="inline-flex h-5 items-center gap-1 rounded bg-surface-3 px-1.5 text-[11px] font-semibold text-fg-2" title="Chỉ mình bạn thấy — thành viên khác và admin đều không thấy">
+                <Lock size={11} /> Riêng tư
+              </span>
+            )}
             {danger && (
               <span className="inline-flex h-5 items-center gap-1 rounded bg-error/12 px-1.5 text-[11px] font-semibold text-error" title="Lệnh này thay đổi dữ liệu hoặc hệ thống — đọc kỹ trước khi chạy">
                 <TriangleAlert size={12} /> {danger}
@@ -177,6 +184,9 @@ export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onV
           {cmd.description && <p className="mt-1 text-[12.5px] whitespace-pre-line text-muted">{cmd.description}</p>}
         </div>
         <div className="-mt-0.5 -mr-1 flex shrink-0 items-center">
+          <Button variant="ghost" size="icon-sm" aria-label="Nhân bản" title="Nhân bản — tạo bản sao của bạn để chỉnh sửa" onClick={() => onClone(cmd)}>
+            <CopyPlus size={16} />
+          </Button>
           <Button variant="ghost" size="icon-sm" aria-label="Lịch sử chỉnh sửa" title="Lịch sử chỉnh sửa" onClick={() => onHistory(cmd)}>
             <History size={16} />
           </Button>

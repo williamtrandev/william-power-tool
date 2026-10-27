@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { ArrowDownUp, ArrowUpDown, Copy, StickyNote, Database, FilterX, SearchX, Download, FlaskConical, Layers, Loader2, MousePointerClick, Plus, RefreshCw, Search, SquareTerminal, TriangleAlert, Upload, UserRound, X } from 'lucide-react';
+import { Lock, ArrowDownUp, ArrowUpDown, Copy, StickyNote, Database, FilterX, SearchX, Download, FlaskConical, Layers, Loader2, MousePointerClick, Plus, RefreshCw, Search, SquareTerminal, TriangleAlert, Upload, UserRound, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionMenu, Button, Dropdown, Kbd, Segmented } from '../../components/ui';
 import type { Backend, Member } from '../../lib/backend';
@@ -46,6 +46,7 @@ function CommandRow({ cmd, selected, danger, onSelect, onCopy }: { cmd: Command;
           {cmd.tags.length > 0 && ' · ' + cmd.tags.map((t) => '#' + t).join(' ')}
         </p>
       </div>
+      {cmd.is_private && <Lock size={13} className="shrink-0 text-faint" aria-label="Riêng tư — chỉ mình bạn thấy" />}
       {danger && <TriangleAlert size={14} className="shrink-0 text-error" aria-label="Lệnh thay đổi dữ liệu / hệ thống" />}
       <span className="w-8 shrink-0 text-right text-[11px] text-faint tabular-nums group-hover:hidden" title="Số lần dùng">
         {cmd.uses}
@@ -80,6 +81,7 @@ function parseImport(text: string): CommandInput[] {
     return {
       title: String(o.title).slice(0, 200),
       kind: o.kind === 'sql' || o.kind === 'note' ? o.kind : 'shell',
+      is_private: o.is_private === true,
       category: String(o.category || 'Chung').slice(0, 60),
       tags: Array.isArray(o.tags) ? o.tags.map(String) : [],
       description: String(o.description ?? ''),
@@ -97,7 +99,8 @@ interface Props {
 
 export function CommandsTool({ active, backend, me, onToast }: Props) {
   const admin = me.role === 'admin';
-  const canEdit = useCallback((c: Command) => admin || c.owner_id === me.user_id, [admin, me.user_id]);
+  // owners edit their own; admins edit shared commands but never someone else's private ones
+  const canEdit = useCallback((c: Command) => c.owner_id === me.user_id || (admin && !c.is_private), [admin, me.user_id]);
 
   const [cmds, setCmds] = useState<Command[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -129,13 +132,16 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
   const [cat, setCat] = useState<string | null>(null);
   const [sort, setSort] = useState<Sort>('uses');
   const [mine, setMine] = useState(false);
+  const [onlyPrivate, setOnlyPrivate] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
   const index = useMemo(
     () => new Map((cmds ?? []).map((c) => [c.id, fold([c.title, c.description, c.body, c.category, c.tags.map((t) => '#' + t).join(' ')].join('\n'))])),
     [cmds],
   );
-  const byKind = useMemo(() => (cmds ?? []).filter((c) => (kind === 'all' || c.kind === kind) && (!mine || c.owner_id === me.user_id)), [cmds, kind, mine, me.user_id]);
+  const byKind = useMemo(() => (cmds ?? []).filter((c) => (kind === 'all' || c.kind === kind) && (!mine || c.owner_id === me.user_id) && (!onlyPrivate || c.is_private)),
+    [cmds, kind, mine, onlyPrivate, me.user_id],
+  );
   const categories = useMemo(() => {
     const m = new Map<string, number>();
     for (const c of byKind) m.set(c.category, (m.get(c.category) ?? 0) + 1);
@@ -150,15 +156,17 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
     else out.sort((a, b) => a.title.localeCompare(b.title, 'vi'));
     return out;
   }, [byKind, cat, q, sort, index, rank]);
-  const filters = [q.trim() && `“${q.trim()}”`, kind !== 'all' && KIND_META[kind].label, cat && `nhóm ${cat}`, mine && 'của tôi'].filter(Boolean) as string[];
+  const filters = [q.trim() && `“${q.trim()}”`, kind !== 'all' && KIND_META[kind].label, cat && `nhóm ${cat}`, mine && 'của tôi', onlyPrivate && 'riêng tư'].filter(Boolean) as string[];
   const clearFilters = () => {
     setQ('');
     setKind('all');
     setCat(null);
     setMine(false);
+    setOnlyPrivate(false);
   };
   const tagSuggestions = useMemo(() => [...new Set((cmds ?? []).flatMap((c) => c.tags))].sort((a, b) => a.localeCompare(b, 'vi')), [cmds]);
   const dangers = useMemo(() => new Set((cmds ?? []).filter((c) => dangerOf(c)).map((c) => c.id)), [cmds]);
+  const privateCount = (cmds ?? []).filter((c) => c.is_private).length;
   const kindCount = (k: KindFilter) => (cmds ?? []).filter((c) => k === 'all' || c.kind === k).length;
 
   // "/" jumps to search while this tab is open
@@ -209,7 +217,7 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
   }, [wide, selected, shown]);
 
   const [limit, setLimit] = useState(PAGE);
-  useEffect(() => setLimit(PAGE), [q, kind, cat, sort, mine]);
+  useEffect(() => setLimit(PAGE), [q, kind, cat, sort, mine, onlyPrivate]);
   const listRef = useRef<HTMLDivElement>(null);
   const moreRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -249,12 +257,14 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
     return () => removeEventListener('keydown', onKey);
   }, [active, shown, selIdx, selected, limit, select, copyCmd]);
 
-  const [editing, setEditing] = useState<Command | 'new' | null>(null);
+  // a command to edit, 'new', or { clone } to start a new one from a copy
+  const [editing, setEditing] = useState<Command | 'new' | { clone: Command } | null>(null);
+  const editTarget = editing && editing !== 'new' && !('clone' in editing) ? editing : null;
   const [historyOf, setHistoryOf] = useState<Command | null>(null);
 
   const save = async (input: CommandInput) => {
-    if (editing && editing !== 'new') {
-      const c = await backend.update(editing.id, input);
+    if (editTarget) {
+      const c = await backend.update(editTarget.id, input);
       setCmds((l) => l?.map((x) => (x.id === c.id ? c : x)) ?? l);
       onToast('Đã lưu lệnh');
     } else {
@@ -277,13 +287,13 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
     [backend, onToast],
   );
   const restore = async (old: Command) => {
-    const c = await backend.update(old.id, { title: old.title, kind: old.kind, category: old.category, tags: old.tags, description: old.description, body: old.body });
+    const c = await backend.update(old.id, { title: old.title, kind: old.kind, category: old.category, tags: old.tags, description: old.description, body: old.body, is_private: old.is_private });
     setCmds((l) => l?.map((x) => (x.id === c.id ? c : x)) ?? l);
     onToast('Đã khôi phục');
   };
 
   const exportJson = () => {
-    const data: CommandInput[] = (cmds ?? []).map(({ title, kind, category, tags, description, body }) => ({ title, kind, category, tags, description, body }));
+    const data: CommandInput[] = (cmds ?? []).map(({ title, kind, category, tags, description, body, is_private }) => ({ title, kind, category, tags, description, body, is_private }));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
     a.download = `william-tool-commands-${new Date().toISOString().slice(0, 10)}.json`;
@@ -311,6 +321,7 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
 
   const onTag = useCallback((t: string) => setQ('#' + t), []);
   const onEdit = useCallback((c: Command) => setEditing(c), []);
+  const onClone = useCallback((c: Command) => setEditing({ clone: c }), []);
 
   // ── render ──
   const detail = (c: Command) => (
@@ -325,6 +336,7 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
         onEdit={onEdit}
         onDelete={onDelete}
         onHistory={setHistoryOf}
+        onClone={onClone}
         onTag={onTag}
       />
     </div>
@@ -544,6 +556,22 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
             >
               <UserRound size={13} /> Của tôi
             </button>
+            <button
+              type="button"
+              aria-pressed={onlyPrivate}
+              title="Lệnh / ghi chú chỉ mình bạn thấy"
+              onClick={() => {
+                setOnlyPrivate((v) => !v);
+                setCat(null);
+              }}
+              className={clsx(
+                'focus-ring inline-flex h-7 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition-colors',
+                onlyPrivate ? 'border-accent/50 bg-accent-soft text-accent' : 'border-line text-muted hover:border-line-strong hover:text-fg',
+              )}
+            >
+              <Lock size={13} /> Riêng tư
+              <span className="text-[11px] text-faint tabular-nums">{privateCount}</span>
+            </button>
             <span className="mx-1 h-4 w-px bg-line" />
             {[null, ...categories.map(([c]) => c)].map((c) => {
               const on = cat === c;
@@ -579,9 +607,11 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
 
       {editing && (
         <CommandEditor
-          initial={editing === 'new' ? null : editing}
+          initial={editTarget}
+          template={editing !== 'new' && 'clone' in editing ? editing.clone : undefined}
           categories={categories.map(([c]) => c)}
           tagSuggestions={tagSuggestions}
+          canPrivate={!editTarget || editTarget.owner_id === me.user_id}
           onSave={save}
           onClose={() => setEditing(null)}
         />

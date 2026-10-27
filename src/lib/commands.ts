@@ -12,6 +12,8 @@ export interface Command {
   description: string;
   body: string;
   uses: number;
+  /** visible to its owner only */
+  is_private: boolean;
   owner_id: string | null;
   created_by: string | null;
   updated_by: string | null;
@@ -19,7 +21,7 @@ export interface Command {
   updated_at: string;
 }
 
-export type CommandInput = Pick<Command, 'title' | 'kind' | 'category' | 'tags' | 'description' | 'body'>;
+export type CommandInput = Pick<Command, 'title' | 'kind' | 'category' | 'tags' | 'description' | 'body'> & { is_private?: boolean };
 
 export interface HistoryRow {
   id: number;

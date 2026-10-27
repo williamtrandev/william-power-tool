@@ -4,8 +4,9 @@
 -- Access model
 --   * People sign in with Google. Anyone can sign up, but a new account is "pending" and cannot use the app
 --     until an admin approves it (in the app: tab "Thành viên").
---   * Approved members read every command and may add their own; they can only
---     edit / delete commands they created. Admins can edit everything.
+--   * Approved members read every shared command and may add their own; they can only
+--     edit / delete commands they created. Admins can edit every shared command.
+--   * A command marked private is visible to its owner only (admins included).
 --   * All rules are enforced by Row Level Security, so they hold even if someone
 --     calls the REST API directly with the public anon key.
 --
@@ -113,6 +114,9 @@ create table if not exists public.commands (
 alter table public.commands drop constraint if exists commands_kind_check;
 alter table public.commands add constraint commands_kind_check check (kind in ('shell', 'sql', 'note'));
 
+-- private commands: only the owner can see them — not other members, not app admins
+alter table public.commands add column if not exists is_private boolean not null default false;
+
 create index if not exists commands_category_idx on public.commands (category);
 create index if not exists commands_uses_idx on public.commands (uses desc);
 
@@ -147,6 +151,10 @@ begin
       return new;
     end if;
     new.owner_id := old.owner_id;
+    -- an admin editing someone else's command must not be able to hide it from its owner's team
+    if new.is_private and not old.is_private and new.owner_id is distinct from auth.uid() then
+      raise exception 'only the owner can make a command private' using errcode = '42501';
+    end if;
     new.created_by := old.created_by;
     new.created_at := old.created_at;
     new.updated_by := public.current_email();
@@ -169,7 +177,19 @@ create trigger commands_audit_del after delete on public.commands for each row e
 -- members count a use (copy) without needing write access to the row
 create or replace function public.bump_command_use(cid uuid) returns void
   language sql security definer set search_path = public
-  as $$ update public.commands set uses = uses + 1 where id = cid and public.is_member() $$;
+  as $$ update public.commands set uses = uses + 1
+         where id = cid and public.is_member() and (not is_private or owner_id = auth.uid()) $$;
+
+-- history follows the command's visibility (also for versions saved before it became private)
+create or replace function public.history_visible(cid uuid, d jsonb) returns boolean
+  language sql stable security definer set search_path = public
+  as $$
+    select case
+      when exists (select 1 from public.commands where id = cid)
+        then exists (select 1 from public.commands where id = cid and (not is_private or owner_id = auth.uid()))
+      else coalesce((d ->> 'is_private')::boolean, false) = false or (d ->> 'owner_id')::uuid = auth.uid()
+    end
+  $$;
 
 -- ── row level security ────────────────────────────────────────────────────────
 
@@ -185,20 +205,25 @@ drop policy if exists commands_read on public.commands;
 drop policy if exists commands_insert on public.commands;
 drop policy if exists commands_update on public.commands;
 drop policy if exists commands_delete on public.commands;
-create policy commands_read   on public.commands for select to authenticated using (public.is_member());
+create policy commands_read   on public.commands for select to authenticated
+  using (public.is_member() and (not is_private or owner_id = auth.uid()));
 create policy commands_insert on public.commands for insert to authenticated with check (public.is_member());
+-- owners edit their own; admins edit everyone's shared commands, never someone's private ones
 create policy commands_update on public.commands for update to authenticated
-  using (public.is_app_admin() or (public.is_member() and owner_id = auth.uid()))
-  with check (public.is_app_admin() or (public.is_member() and owner_id = auth.uid()));
+  using (public.is_member() and (owner_id = auth.uid() or (public.is_app_admin() and not is_private)))
+  with check (public.is_member() and (owner_id = auth.uid() or (public.is_app_admin() and not is_private)));
 create policy commands_delete on public.commands for delete to authenticated
-  using (public.is_app_admin() or (public.is_member() and owner_id = auth.uid()));
+  using (public.is_member() and (owner_id = auth.uid() or (public.is_app_admin() and not is_private)));
 
 drop policy if exists history_read on public.command_history;
-create policy history_read on public.command_history for select to authenticated using (public.is_member());
+create policy history_read on public.command_history for select to authenticated
+  using (public.is_member() and public.history_visible(command_id, data));
 
 -- nothing for anonymous visitors
 revoke all on public.app_members, public.commands, public.command_history from anon;
 revoke execute on function public.bump_command_use(uuid), public.set_member(uuid, text, text), public.request_access() from anon, public;
 grant select on public.app_members, public.command_history to authenticated;
 grant select, insert, update, delete on public.commands to authenticated;
+revoke execute on function public.history_visible(uuid, jsonb) from anon, public;
+grant execute on function public.history_visible(uuid, jsonb) to authenticated;
 grant execute on function public.bump_command_use(uuid), public.set_member(uuid, text, text), public.request_access(), public.is_member(), public.is_app_admin() to authenticated;
