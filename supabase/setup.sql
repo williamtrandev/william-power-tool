@@ -2,7 +2,7 @@
 -- Run once in Supabase → SQL Editor. Safe to re-run (idempotent).
 --
 -- Access model
---   * Anyone can sign up, but a new account is "pending" and cannot use the app
+--   * People sign in with Google. Anyone can sign up, but a new account is "pending" and cannot use the app
 --     until an admin approves it (in the app: tab "Thành viên").
 --   * Approved members read every command and may add their own; they can only
 --     edit / delete commands they created. Admins can edit everything.
@@ -24,6 +24,10 @@ create table if not exists public.app_members (
   decided_at   timestamptz
 );
 
+-- name / photo from the Google profile, shown on the members page
+alter table public.app_members add column if not exists full_name text;
+alter table public.app_members add column if not exists avatar_url text;
+
 create or replace function public.current_email() returns text
   language sql stable
   as $$ select lower(coalesce(auth.jwt() ->> 'email', '')) $$;
@@ -41,17 +45,34 @@ create or replace function public.handle_new_user() returns trigger
   language plpgsql security definer set search_path = public
   as $$
 begin
-  insert into public.app_members (user_id, email) values (new.id, lower(new.email)) on conflict (user_id) do nothing;
+  insert into public.app_members (user_id, email, full_name, avatar_url)
+  values (
+    new.id,
+    lower(new.email),
+    coalesce(new.raw_user_meta_data ->> 'full_name', new.raw_user_meta_data ->> 'name'),
+    coalesce(new.raw_user_meta_data ->> 'avatar_url', new.raw_user_meta_data ->> 'picture')
+  )
+  on conflict (user_id) do update
+    set full_name  = coalesce(excluded.full_name, public.app_members.full_name),
+        avatar_url = coalesce(excluded.avatar_url, public.app_members.avatar_url);
   return new;
 end $$;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+-- refresh name / photo when the profile changes (e.g. first Google sign-in of an email account)
+drop trigger if exists on_auth_user_updated on auth.users;
+create trigger on_auth_user_updated after update of raw_user_meta_data on auth.users for each row execute function public.handle_new_user();
 
 -- accounts that existed before this script ran
-insert into public.app_members (user_id, email)
-  select id, lower(email) from auth.users where email is not null
-  on conflict (user_id) do nothing;
+insert into public.app_members (user_id, email, full_name, avatar_url)
+  select id, lower(email),
+         coalesce(raw_user_meta_data ->> 'full_name', raw_user_meta_data ->> 'name'),
+         coalesce(raw_user_meta_data ->> 'avatar_url', raw_user_meta_data ->> 'picture')
+    from auth.users where email is not null
+  on conflict (user_id) do update
+    set full_name  = coalesce(excluded.full_name, public.app_members.full_name),
+        avatar_url = coalesce(excluded.avatar_url, public.app_members.avatar_url);
 
 -- safety net if the trigger did not run for some account
 create or replace function public.request_access() returns void

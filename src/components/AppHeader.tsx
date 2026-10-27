@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import { CircleHelp, KeyRound, LogOut, Moon, ScrollText, ShieldCheck, SquareTerminal, Sun, Users } from 'lucide-react';
-import { Button } from './ui';
+import type { User } from '../lib/backend';
+import { Avatar, Button } from './ui';
 
 export type ToolId = 'log' | 'watane' | 'commands' | 'members';
 
@@ -25,7 +26,7 @@ export function Logo() {
 
 interface Props {
   tool: ToolId;
-  email: string;
+  user: User;
   admin: boolean;
   /** sign-ups waiting for approval (admins only) */
   pending: number;
@@ -36,7 +37,7 @@ interface Props {
   onHelp: () => void;
 }
 
-export function AppHeader({ tool, email, admin, pending, onSignOut, onTool, theme, onToggleTheme, onHelp }: Props) {
+export function AppHeader({ tool, user, admin, pending, onSignOut, onTool, theme, onToggleTheme, onHelp }: Props) {
   return (
     <header className="flex h-12 shrink-0 items-center gap-4 border-b border-line bg-surface px-4">
       <Logo />
@@ -74,12 +75,22 @@ export function AppHeader({ tool, email, admin, pending, onSignOut, onTool, them
       <Button variant="ghost" size="icon" aria-label="Đổi giao diện sáng/tối" onClick={onToggleTheme}>
         {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
       </Button>
-      <div className="flex items-center gap-1 border-l border-line pl-3">
-        <span className="hidden max-w-[200px] items-center gap-1 truncate text-[12px] text-muted md:inline-flex" title={admin ? `${email} · admin` : email}>
-          {admin && <ShieldCheck size={14} className="shrink-0 text-accent" />}
-          <span className="truncate">{email}</span>
-        </span>
-        <Button variant="ghost" size="icon" aria-label="Đăng xuất" title={`Đăng xuất (${email})`} onClick={onSignOut}>
+      <div className="flex items-center gap-1.5 border-l border-line pl-3">
+        <div className="flex min-w-0 items-center gap-2" title={`${user.name ? user.name + ' · ' : ''}${user.email}${admin ? ' · admin' : ''}`}>
+          <span className="relative">
+            <Avatar src={user.avatar} name={user.name} email={user.email} size={28} />
+            {admin && (
+              <span className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-full bg-accent text-white ring-2 ring-surface">
+                <ShieldCheck size={10} strokeWidth={2.5} />
+              </span>
+            )}
+          </span>
+          <span className="hidden max-w-[180px] min-w-0 leading-tight md:block">
+            <span className="block truncate text-[12.5px] font-medium text-fg">{user.name || user.email.split('@')[0]}</span>
+            <span className="block truncate text-[11px] text-faint">{admin ? 'Admin' : 'Thành viên'}</span>
+          </span>
+        </div>
+        <Button variant="ghost" size="icon" aria-label="Đăng xuất" title="Đăng xuất" onClick={onSignOut}>
           <LogOut size={16} />
         </Button>
       </div>

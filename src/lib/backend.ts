@@ -2,9 +2,9 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SAMPLE_COMMANDS, type Command, type CommandInput, type HistoryRow } from './commands';
 
 /**
- * Accounts + shared command library on Supabase (schema and access rules: supabase/setup.sql).
+ * Google sign-in, accounts and the shared command library on Supabase (schema and access rules: supabase/setup.sql).
  * The project is chosen at build time with VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY
- * (.env.local, never committed). VITE_SUPABASE_URL=demo runs a local fake for development.
+ * (.env.local, never committed). VITE_SUPABASE_URL=demo runs a local fake, `npm run dev` only.
  */
 
 export type MemberStatus = 'pending' | 'approved' | 'blocked';
@@ -18,11 +18,15 @@ export interface Member {
   requested_at: string;
   decided_by: string | null;
   decided_at: string | null;
+  full_name?: string | null;
+  avatar_url?: string | null;
 }
 
 export interface User {
   id: string;
   email: string;
+  name?: string;
+  avatar?: string;
 }
 
 export interface Backend {
@@ -30,9 +34,10 @@ export interface Backend {
   /** signed-in user, or null */
   session(): Promise<User | null>;
   onAuthChange(cb: (u: User | null) => void): () => void;
-  signIn(email: string, password: string): Promise<void>;
-  /** true when the account still has to confirm its email */
-  signUp(email: string, password: string): Promise<{ confirmEmail: boolean }>;
+  /** redirects to Google; the session is picked up when the browser comes back */
+  signInWithGoogle(): Promise<void>;
+  /** demo only: switch to one of the fake accounts */
+  signInAs?(email: string): Promise<void>;
   signOut(): Promise<void>;
   /** this user's access row (created as "pending" on sign-up) */
   me(): Promise<Member | null>;
@@ -54,7 +59,9 @@ const env = import.meta.env as Record<string, string | undefined>;
 export function createBackend(): Backend | null {
   const url = env.VITE_SUPABASE_URL?.trim();
   if (!url) return null;
-  if (url === 'demo') return demoBackend();
+  // the fake backend has no passwords — only ever available on a local dev server, and
+  // stripped from production builds
+  if (url === 'demo') return import.meta.env.DEV ? demoBackend() : null;
   const key = env.VITE_SUPABASE_ANON_KEY?.trim();
   return key ? supabaseBackend(url, key) : null;
 }
@@ -64,11 +71,8 @@ export function createBackend(): Backend | null {
 /** Turn Supabase / PostgREST errors into something a support agent can act on. */
 function friendly(e: { message?: string; code?: string } | null | undefined): Error {
   const m = e?.message ?? 'Lỗi không xác định';
-  if (/invalid login credentials/i.test(m)) return new Error('Sai email hoặc mật khẩu');
-  if (/email not confirmed/i.test(m)) return new Error('Email chưa được xác nhận — mở thư xác nhận Supabase gửi cho bạn rồi đăng nhập lại');
-  if (/user already registered/i.test(m)) return new Error('Email này đã có tài khoản — hãy đăng nhập');
-  if (/password should be at least/i.test(m)) return new Error('Mật khẩu quá ngắn (tối thiểu 6 ký tự)');
-  if (/signups? not allowed|signup is disabled/i.test(m)) return new Error('Hệ thống đang tắt đăng ký — nhờ admin tạo tài khoản');
+  if (/signups? not allowed|signup is disabled/i.test(m)) return new Error('Supabase đang tắt đăng ký người dùng mới — admin cần bật “Allow new users to sign up”');
+  if (/provider is not enabled|unsupported provider/i.test(m)) return new Error('Đăng nhập Google chưa được bật — admin cần cấu hình Google trong Supabase');
   if (/rate limit/i.test(m)) return new Error('Thao tác quá nhiều lần, thử lại sau ít phút');
   if (/relation .* does not exist|could not find the (table|function)|schema cache/i.test(m)) return new Error('Database chưa được cài — admin cần chạy supabase/setup.sql');
   if (/row-level security|permission denied|not allowed/i.test(m) || e?.code === '42501') return new Error('Bạn không có quyền thực hiện thao tác này');
@@ -78,8 +82,15 @@ function friendly(e: { message?: string; code?: string } | null | undefined): Er
 }
 
 function supabaseBackend(url: string, anonKey: string): Backend {
-  const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, storageKey: 'wpt-auth', flowType: 'implicit' } });
-  const toUser = (u: { id: string; email?: string } | undefined | null): User | null => (u ? { id: u.id, email: (u.email ?? '').toLowerCase() } : null);
+  // PKCE: the provider sends back ?code=…, which does not collide with the #tool hash routing
+  const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, storageKey: 'wpt-auth', flowType: 'pkce' } });
+  type AuthUser = { id: string; email?: string; user_metadata?: Record<string, unknown> };
+  const toUser = (u: AuthUser | undefined | null): User | null => {
+    if (!u) return null;
+    const m = u.user_metadata ?? {};
+    const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
+    return { id: u.id, email: (u.email ?? '').toLowerCase(), name: str(m.full_name) ?? str(m.name), avatar: str(m.avatar_url) ?? str(m.picture) };
+  };
   const table = () => sb.from('commands');
   return {
     mode: 'supabase',
@@ -92,14 +103,12 @@ function supabaseBackend(url: string, anonKey: string): Backend {
       const { data } = sb.auth.onAuthStateChange((_e, s) => cb(toUser(s?.user)));
       return () => data.subscription.unsubscribe();
     },
-    async signIn(email, password) {
-      const { error } = await sb.auth.signInWithPassword({ email: email.trim(), password });
+    async signInWithGoogle() {
+      const { error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: location.origin + location.pathname, queryParams: { prompt: 'select_account' } },
+      });
       if (error) throw friendly(error);
-    },
-    async signUp(email, password) {
-      const { data, error } = await sb.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: location.origin + location.pathname } });
-      if (error) throw friendly(error);
-      return { confirmEmail: !data.session };
     },
     async signOut() {
       await sb.auth.signOut();
@@ -175,9 +184,9 @@ function demoBackend(): Backend {
       /* fall through to seed */
     }
     const t = now();
-    const m = (email: string, status: MemberStatus, role: MemberRole): Member => ({ user_id: email, email, status, role, requested_at: t, decided_by: null, decided_at: null });
+    const m = (email: string, full_name: string, status: MemberStatus, role: MemberRole): Member => ({ user_id: email, email, full_name, status, role, requested_at: t, decided_by: null, decided_at: null });
     return {
-      members: [m('admin@demo', 'approved', 'admin'), m('qc@demo', 'approved', 'member'), m('newbie@demo', 'pending', 'member')],
+      members: [m('admin@demo', 'Admin Demo', 'approved', 'admin'), m('qc@demo', 'Lan QC', 'approved', 'member'), m('newbie@demo', 'Minh Newbie', 'pending', 'member')],
       commands: SAMPLE_COMMANDS.map((c, i) => {
         const by = i % 3 === 2 ? 'qc@demo' : 'admin@demo';
         return { ...c, id: id(), uses: [12, 9, 6, 4, 1, 15, 7, 2][i] ?? 0, owner_id: by, created_by: by, updated_by: by, created_at: t, updated_at: t };
@@ -190,7 +199,7 @@ function demoBackend(): Backend {
   const sessionEmail = () => localStorage.getItem(SESSION);
   const user = (): User | null => {
     const e = sessionEmail();
-    return e ? { id: e, email: e } : null;
+    return e ? { id: e, email: e, name: read().members.find((m) => m.email === e)?.full_name ?? undefined } : null;
   };
   const emit = () => listeners.forEach((l) => l(user()));
   const meRow = (s: Store) => s.members.find((m) => m.user_id === sessionEmail());
@@ -210,22 +219,20 @@ function demoBackend(): Backend {
       listeners.add(cb);
       return () => listeners.delete(cb);
     },
-    async signIn(email) {
-      const e = email.trim().toLowerCase();
-      const s = read();
-      if (!s.members.some((m) => m.email === e)) throw new Error('Sai email hoặc mật khẩu (demo: admin@demo, qc@demo, newbie@demo)');
-      localStorage.setItem(SESSION, e);
+    async signInAs(email) {
+      localStorage.setItem(SESSION, email);
       emit();
     },
-    async signUp(email) {
-      const e = email.trim().toLowerCase();
+    async signInWithGoogle() {
+      // stands in for a first Google sign-in: a fresh account waiting for approval
+      await new Promise((r) => setTimeout(r, 700));
       const s = read();
-      if (s.members.some((m) => m.email === e)) throw new Error('Email này đã có tài khoản — hãy đăng nhập');
-      s.members.push({ user_id: e, email: e, status: 'pending', role: 'member', requested_at: now(), decided_by: null, decided_at: null });
+      const e = 'google.user@demo';
+      if (!s.members.some((m) => m.email === e))
+        s.members.push({ user_id: e, email: e, status: 'pending', role: 'member', requested_at: now(), decided_by: null, decided_at: null, full_name: 'Google User', avatar_url: null });
       write(s);
       localStorage.setItem(SESSION, e);
       emit();
-      return { confirmEmail: false };
     },
     async signOut() {
       localStorage.removeItem(SESSION);

@@ -82,7 +82,7 @@ export default function App() {
       <WaitingScreen
         {...shell}
         kind={auth.kind}
-        email={'user' in auth ? auth.user.email : undefined}
+        user={'user' in auth ? auth.user : undefined}
         message={auth.kind === 'error' ? auth.message : undefined}
         onRefresh={refresh}
         onSignOut={signOut}
@@ -93,7 +93,7 @@ export default function App() {
 
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader tool={current} email={auth.user.email} admin={admin} pending={pending} onSignOut={signOut} onTool={pickTool} theme={theme} onToggleTheme={toggleTheme} onHelp={() => setTour(tool)} />
+      <AppHeader tool={current} user={auth.user} admin={admin} pending={pending} onSignOut={signOut} onTool={pickTool} theme={theme} onToggleTheme={toggleTheme} onHelp={() => setTour(tool)} />
       {/* tools stay mounted so switching tabs keeps loaded logs / pasted codes */}
       <LogTool active={current === 'log'} onToast={showToast} />
       <WataneTool active={current === 'watane'} onToast={showToast} />

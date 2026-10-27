@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { useMemo, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { useMemo, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { GUID_SRC } from '../lib/parser';
 import type { Level, LogFile } from '../lib/types';
 import { shortName } from '../lib/format';
@@ -177,5 +177,28 @@ export function Segmented<T extends string>({
         </button>
       ))}
     </div>
+  );
+}
+
+const AVATAR_BG = ['#2563eb', '#7c3aed', '#0d9488', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#9333ea'];
+
+/** Profile photo (Google) or coloured initials. */
+export function Avatar({ src, name, email, size = 28, className }: { src?: string | null; name?: string | null; email: string; size?: number; className?: string }) {
+  const [broken, setBroken] = useState(false);
+  const label = (name || email).trim();
+  const initials = label.includes('@') ? label[0] : label.split(/\s+/).slice(-2).map((w) => w[0]).join('');
+  let h = 0;
+  for (const ch of email) h = (h * 31 + ch.charCodeAt(0)) | 0;
+  const style = { width: size, height: size, fontSize: Math.round(size * 0.4) };
+  if (src && !broken)
+    return <img src={src} alt="" referrerPolicy="no-referrer" onError={() => setBroken(true)} style={style} className={clsx('shrink-0 rounded-full object-cover', className)} />;
+  return (
+    <span
+      aria-hidden
+      style={{ ...style, background: AVATAR_BG[Math.abs(h) % AVATAR_BG.length] }}
+      className={clsx('grid shrink-0 place-items-center rounded-full font-semibold text-white uppercase', className)}
+    >
+      {initials}
+    </span>
   );
 }
