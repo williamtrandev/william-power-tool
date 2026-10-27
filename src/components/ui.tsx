@@ -143,3 +143,39 @@ export function Switch({ checked, onChange, label, icon }: { checked: boolean; o
     </button>
   );
 }
+
+/** pill-style tab switcher */
+export function Segmented<T extends string>({
+  value,
+  onChange,
+  items,
+  label,
+  tour,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  items: { id: T; label: string; icon: ReactNode }[];
+  label: string;
+  tour?: string;
+}) {
+  return (
+    <div role="tablist" aria-label={label} data-tour={tour} className="inline-flex rounded-lg border border-line bg-surface p-0.5">
+      {items.map((it) => (
+        <button
+          key={it.id}
+          type="button"
+          role="tab"
+          aria-selected={value === it.id}
+          onClick={() => onChange(it.id)}
+          className={clsx(
+            'focus-ring inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-colors',
+            value === it.id ? 'bg-surface-3 text-fg' : 'text-muted hover:text-fg',
+          )}
+        >
+          {it.icon}
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}

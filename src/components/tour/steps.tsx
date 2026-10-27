@@ -34,7 +34,7 @@ export const LOG_STEPS: TourStep[] = [
     title: 'Các công cụ',
     body: (
       <>
-        <b>Log</b> để đọc và tìm log. <b>Giải mã Watane</b> để giải mã / mã hoá code bằng secret key. Mỗi tab có hướng dẫn riêng.
+        <b>Log</b> để đọc và tìm log. <b>Giải mã Watane</b> để giải mã / mã hoá code bằng secret key. <b>Kho lệnh</b> lưu lệnh server / SQL dùng chung của team. Mỗi tab có hướng dẫn riêng.
       </>
     ),
   },
@@ -275,6 +275,58 @@ export const WATANE_STEPS: TourStep[] = [
     title: 'Giải mã cả file',
     placement: 'top',
     body: <>Chọn sheet, dòng header và cột cần xử lý, đặt tên cột kết quả rồi bấm “Tải … kết quả”.</>,
+  },
+  {
+    target: 'help',
+    title: 'Xem lại hướng dẫn',
+    body: <>Bấm nút này bất cứ khi nào cần xem lại.</>,
+  },
+];
+
+export const COMMAND_STEPS: TourStep[] = [
+  {
+    title: 'Kho lệnh dùng chung',
+    body: (
+      <>
+        Nơi lưu các lệnh server (tail, grep, docker…) và câu SQL hay dùng của team. Mọi thành viên thấy cùng một danh sách và đều thêm được lệnh; mỗi người chỉ
+        sửa / xoá được lệnh do mình tạo.
+      </>
+    ),
+  },
+  {
+    target: 'c-search',
+    title: 'Tìm lệnh',
+    body: (
+      <>
+        Gõ vài chữ trong tên, nội dung hoặc <code>#tag</code> — không cần gõ dấu. Nhấn <kbd>/</kbd> ở bất kỳ đâu để nhảy vào ô tìm.
+      </>
+    ),
+  },
+  {
+    target: 'c-kind',
+    title: 'Lọc theo loại',
+    body: <>Chỉ xem lệnh server hoặc chỉ xem câu SQL. Bên dưới có thể lọc tiếp theo nhóm hệ thống.</>,
+  },
+  {
+    target: 'c-list',
+    title: 'Điền biến rồi Copy',
+    placement: 'top',
+    body: (
+      <>
+        Phần <code>{'{{trace_id}}'}</code> trong lệnh là biến — điền ở ô phía trên, lệnh tự cập nhật. Giá trị được nhớ và dùng chung cho mọi lệnh có cùng tên biến. Nhãn đỏ
+        nghĩa là lệnh thay đổi dữ liệu / hệ thống, đọc kỹ trước khi chạy.
+      </>
+    ),
+  },
+  {
+    target: 'c-add',
+    title: 'Thêm lệnh của bạn',
+    placement: 'left',
+    body: (
+      <>
+        Lệnh bạn tạo có nút sửa / xoá; lệnh của người khác chỉ xem và copy. Chip <b>Của tôi</b> lọc ra lệnh bạn đã tạo. Nút bên cạnh để nhập / xuất bằng file JSON.
+      </>
+    ),
   },
   {
     target: 'help',

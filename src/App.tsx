@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppHeader, TOOLS, type ToolId } from './components/AppHeader';
-import { LOG_STEPS, WATANE_STEPS } from './components/tour/steps';
+import { LoadingScreen, LoginScreen, UnconfiguredScreen, WaitingScreen } from './components/auth/AuthScreens';
+import { COMMAND_STEPS, LOG_STEPS, WATANE_STEPS } from './components/tour/steps';
 import { Tour } from './components/tour/Tour';
+import { createBackend } from './lib/backend';
+import { useAuth } from './lib/useAuth';
 import { useTheme } from './lib/useTheme';
+import { CommandsTool } from './tools/commands/CommandsTool';
 import { LogTool } from './tools/LogTool';
+import { MembersTool } from './tools/members/MembersTool';
 import { WataneTool } from './tools/watane/WataneTool';
+
+const backend = createBackend();
 
 const fromHash = (): ToolId => {
   const h = location.hash.slice(1);
@@ -13,6 +20,10 @@ const fromHash = (): ToolId => {
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
+  const { state: auth, refresh } = useAuth(backend);
+  const ready = auth.kind === 'ready' ? auth : null;
+  const admin = ready?.member.role === 'admin';
+  const [pending, setPending] = useState(0);
   const [tool, setTool] = useState<ToolId>(fromHash);
 
   useEffect(() => {
@@ -30,6 +41,7 @@ export default function App() {
   const [tour, setTour] = useState<ToolId | null>(null);
   const seenKey = (t: ToolId) => `wpt-tour-seen-${t}`;
   useEffect(() => {
+    if (!ready) return;
     let seen = true;
     try {
       seen = !!localStorage.getItem(seenKey(tool));
@@ -39,7 +51,7 @@ export default function App() {
     if (seen) return;
     const t = setTimeout(() => setTour(tool), 700); // let the tool render first
     return () => clearTimeout(t);
-  }, [tool]);
+  }, [tool, ready]);
   const closeTour = useCallback(() => {
     setTour((t) => {
       if (t)
@@ -60,13 +72,34 @@ export default function App() {
     toastTimer.current = window.setTimeout(() => setToast(null), 2200);
   }, []);
 
+  const shell = { theme, onToggleTheme: toggleTheme };
+  const signOut = () => backend?.signOut();
+  if (auth.kind === 'unconfigured') return <UnconfiguredScreen {...shell} />;
+  if (auth.kind === 'loading') return <LoadingScreen {...shell} />;
+  if (auth.kind === 'signed-out') return <LoginScreen backend={backend!} {...shell} />;
+  if (auth.kind !== 'ready')
+    return (
+      <WaitingScreen
+        {...shell}
+        kind={auth.kind}
+        email={'user' in auth ? auth.user.email : undefined}
+        message={auth.kind === 'error' ? auth.message : undefined}
+        onRefresh={refresh}
+        onSignOut={signOut}
+      />
+    );
+  // a member who opens #members directly lands on the log tool
+  const current = tool === 'members' && !admin ? 'log' : tool;
+
   return (
     <div className="flex h-dvh flex-col">
-      <AppHeader tool={tool} onTool={pickTool} theme={theme} onToggleTheme={toggleTheme} onHelp={() => setTour(tool)} />
+      <AppHeader tool={current} email={auth.user.email} admin={admin} pending={pending} onSignOut={signOut} onTool={pickTool} theme={theme} onToggleTheme={toggleTheme} onHelp={() => setTour(tool)} />
       {/* tools stay mounted so switching tabs keeps loaded logs / pasted codes */}
-      <LogTool active={tool === 'log'} onToast={showToast} />
-      <WataneTool active={tool === 'watane'} onToast={showToast} />
-      {tour && <Tour key={tour} steps={tour === 'log' ? LOG_STEPS : WATANE_STEPS} onClose={closeTour} />}
+      <LogTool active={current === 'log'} onToast={showToast} />
+      <WataneTool active={current === 'watane'} onToast={showToast} />
+      <CommandsTool active={current === 'commands'} backend={backend!} me={auth.member} onToast={showToast} />
+      {admin && <MembersTool active={current === 'members'} backend={backend!} me={auth.member} onToast={showToast} onPending={setPending} />}
+      {tour && <Tour key={tour} steps={{ log: LOG_STEPS, watane: WATANE_STEPS, commands: COMMAND_STEPS, members: [] }[tour]} onClose={closeTour} />}
       <div
         role="status"
         aria-live="polite"
