@@ -141,7 +141,7 @@ function SameTitlePreview({
 function Prop({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <div className={className}>
-      <p className="mb-1.5 text-[11.5px] font-medium tracking-wide text-faint uppercase">{label}</p>
+      <p className="mb-1.5 text-[12.5px] font-medium text-fg-2">{label}</p>
       {children}
     </div>
   );
@@ -184,6 +184,7 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, o
   const vars = useMemo(() => (kind === 'note' ? [] : commandVars(body)), [kind, body]);
   const danger = useMemo(() => dangerOf({ kind, body }), [kind, body]);
   const ok = !!title.trim() && !!body.trim();
+  const missing = [!title.trim() && 'tên', !body.trim() && (kind === 'note' ? 'nội dung ghi chú' : 'nội dung lệnh')].filter(Boolean) as string[];
   const sameTitle = useMemo(() => {
     const k = titleKey(title);
     return k ? others.filter((o) => o.id !== initial?.id && titleKey(o.title) === k) : [];
@@ -233,10 +234,14 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, o
       onClose={onClose}
       footer={
         <>
-          <p className="mr-auto hidden items-center gap-1.5 text-[11.5px] text-faint sm:flex">
-            <Kbd>{/Mac|iP/.test(navigator.platform) ? '⌘' : 'Ctrl'}</Kbd>
-            <Kbd>Enter</Kbd> để lưu · <Kbd>Esc</Kbd> để đóng
-          </p>
+          {missing.length ? (
+            <p className="mr-auto text-[12px] text-warn">Còn thiếu: {missing.join(', ')}</p>
+          ) : (
+            <p className="mr-auto hidden items-center gap-1.5 text-[11.5px] text-faint sm:flex">
+              <Kbd>{/Mac|iP/.test(navigator.platform) ? '⌘' : 'Ctrl'}</Kbd>
+              <Kbd>Enter</Kbd> để lưu · <Kbd>Esc</Kbd> để đóng
+            </p>
+          )}
           <Button variant="ghost" onClick={onClose}>
             Huỷ
           </Button>
@@ -260,24 +265,37 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, o
           }
         }}
       >
-        {/* title + short description, document-style */}
-        <div>
-          <input
-            autoFocus
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder={note ? 'Tên ghi chú, vd: Môi trường UAT Watane' : 'Tên lệnh, vd: Tìm trace id trong log gateway'}
-            aria-label="Tên"
-            className="w-full bg-transparent text-[19px] font-semibold tracking-tight text-fg outline-none placeholder:font-medium placeholder:text-faint"
-          />
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={Math.min(4, Math.max(1, description.split('\n').length))}
-            placeholder="Mô tả ngắn: khi nào dùng, cần lưu ý gì… (không bắt buộc)"
-            aria-label="Mô tả"
-            className="mt-1.5 w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-muted outline-none placeholder:text-faint"
-          />
+        {/* name + short description */}
+        <div className="space-y-3">
+          <div>
+            <label htmlFor="cmd-title" className="mb-1.5 flex items-baseline gap-1 text-[12.5px] font-medium text-fg-2">
+              {note ? 'Tên ghi chú' : 'Tên lệnh'} <span className="text-error">*</span>
+            </label>
+            <input
+              id="cmd-title"
+              autoFocus
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder={note ? 'vd: Môi trường UAT Watane' : 'vd: Tìm trace id trong log gateway'}
+              aria-label="Tên"
+              aria-required
+              className="focus-ring h-11 w-full rounded-lg border border-line bg-surface px-3.5 text-[15px] font-medium text-fg transition-shadow placeholder:font-normal placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:shadow-[0_0_0_3px_var(--accent-ring)]"
+            />
+          </div>
+          <div>
+            <label htmlFor="cmd-desc" className="mb-1.5 flex items-baseline gap-1.5 text-[12.5px] font-medium text-fg-2">
+              Mô tả <span className="font-normal text-faint">— không bắt buộc</span>
+            </label>
+            <textarea
+              id="cmd-desc"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={Math.min(5, Math.max(2, description.split('\n').length))}
+              placeholder="Khi nào dùng, cần lưu ý gì…"
+              aria-label="Mô tả"
+              className="focus-ring block w-full resize-none rounded-lg border border-line bg-surface px-3.5 py-2.5 text-[13.5px] leading-relaxed text-fg transition-shadow placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:shadow-[0_0_0_3px_var(--accent-ring)]"
+            />
+          </div>
         </div>
 
         {sameTitle.length > 0 && (
@@ -345,7 +363,9 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, o
               <meta.icon size={13} />
               {kind === 'shell' ? 'Shell' : meta.label}
             </span>
-            <span className="text-[12px] text-faint">{note ? 'Nội dung ghi chú' : 'Nội dung lệnh'}</span>
+            <span className="text-[12.5px] font-medium text-fg-2">
+              {note ? 'Nội dung ghi chú' : 'Nội dung lệnh'} <span className="text-error">*</span>
+            </span>
             {!note && (
               <Button size="sm" variant="ghost" className="ml-auto" onClick={insertVar} title="Bọc phần đang chọn thành biến, hoặc chèn biến mới">
                 <Braces size={14} /> Chèn biến
@@ -400,7 +420,7 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, o
 
         {note && body.trim() && (
           <div>
-            <p className="mb-1.5 text-[11.5px] font-medium tracking-wide text-faint uppercase">Xem trước</p>
+            <p className="mb-1.5 text-[12.5px] font-medium text-fg-2">Xem trước</p>
             <NoteView body={body} onCopy={() => {}} />
           </div>
         )}
