@@ -687,11 +687,21 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
 
       {editing && (
         <CommandEditor
+          // a fresh editor (and fresh fields) whenever it switches to another command
+          key={editTarget?.id ?? 'new'}
           initial={editTarget}
           template={editing !== 'new' && 'clone' in editing ? editing.clone : undefined}
           categories={categories.map(([c]) => c)}
           tagSuggestions={tagSuggestions}
           others={cmds ?? []}
+          canEditOther={canEdit}
+          onEditExisting={(c) => setEditing(c)}
+          onOpenExisting={(c) => {
+            setEditing(null);
+            // it may be hidden by the current filters
+            if (!shown.some((x) => x.id === c.id)) clearFilters();
+            setTimeout(() => select(c.id), 50);
+          }}
           canPrivate={!editTarget || editTarget.owner_id === me.user_id}
           onSave={save}
           onClose={() => setEditing(null)}

@@ -1,10 +1,10 @@
 import clsx from 'clsx';
-import { Braces, Database, Info, Layers, Loader2, Lock, RotateCcw, SquareTerminal, StickyNote, TriangleAlert, Users, X } from 'lucide-react';
+import { Braces, ChevronDown, Database, ExternalLink, Info, Layers, Loader2, Lock, Pencil, RotateCcw, SquareTerminal, StickyNote, TriangleAlert, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Kbd, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
 import { commandVars, dangerOf, titleKey, type Command, type CommandInput, type HistoryRow } from '../../lib/commands';
-import { CodeView, KIND_META, NoteView, relTime } from './CommandCard';
+import { CodeView, KIND_META, KindBadge, NoteView, relTime } from './CommandCard';
 import { Modal } from './Modal';
 
 /** Tags as removable chips: Enter or comma adds, Backspace on empty removes the last one. */
@@ -50,6 +50,94 @@ function TagInput({ tags, onChange, suggestions }: { tags: string[]; onChange: (
   );
 }
 
+/** Existing commands with the title being typed, so a duplicate is not added by mistake. */
+function SameTitlePreview({
+  items,
+  body,
+  defaultOpen,
+  onOpen,
+  canEdit,
+  onEdit,
+}: {
+  items: Command[];
+  body: string;
+  defaultOpen: boolean;
+  onOpen?: (c: Command) => void;
+  canEdit?: (c: Command) => boolean;
+  onEdit?: (c: Command) => void;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  // switching away from a draft with content asks once before discarding it
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const norm = (b: string) => b.replace(/\s+/g, ' ').trim();
+  const identical = items.filter((c) => body.trim() && norm(c.body) === norm(body));
+  const authors = [...new Set(items.map((o) => (o.created_by ?? '?').split('@')[0]))].join(', ');
+  return (
+    <div className={clsx('animate-in overflow-hidden rounded-xl border', identical.length ? 'border-error/40 bg-error/5' : 'border-accent/30 bg-accent-soft/40')}>
+      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex w-full items-start gap-2 px-3.5 py-2.5 text-left">
+        {identical.length ? <TriangleAlert size={15} className="mt-0.5 shrink-0 text-error" /> : <Layers size={15} className="mt-0.5 shrink-0 text-accent" />}
+        <span className="min-w-0 flex-1 text-[12.5px]">
+          <b className={clsx('font-semibold', identical.length ? 'text-error' : 'text-accent')}>
+            {identical.length ? 'Đã có mục giống hệt nội dung bạn đang soạn' : `Đã có ${items.length} mục cùng tên`}
+          </b>
+          <span className="text-muted"> · của {authors} — kiểm tra trước khi thêm. Lưu vẫn được: mục mới sẽ thành một “bản” nữa trong cùng dòng.</span>
+        </span>
+        <ChevronDown size={16} className={clsx('mt-0.5 shrink-0 text-faint transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div className="max-h-[300px] space-y-2 overflow-y-auto px-2.5 pb-2.5">
+          {items.map((c) => (
+            <div key={c.id} className={clsx('rounded-lg border bg-surface p-3', identical.includes(c) ? 'border-error/50' : 'border-line')}>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11.5px] text-muted">
+                <KindBadge kind={c.kind} />
+                {c.is_private && (
+                  <span className="inline-flex items-center gap-1">
+                    <Lock size={11} /> Riêng tư
+                  </span>
+                )}
+                <span>
+                  {(c.created_by ?? '?').split('@')[0]} · cập nhật {relTime(c.updated_at)} · {c.category}
+                </span>
+                {identical.includes(c) && <span className="rounded bg-error/12 px-1.5 py-px font-semibold text-error">Trùng y hệt</span>}
+                <span className="ml-auto flex items-center gap-1">
+                  {onEdit && canEdit?.(c) &&
+                    (confirmId === c.id ? (
+                      <>
+                        <span className="text-[11.5px] text-warn">Bỏ bản đang soạn?</span>
+                        <Button size="sm" variant="primary" className="h-6" onClick={() => onEdit(c)}>
+                          Bỏ & sửa
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-6" onClick={() => setConfirmId(null)}>
+                          Huỷ
+                        </Button>
+                      </>
+                    ) : (
+                      <Button
+                        size="sm"
+                        className="h-6"
+                        title="Chuyển sang sửa mục này thay vì tạo mục mới"
+                        onClick={() => (body.trim() && norm(c.body) !== norm(body) ? setConfirmId(c.id) : onEdit(c))}
+                      >
+                        <Pencil size={13} /> Sửa mục này
+                      </Button>
+                    ))}
+                  {onOpen && confirmId !== c.id && (
+                    <Button size="sm" variant="ghost" className="h-6" onClick={() => onOpen(c)} title="Đóng form và mở mục này trong danh sách">
+                      <ExternalLink size={13} /> Mở mục này
+                    </Button>
+                  )}
+                </span>
+              </div>
+              {c.description && <p className="mt-1.5 text-[12.5px] text-muted">{c.description}</p>}
+              <div className="mt-2 flex">{c.kind === 'note' ? <div className="min-w-0 flex-1"><NoteView body={c.body} onCopy={() => {}} /></div> : <CodeView body={c.body} kind={c.kind} />}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Prop({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
   return (
     <div className={className}>
@@ -72,9 +160,14 @@ interface EditorProps {
   canPrivate: boolean;
   onSave: (input: CommandInput) => Promise<void>;
   onClose: () => void;
+  /** close the editor and show this existing command instead */
+  onOpenExisting?: (c: Command) => void;
+  /** switch the editor to this existing command */
+  onEditExisting?: (c: Command) => void;
+  canEditOther?: (c: Command) => boolean;
 }
 
-export function CommandEditor({ initial, template, categories, tagSuggestions, others, canPrivate, onSave, onClose }: EditorProps) {
+export function CommandEditor({ initial, template, categories, tagSuggestions, others, onOpenExisting, onEditExisting, canEditOther, canPrivate, onSave, onClose }: EditorProps) {
   const from = initial ?? template;
   const [title, setTitle] = useState(initial?.title ?? (template ? `${template.title} (bản sao)` : ''));
   const [kind, setKind] = useState(from?.kind ?? 'shell');
@@ -177,16 +270,6 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, o
             aria-label="Tên"
             className="w-full bg-transparent text-[19px] font-semibold tracking-tight text-fg outline-none placeholder:font-medium placeholder:text-faint"
           />
-          {sameTitle.length > 0 && (
-            <p className="mt-1 flex items-start gap-1.5 text-[12px] text-accent">
-              <Layers size={13} className="mt-0.5 shrink-0" />
-              <span>
-                Đã có {sameTitle.length} mục cùng tên
-                {` (của ${[...new Set(sameTitle.map((o) => (o.created_by ?? '?').split('@')[0]))].join(', ')})`} — sẽ hiện gộp chung một dòng, mỗi mục là một “bản” để chọn. Muốn
-                tách riêng thì đặt tên khác.
-              </span>
-            </p>
-          )}
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}
@@ -196,6 +279,10 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, o
             className="mt-1.5 w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-muted outline-none placeholder:text-faint"
           />
         </div>
+
+        {sameTitle.length > 0 && (
+          <SameTitlePreview items={sameTitle} body={body} defaultOpen={!initial} onOpen={onOpenExisting} canEdit={canEditOther} onEdit={onEditExisting} />
+        )}
 
         {/* properties */}
         <div className="grid gap-4 rounded-xl border border-line bg-surface-2/40 p-3.5 sm:grid-cols-[auto_minmax(0,1fr)]">
