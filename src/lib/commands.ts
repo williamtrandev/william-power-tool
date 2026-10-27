@@ -210,3 +210,32 @@ export function parseNote(body: string): NoteLine[] {
 }
 
 export const URL_RE = /\bhttps?:\/\/[^\s<>"')]+/g;
+
+// ── same-title variants ──────────────────────────────────────────────────────
+
+/** key that treats "Tên lệnh" and "ten lenh " as the same title */
+export const titleKey = (t: string) =>
+  t.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
+
+const clip = (s: string) => (s.length > 28 ? s.slice(0, 27) + '…' : s);
+
+/**
+ * Short labels telling same-title commands apart: the first line where their bodies differ
+ * ("qc" vs "dev_X"), never a secret value; else the description; else "Bản 1, 2…".
+ */
+export function variantLabels(list: Pick<Command, 'body' | 'description'>[]): string[] {
+  const fallback = list.map((_, i) => `Bản ${i + 1}`);
+  const unique = (labels: string[]) => (new Set(labels).size === labels.length ? labels : labels.map((l, i) => `${l} (${i + 1})`));
+  const lines = list.map((c) => c.body.split('\n').map((l) => l.trim()).filter(Boolean));
+  const n = Math.max(...lines.map((l) => l.length));
+  for (let i = 0; i < n; i++) {
+    const vals = lines.map((l) => l[i] ?? '');
+    if (new Set(vals).size < 2) continue;
+    const kv = vals.map((v) => KV.exec(v));
+    if (kv.some((m) => m && SECRET_KEY.test(m[1]))) continue;
+    return unique(vals.map((v, j) => clip(kv[j]?.[2] ?? v) || fallback[j]));
+  }
+  const desc = list.map((c) => c.description.trim().split('\n')[0]);
+  if (new Set(desc).size === list.length && desc.every(Boolean)) return unique(desc.map(clip));
+  return fallback;
+}

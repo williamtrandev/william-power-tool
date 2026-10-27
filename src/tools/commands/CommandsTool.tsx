@@ -3,8 +3,8 @@ import { Lock, ArrowDownUp, ArrowUpDown, Copy, StickyNote, Database, FilterX, Se
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionMenu, Button, Dropdown, Kbd, Segmented } from '../../components/ui';
 import type { Backend, Member } from '../../lib/backend';
-import { dangerOf, fillCommand, loadVarValues, saveVarValues, type Command, type CommandInput, type CommandKind } from '../../lib/commands';
-import { CommandCard, KIND_META } from './CommandCard';
+import { dangerOf, fillCommand, loadVarValues, saveVarValues, titleKey, variantLabels, type Command, type CommandInput, type CommandKind } from '../../lib/commands';
+import { CommandCard, KIND_META, relTime } from './CommandCard';
 import { CommandEditor, HistoryDialog } from './CommandEditor';
 
 type KindFilter = 'all' | CommandKind;
@@ -23,7 +23,22 @@ function useWide() {
   return wide;
 }
 
-function CommandRow({ cmd, selected, danger, onSelect, onCopy }: { cmd: Command; selected: boolean; danger: boolean; onSelect: () => void; onCopy: () => void }) {
+function CommandRow({
+  cmd,
+  variants,
+  selected,
+  danger,
+  onSelect,
+  onCopy,
+}: {
+  cmd: Command;
+  /** how many same-title commands this row stands for */
+  variants: number;
+  selected: boolean;
+  danger: boolean;
+  onSelect: () => void;
+  onCopy: () => void;
+}) {
   const meta = KIND_META[cmd.kind];
   return (
     <div
@@ -42,6 +57,7 @@ function CommandRow({ cmd, selected, danger, onSelect, onCopy }: { cmd: Command;
       <div className="min-w-0 flex-1">
         <p className={clsx('truncate text-[13px] font-medium', selected ? 'text-fg' : 'text-fg-2')}>{cmd.title}</p>
         <p className="truncate text-[11.5px] text-faint">
+          {variants > 1 && <span className="mr-1.5 rounded bg-accent-soft px-1.5 py-px text-[10.5px] font-semibold text-accent">{variants} bản</span>}
           {cmd.category}
           {cmd.tags.length > 0 && ' · ' + cmd.tags.map((t) => '#' + t).join(' ')}
         </p>
@@ -209,12 +225,30 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
   // ── selection, incremental rendering, keyboard ──
   const wide = useWide();
   const [selId, setSelId] = useState<string | null>(null);
-  const selIdx = shown.findIndex((c) => c.id === selId);
-  const selected = selIdx >= 0 ? shown[selIdx] : null;
+
+  // commands with the same title collapse into one row; the detail pane switches between them
+  const groups = useMemo(() => {
+    const m = new Map<string, Command[]>();
+    for (const c of shown) {
+      const k = titleKey(c.title);
+      const g = m.get(k);
+      if (g) g.push(c);
+      else m.set(k, [c]);
+    }
+    return [...m.values()];
+  }, [shown]);
+  const groupOf = useMemo(() => new Map(groups.flatMap((g, i) => g.map((c) => [c.id, i] as const))), [groups]);
+  const labels = useMemo(
+    () => new Map(groups.filter((g) => g.length > 1).flatMap((g) => variantLabels(g).map((l, i) => [g[i].id, l] as const))),
+    [groups],
+  );
+  const selIdx = selId ? (groupOf.get(selId) ?? -1) : -1;
+  const selGroup = selIdx >= 0 ? groups[selIdx] : null;
+  const selected = selGroup?.find((c) => c.id === selId) ?? null;
   // on wide screens something is always open in the detail pane
   useEffect(() => {
-    if (wide && !selected && shown.length) setSelId(shown[0].id);
-  }, [wide, selected, shown]);
+    if (wide && !selected && groups.length) setSelId(groups[0][0].id);
+  }, [wide, selected, groups]);
 
   const [limit, setLimit] = useState(PAGE);
   useEffect(() => setLimit(PAGE), [q, kind, cat, sort, mine, onlyPrivate]);
@@ -226,7 +260,7 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
     const io = new IntersectionObserver((e) => e[0].isIntersecting && setLimit((l) => l + PAGE), { rootMargin: '400px' });
     io.observe(el);
     return () => io.disconnect();
-  }, [limit, shown.length]);
+  }, [limit, groups.length]);
 
   const select = useCallback((id: string) => {
     setSelId(id);
@@ -243,11 +277,15 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
       const inSearch = t === searchRef.current;
       const inVar = !!t.closest('[data-var-input]');
       const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || t.isContentEditable;
-      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (inSearch || !typing) && shown.length) {
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (inSearch || !typing) && groups.length) {
         e.preventDefault();
-        const i = Math.min(shown.length - 1, Math.max(0, selIdx + (e.key === 'ArrowDown' ? 1 : -1)));
+        const i = Math.min(groups.length - 1, Math.max(0, selIdx + (e.key === 'ArrowDown' ? 1 : -1)));
         if (i >= limit - 5) setLimit(i + PAGE);
-        select(shown[i].id);
+        select(groups[i][0].id);
+      } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !typing && selGroup && selGroup.length > 1) {
+        e.preventDefault();
+        const j = selGroup.findIndex((c) => c.id === selId) + (e.key === 'ArrowRight' ? 1 : -1);
+        setSelId(selGroup[(j + selGroup.length) % selGroup.length].id);
       } else if (e.key === 'Enter' && selected && (inSearch || inVar || !typing) && !(t.tagName === 'BUTTON')) {
         e.preventDefault();
         copyCmd(selected);
@@ -255,7 +293,7 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
     };
     addEventListener('keydown', onKey);
     return () => removeEventListener('keydown', onKey);
-  }, [active, shown, selIdx, selected, limit, select, copyCmd]);
+  }, [active, groups, selIdx, selGroup, selId, selected, limit, select, copyCmd]);
 
   // a command to edit, 'new', or { clone } to start a new one from a copy
   const [editing, setEditing] = useState<Command | 'new' | { clone: Command } | null>(null);
@@ -324,23 +362,54 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
   const onClone = useCallback((c: Command) => setEditing({ clone: c }), []);
 
   // ── render ──
-  const detail = (c: Command) => (
-    <div className="animate-in">
-      <CommandCard
-        key={c.id}
-        cmd={c}
-        canEdit={canEdit(c)}
-        values={values}
-        onValue={setValue}
-        onCopy={onCopy}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        onHistory={setHistoryOf}
-        onClone={onClone}
-        onTag={onTag}
-      />
-    </div>
-  );
+  const detail = (c: Command) => {
+    const g = groups[groupOf.get(c.id) ?? -1] ?? [c];
+    return (
+      <div className="animate-in">
+        {g.length > 1 && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5">
+            <span className="mr-0.5 text-[11.5px] text-faint">{g.length} bản cùng tên:</span>
+            {g.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                aria-pressed={v.id === c.id}
+                onClick={() => setSelId(v.id)}
+                title={`${v.created_by ?? ''} · cập nhật ${relTime(v.updated_at)}`}
+                className={clsx(
+                  'focus-ring inline-flex h-7 max-w-[220px] items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-medium transition-colors',
+                  v.id === c.id ? 'border-accent/50 bg-accent-soft text-accent' : 'border-line text-muted hover:border-line-strong hover:text-fg',
+                )}
+              >
+                {v.is_private && <Lock size={12} className="shrink-0" />}
+                <span className="truncate">{labels.get(v.id)}</span>
+                {v.created_by && v.created_by !== c.created_by && <span className="shrink-0 text-faint">· {v.created_by.split('@')[0]}</span>}
+              </button>
+            ))}
+            {wide && (
+              <span className="ml-auto flex items-center gap-1 text-[11px] text-faint">
+                <Kbd>←</Kbd>
+                <Kbd>→</Kbd> đổi bản
+              </span>
+            )}
+          </div>
+        )}
+        <CommandCard
+          key={c.id}
+          cmd={c}
+          canEdit={canEdit(c)}
+          values={values}
+          onValue={setValue}
+          onCopy={onCopy}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onHistory={setHistoryOf}
+          onClone={onClone}
+          onTag={onTag}
+        />
+      </div>
+    );
+  };
 
   const body = (
     <div className="grid gap-4 md:min-h-0 md:flex-1 md:grid-cols-[minmax(300px,380px)_minmax(0,1fr)]">
@@ -356,13 +425,24 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
           </span>
         </div>
         <div ref={listRef} role="listbox" aria-label="Danh sách lệnh" className="divide-y divide-line/60 md:min-h-0 md:flex-1 md:overflow-y-auto">
-          {shown.slice(0, limit).map((c) => (
-            <div key={c.id}>
-              <CommandRow cmd={c} selected={c.id === selId} danger={dangers.has(c.id)} onSelect={() => setSelId(wide || c.id !== selId ? c.id : null)} onCopy={() => copyCmd(c)} />
-              {!wide && c.id === selId && <div className="bg-surface-2/50 p-2">{detail(c)}</div>}
-            </div>
-          ))}
-          {limit < shown.length && (
+          {groups.slice(0, limit).map((g) => {
+            const open = g === selGroup;
+            const c = (open && selected) || g[0];
+            return (
+              <div key={g[0].id}>
+                <CommandRow
+                  cmd={c}
+                  variants={g.length}
+                  selected={open}
+                  danger={g.some((x) => dangers.has(x.id))}
+                  onSelect={() => setSelId(wide || !open ? c.id : null)}
+                  onCopy={() => copyCmd(c)}
+                />
+                {!wide && open && <div className="bg-surface-2/50 p-2">{detail(c)}</div>}
+              </div>
+            );
+          })}
+          {limit < groups.length && (
             <div ref={moreRef} className="flex items-center justify-center gap-2 py-3 text-[12px] text-faint">
               <Loader2 size={14} className="animate-spin" /> Đang hiện thêm…
             </div>
@@ -611,6 +691,7 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
           template={editing !== 'new' && 'clone' in editing ? editing.clone : undefined}
           categories={categories.map(([c]) => c)}
           tagSuggestions={tagSuggestions}
+          others={cmds ?? []}
           canPrivate={!editTarget || editTarget.owner_id === me.user_id}
           onSave={save}
           onClose={() => setEditing(null)}

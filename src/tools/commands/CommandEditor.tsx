@@ -1,9 +1,9 @@
 import clsx from 'clsx';
-import { Braces, Database, Info, Loader2, Lock, RotateCcw, SquareTerminal, StickyNote, TriangleAlert, Users, X } from 'lucide-react';
+import { Braces, Database, Info, Layers, Loader2, Lock, RotateCcw, SquareTerminal, StickyNote, TriangleAlert, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Kbd, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
-import { commandVars, dangerOf, type Command, type CommandInput, type HistoryRow } from '../../lib/commands';
+import { commandVars, dangerOf, titleKey, type Command, type CommandInput, type HistoryRow } from '../../lib/commands';
 import { CodeView, KIND_META, NoteView, relTime } from './CommandCard';
 import { Modal } from './Modal';
 
@@ -66,13 +66,15 @@ interface EditorProps {
   template?: Command;
   categories: string[];
   tagSuggestions: string[];
+  /** existing commands, to flag a title that is already used */
+  others: Command[];
   /** only the owner (or whoever creates it) may change who can see a command */
   canPrivate: boolean;
   onSave: (input: CommandInput) => Promise<void>;
   onClose: () => void;
 }
 
-export function CommandEditor({ initial, template, categories, tagSuggestions, canPrivate, onSave, onClose }: EditorProps) {
+export function CommandEditor({ initial, template, categories, tagSuggestions, others, canPrivate, onSave, onClose }: EditorProps) {
   const from = initial ?? template;
   const [title, setTitle] = useState(initial?.title ?? (template ? `${template.title} (bản sao)` : ''));
   const [kind, setKind] = useState(from?.kind ?? 'shell');
@@ -89,6 +91,10 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, c
   const vars = useMemo(() => (kind === 'note' ? [] : commandVars(body)), [kind, body]);
   const danger = useMemo(() => dangerOf({ kind, body }), [kind, body]);
   const ok = !!title.trim() && !!body.trim();
+  const sameTitle = useMemo(() => {
+    const k = titleKey(title);
+    return k ? others.filter((o) => o.id !== initial?.id && titleKey(o.title) === k) : [];
+  }, [title, others, initial?.id]);
   const note = kind === 'note';
   const meta = KIND_META[kind];
 
@@ -171,6 +177,16 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, c
             aria-label="Tên"
             className="w-full bg-transparent text-[19px] font-semibold tracking-tight text-fg outline-none placeholder:font-medium placeholder:text-faint"
           />
+          {sameTitle.length > 0 && (
+            <p className="mt-1 flex items-start gap-1.5 text-[12px] text-accent">
+              <Layers size={13} className="mt-0.5 shrink-0" />
+              <span>
+                Đã có {sameTitle.length} mục cùng tên
+                {` (của ${[...new Set(sameTitle.map((o) => (o.created_by ?? '?').split('@')[0]))].join(', ')})`} — sẽ hiện gộp chung một dòng, mỗi mục là một “bản” để chọn. Muốn
+                tách riêng thì đặt tên khác.
+              </span>
+            </p>
+          )}
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}

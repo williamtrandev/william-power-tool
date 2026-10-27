@@ -314,7 +314,7 @@ export const COMMAND_STEPS: TourStep[] = [
     body: (
       <>
         Bấm vào một dòng để xem chi tiết bên phải. Dùng <kbd>↑</kbd> <kbd>↓</kbd> để chuyển nhanh, <kbd>Enter</kbd> để copy — kể cả khi đang gõ trong ô tìm. Rê chuột vào dòng
-        để copy luôn mà không cần mở. Dấu ⚠ là lệnh thay đổi dữ liệu / hệ thống.
+        để copy luôn mà không cần mở. Dấu ⚠ là lệnh thay đổi dữ liệu / hệ thống. Nhiều mục cùng tên được gộp thành một dòng “N bản” — chọn bản ở khung bên phải hoặc bằng <kbd>←</kbd> <kbd>→</kbd>.
       </>
     ),
   },
