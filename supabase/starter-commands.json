@@ -1,0 +1,162 @@
+[
+  {
+    "title": "Theo dõi log realtime, chỉ hiện dòng lỗi",
+    "kind": "shell",
+    "category": "Log",
+    "tags": ["log", "realtime"],
+    "description": "Đang có sự cố: mở lệnh này rồi thao tác lại trên web để xem lỗi xuất hiện ngay lúc đó. Ctrl+C để dừng.",
+    "body": "tail -f {{log_dir:/home/www/WataneBO_Core/logs}}/{{file:app.log}} | grep --line-buffered -iE \"{{keyword:error|exception|fatal}}\""
+  },
+  {
+    "title": "Tìm một trace id trong toàn bộ log",
+    "kind": "shell",
+    "category": "Log",
+    "tags": ["trace", "log"],
+    "description": "Lấy trace id từ tab Log (hoặc từ response lỗi) rồi dán vào biến. Hiện tên file + số dòng.",
+    "body": "grep -rn --include=\"*.log\" \"{{trace_id}}\" {{log_dir:/home/www}} | head -n 200"
+  },
+  {
+    "title": "Xem N dòng cuối của file log",
+    "kind": "shell",
+    "category": "Log",
+    "tags": ["log"],
+    "description": "",
+    "body": "tail -n {{lines:300}} {{log_dir:/home/www/WataneBO_Core/logs}}/{{file:app.log}}"
+  },
+  {
+    "title": "Cắt log trong một khoảng thời gian",
+    "kind": "shell",
+    "category": "Log",
+    "tags": ["log", "thời gian"],
+    "description": "In các dòng từ lần đầu gặp mốc 'from' tới mốc 'to'. Mốc phải viết đúng định dạng giờ trong file log.",
+    "body": "sed -n '/{{from:10:40}}/,/{{to:10:45}}/p' {{log_dir:/home/www/WataneBO_Core/logs}}/{{file:app.log}} > /tmp/log-cut.txt && wc -l /tmp/log-cut.txt"
+  },
+  {
+    "title": "Đếm số dòng lỗi trong file log",
+    "kind": "shell",
+    "category": "Log",
+    "tags": ["log", "thống kê"],
+    "description": "",
+    "body": "grep -ciE \"error|exception|fatal\" {{log_dir:/home/www/WataneBO_Core/logs}}/{{file:app.log}}"
+  },
+  {
+    "title": "Tìm file log lớn",
+    "kind": "shell",
+    "category": "Hạ tầng",
+    "tags": ["disk", "log"],
+    "description": "Dùng khi ổ đầy — xem file log nào phình to.",
+    "body": "find {{dir:/home/www}} -name \"*.log\" -size +{{size:100M}} -exec ls -lh {} \\; | sort -k5 -rh | head -n 20"
+  },
+  {
+    "title": "Dung lượng ổ đĩa và thư mục nặng nhất",
+    "kind": "shell",
+    "category": "Hạ tầng",
+    "tags": ["disk"],
+    "description": "",
+    "body": "df -h && sudo du -sh {{dir:/home/www}}/* 2>/dev/null | sort -rh | head -n 15"
+  },
+  {
+    "title": "RAM, CPU và tiến trình nặng",
+    "kind": "shell",
+    "category": "Hạ tầng",
+    "tags": ["cpu", "ram"],
+    "description": "",
+    "body": "free -h && uptime && ps aux --sort=-%mem | head -n 15"
+  },
+  {
+    "title": "Kiểm tra port có đang mở / service nào giữ",
+    "kind": "shell",
+    "category": "Hạ tầng",
+    "tags": ["network", "port"],
+    "description": "",
+    "body": "sudo ss -tlnp | grep \":{{port:8080}}\""
+  },
+  {
+    "title": "Gọi thử một URL, đo status và thời gian",
+    "kind": "shell",
+    "category": "Hạ tầng",
+    "tags": ["network", "api"],
+    "description": "Kiểm tra nhanh API / service nội bộ còn sống và phản hồi bao lâu.",
+    "body": "curl -sS -o /dev/null -w \"HTTP %{http_code} · %{time_total}s\\n\" \"{{url:http://localhost:8080/health}}\""
+  },
+  {
+    "title": "Kiểm tra Redis còn sống",
+    "kind": "shell",
+    "category": "Hạ tầng",
+    "tags": ["redis"],
+    "description": "Trả về PONG là bình thường. Dùng khi log báo \"Connection refused [tcp://redis:…]\".",
+    "body": "redis-cli -h {{host:redis}} -p {{port:6379}} ping"
+  },
+  {
+    "title": "Trạng thái service (systemd)",
+    "kind": "shell",
+    "category": "Service",
+    "tags": ["systemd"],
+    "description": "",
+    "body": "sudo systemctl status {{service}} --no-pager -l"
+  },
+  {
+    "title": "Log của service trong 30 phút gần nhất",
+    "kind": "shell",
+    "category": "Service",
+    "tags": ["systemd", "log"],
+    "description": "",
+    "body": "sudo journalctl -u {{service}} --since \"{{since:30 min ago}}\" --no-pager | tail -n 300"
+  },
+  {
+    "title": "Restart service (systemd)",
+    "kind": "shell",
+    "category": "Service",
+    "tags": ["systemd", "restart"],
+    "description": "Báo team trước khi chạy, tránh giờ cao điểm.",
+    "body": "sudo systemctl restart {{service}} && sudo systemctl status {{service}} --no-pager"
+  },
+  {
+    "title": "Danh sách container",
+    "kind": "shell",
+    "category": "Docker",
+    "tags": ["docker"],
+    "description": "",
+    "body": "docker ps -a"
+  },
+  {
+    "title": "Lỗi của container trong khoảng thời gian gần nhất",
+    "kind": "shell",
+    "category": "Docker",
+    "tags": ["docker", "log"],
+    "description": "",
+    "body": "docker logs --since {{since:30m}} {{container}} 2>&1 | grep -iE \"error|exception\" | tail -n 200"
+  },
+  {
+    "title": "Restart container",
+    "kind": "shell",
+    "category": "Docker",
+    "tags": ["docker", "restart"],
+    "description": "Báo team trước khi chạy.",
+    "body": "docker restart {{container}} && docker logs --tail 50 -f {{container}}"
+  },
+  {
+    "title": "Tìm bảng theo tên",
+    "kind": "sql",
+    "category": "Database",
+    "tags": ["schema"],
+    "description": "Chạy được trên SQL Server, MySQL và PostgreSQL.",
+    "body": "SELECT TABLE_SCHEMA, TABLE_NAME\nFROM INFORMATION_SCHEMA.TABLES\nWHERE TABLE_NAME LIKE '%{{keyword}}%'\nORDER BY TABLE_NAME;"
+  },
+  {
+    "title": "Tìm cột theo tên (cột nằm ở bảng nào)",
+    "kind": "sql",
+    "category": "Database",
+    "tags": ["schema"],
+    "description": "Chạy được trên SQL Server, MySQL và PostgreSQL.",
+    "body": "SELECT TABLE_NAME, COLUMN_NAME, DATA_TYPE\nFROM INFORMATION_SCHEMA.COLUMNS\nWHERE COLUMN_NAME LIKE '%{{keyword}}%'\nORDER BY TABLE_NAME, COLUMN_NAME;"
+  },
+  {
+    "title": "Câu truy vấn đang chạy lâu (SQL Server)",
+    "kind": "sql",
+    "category": "Database",
+    "tags": ["sql server", "hiệu năng"],
+    "description": "Xem query nào đang chạy và chạy bao lâu — khi web bị chậm / timeout.",
+    "body": "SELECT r.session_id, r.status, r.wait_type, r.total_elapsed_time / 1000 AS seconds, DB_NAME(r.database_id) AS db, t.text\nFROM sys.dm_exec_requests r\nCROSS APPLY sys.dm_exec_sql_text(r.sql_handle) t\nWHERE r.session_id <> @@SPID\nORDER BY r.total_elapsed_time DESC;"
+  }
+]

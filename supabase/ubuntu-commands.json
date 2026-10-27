@@ -1,0 +1,82 @@
+[
+  {
+    "title": "Liệt kê service đang chạy",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["service", "systemd"],
+    "description": "Tất cả service systemd đang chạy trên máy.",
+    "body": "systemctl list-units --type=service --state=running --no-pager"
+  },
+  {
+    "title": "Tìm service theo tên",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["service", "grep"],
+    "description": "Tìm cả service đang dừng. Có thể nhập nhiều từ, cách nhau bằng |",
+    "body": "systemctl list-units --type=service --all --no-pager | grep -iE \"{{keyword:nginx|php|redis}}\""
+  },
+  {
+    "title": "Trạng thái chi tiết một service",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["service", "systemd"],
+    "description": "Xem đang chạy hay chết, PID, mấy dòng log cuối.",
+    "body": "sudo systemctl status {{service}} --no-pager -l"
+  },
+  {
+    "title": "Log của service trong khoảng thời gian gần đây",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["service", "log", "journalctl"],
+    "description": "",
+    "body": "sudo journalctl -u {{service}} --since \"{{since:1 hour ago}}\" --no-pager | tail -n {{lines:200}}"
+  },
+  {
+    "title": "Tìm chuỗi trong toàn bộ thư mục (grep -RInE)",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["grep", "log", "tìm kiếm"],
+    "description": "-R đệ quy, -I bỏ qua file nhị phân, -n hiện số dòng, -E dùng regex (vd: error|timeout). Kết quả dạng file:dòng:nội dung.",
+    "body": "sudo grep -RInE \"{{pattern:error|exception|fatal}}\" {{dir:/var/log}} 2>/dev/null | tail -n {{lines:200}}"
+  },
+  {
+    "title": "Theo dõi file log realtime, lọc theo từ khoá",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["log", "realtime", "grep"],
+    "description": "Ctrl+C để dừng.",
+    "body": "sudo tail -f {{file:/var/log/syslog}} | grep --line-buffered -iE \"{{pattern:error|fail}}\""
+  },
+  {
+    "title": "Tìm process theo tên",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["process", "grep"],
+    "description": "",
+    "body": "ps aux | grep -iE \"{{keyword}}\" | grep -v grep"
+  },
+  {
+    "title": "Port nào đang mở, process nào giữ",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["network", "port"],
+    "description": "Bỏ phần | grep để xem tất cả port đang lắng nghe.",
+    "body": "sudo ss -tulpn | grep -E \":{{port:80}}\\s\""
+  },
+  {
+    "title": "Dung lượng ổ đĩa và thư mục nặng nhất",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["disk"],
+    "description": "Dùng khi báo đầy ổ (No space left on device).",
+    "body": "df -h && sudo du -xh {{dir:/var}} --max-depth=1 2>/dev/null | sort -rh | head -n 15"
+  },
+  {
+    "title": "RAM, tải hệ thống và process tốn CPU nhất",
+    "kind": "shell",
+    "category": "Ubuntu",
+    "tags": ["cpu", "ram"],
+    "description": "",
+    "body": "free -h && uptime && ps aux --sort=-%cpu | head -n 10"
+  }
+]
