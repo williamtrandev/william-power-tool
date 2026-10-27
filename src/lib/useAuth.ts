@@ -8,6 +8,10 @@ export type AuthState =
   | { kind: 'error'; message: string }
   | { kind: 'pending' | 'blocked' | 'ready'; user: User; member: Member };
 
+/** A sign-in lasts this long; after that Google is asked again. */
+export const SESSION_DAYS = 30;
+const expired = (u: User) => !!u.signedInAt && Date.now() - new Date(u.signedInAt).getTime() > SESSION_DAYS * 86400000;
+
 /** Who is signed in and whether an admin has let them in. */
 export function useAuth(backend: Backend | null) {
   // undefined = still reading the saved session
@@ -22,15 +26,21 @@ export function useAuth(backend: Backend | null) {
   }, [backend]);
 
   const userId = user?.id;
+  const signedInAt = user?.signedInAt;
   const refresh = useCallback(async () => {
     if (!backend || !userId) return;
+    // the Supabase session renews itself forever; cap it at SESSION_DAYS since the last real sign-in
+    if (expired({ id: userId, email: '', signedInAt })) {
+      await backend.signOut();
+      return;
+    }
     try {
       setMember(await backend.me());
       setError(null);
     } catch (e) {
       setError((e as Error).message);
     }
-  }, [backend, userId]);
+  }, [backend, userId, signedInAt]);
 
   // token refreshes fire auth events with the same user — only reload on a different account
   useEffect(() => {

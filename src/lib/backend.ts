@@ -27,6 +27,8 @@ export interface User {
   email: string;
   name?: string;
   avatar?: string;
+  /** when the person last actually signed in (token refreshes do not count) */
+  signedInAt?: string;
 }
 
 export interface Backend {
@@ -84,12 +86,18 @@ function friendly(e: { message?: string; code?: string } | null | undefined): Er
 function supabaseBackend(url: string, anonKey: string): Backend {
   // PKCE: the provider sends back ?code=…, which does not collide with the #tool hash routing
   const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, storageKey: 'wpt-auth', flowType: 'pkce' } });
-  type AuthUser = { id: string; email?: string; user_metadata?: Record<string, unknown> };
+  type AuthUser = { id: string; email?: string; last_sign_in_at?: string; user_metadata?: Record<string, unknown> };
   const toUser = (u: AuthUser | undefined | null): User | null => {
     if (!u) return null;
     const m = u.user_metadata ?? {};
     const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
-    return { id: u.id, email: (u.email ?? '').toLowerCase(), name: str(m.full_name) ?? str(m.name), avatar: str(m.avatar_url) ?? str(m.picture) };
+    return {
+      id: u.id,
+      email: (u.email ?? '').toLowerCase(),
+      name: str(m.full_name) ?? str(m.name),
+      avatar: str(m.avatar_url) ?? str(m.picture),
+      signedInAt: u.last_sign_in_at,
+    };
   };
   const table = () => sb.from('commands');
   return {

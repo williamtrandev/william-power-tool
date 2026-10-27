@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Chính sách bảo mật · William Tool</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232563eb'/%3E%3Cpath d='M8 10.5l3.2 11 4.8-8 4.8 8 3.2-11' fill='none' stroke='white' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
+    <style>
+      :root {
+        --bg: #f7f7f8;
+        --surface: #fff;
+        --line: #e4e4e7;
+        --fg: #18181b;
+        --muted: #52525b;
+        --accent: #2563eb;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #09090b;
+          --surface: #111113;
+          --line: #24242a;
+          --fg: #f4f4f5;
+          --muted: #a1a1aa;
+          --accent: #4f8bff;
+        }
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--fg);
+        font: 15px/1.7 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      }
+      main {
+        max-width: 760px;
+        margin: 48px auto;
+        padding: 36px 40px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+      }
+      header { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; }
+      header a { color: var(--fg); text-decoration: none; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+      h1 { font-size: 26px; letter-spacing: -0.02em; margin: 0 0 4px; }
+      h2 { font-size: 17px; margin: 28px 0 6px; }
+      p, li { color: var(--muted); }
+      ul { padding-left: 20px; }
+      a { color: var(--accent); }
+      .meta { font-size: 13px; color: var(--muted); }
+      hr { border: 0; border-top: 1px solid var(--line); margin: 32px 0 20px; }
+      @media (max-width: 640px) { main { margin: 0; border-radius: 0; border: 0; padding: 28px 18px; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <a href="/">
+          <svg viewBox="0 0 32 32" width="28" height="28" aria-hidden="true">
+            <rect width="32" height="32" rx="8" fill="#2563eb" />
+            <path d="M8 10.5l3.2 11 4.8-8 4.8 8 3.2-11" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          William Tool
+        </a>
+      </header>
+
+      <h1>Chính sách bảo mật</h1>
+      <p class="meta">Cập nhật: 28/10/2026</p>
+
+      <p>
+        William Tool là công cụ nội bộ dành cho đội Dev và QC: đọc log, giải mã dữ liệu Watane và lưu các câu lệnh dùng chung. Trang này mô tả dữ liệu nào được
+        thu thập và được dùng ra sao.
+      </p>
+
+      <h2>1. Thông tin từ tài khoản Google</h2>
+      <p>Khi bạn đăng nhập bằng Google, chúng tôi chỉ nhận:</p>
+      <ul>
+        <li>Địa chỉ email</li>
+        <li>Tên hiển thị và ảnh đại diện</li>
+      </ul>
+      <p>
+        Các thông tin này chỉ dùng để xác định bạn là ai, để quản trị viên duyệt quyền truy cập và để hiển thị tên người tạo / sửa câu lệnh. Chúng tôi không nhận
+        mật khẩu Google, không đọc email, danh bạ, Drive hay bất kỳ dữ liệu nào khác trong tài khoản Google của bạn.
+      </p>
+
+      <h2>2. Dữ liệu được lưu trên máy chủ</h2>
+      <ul>
+        <li>Thông tin tài khoản ở mục 1, trạng thái duyệt và quyền (thành viên / quản trị).</li>
+        <li>Các câu lệnh bạn thêm vào kho lệnh, cùng lịch sử chỉnh sửa và số lần sử dụng.</li>
+      </ul>
+      <p>Dữ liệu được lưu trên Supabase, chỉ người đã đăng nhập và được duyệt mới đọc được.</p>
+
+      <h2>3. Dữ liệu chỉ nằm trên máy bạn</h2>
+      <ul>
+        <li>File log bạn mở được đọc và xử lý ngay trong trình duyệt, không tải lên máy chủ nào.</li>
+        <li>Secret key và dữ liệu giải mã Watane chỉ lưu trong trình duyệt của bạn.</li>
+      </ul>
+
+      <h2>4. Chia sẻ dữ liệu</h2>
+      <p>Chúng tôi không bán, không chia sẻ dữ liệu cho bên thứ ba và không dùng cho quảng cáo.</p>
+
+      <h2>5. Thời gian lưu và xoá dữ liệu</h2>
+      <p>
+        Phiên đăng nhập có hiệu lực tối đa 30 ngày. Bạn có thể yêu cầu xoá tài khoản và dữ liệu liên quan bất cứ lúc nào bằng cách liên hệ quản trị viên theo địa
+        chỉ bên dưới.
+      </p>
+
+      <h2>6. Liên hệ</h2>
+      <p>Mọi câu hỏi về dữ liệu, vui lòng gửi email tới <a href="mailto:williamtrandev@gmail.com">williamtrandev@gmail.com</a>.</p>
+
+      <hr />
+      <p class="meta"><a href="/">← Quay lại William Tool</a></p>
+    </main>
+  </body>
+</html>

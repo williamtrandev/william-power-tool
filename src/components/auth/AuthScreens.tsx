@@ -103,7 +103,7 @@ function Showcase() {
           <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
           <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
         </span>
-        Công cụ nội bộ cho IT · QC · vận hành
+        Công cụ nội bộ Dev, QC
       </span>
       <h1 style={delay(80)} className="auth-rise mt-5 text-[44px] leading-[1.08] font-semibold tracking-[-0.03em] text-fg">
         Truy lỗi, giải mã, chạy lệnh —{' '}
@@ -256,6 +256,11 @@ export function LoginScreen({ backend, ...p }: ShellProps & { backend: Backend }
             <ShieldCheck size={15} className="mt-px shrink-0 text-emerald-500" />
             <span>Chỉ tài khoản được admin duyệt mới vào được hệ thống. William Tool không thấy và không lưu mật khẩu Google của bạn.</span>
           </div>
+          <p className="mt-4 text-center text-[12px] text-faint">
+            <a href="/privacy.html" className="focus-ring rounded hover:text-fg hover:underline">
+              Chính sách bảo mật
+            </a>
+          </p>
         </Card>
       </div>
     </Frame>
