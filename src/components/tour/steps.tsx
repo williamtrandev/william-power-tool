@@ -288,14 +288,14 @@ export const COMMAND_STEPS: TourStep[] = [
     title: 'Kho lệnh dùng chung',
     body: (
       <>
-        Nơi lưu các lệnh server (tail, grep, docker…) và câu SQL hay dùng của team. Mọi thành viên thấy cùng một danh sách và đều thêm được lệnh; mỗi người chỉ
-        sửa / xoá được lệnh do mình tạo.
+        Nơi team lưu <b>lệnh server</b> (tail, grep, systemctl…), <b>câu SQL</b> và <b>ghi chú</b> (link, tài khoản test, thông tin môi trường). Mọi thành viên thấy cùng một
+        danh sách và đều thêm được; mỗi người chỉ sửa / xoá được mục do mình tạo.
       </>
     ),
   },
   {
     target: 'c-search',
-    title: 'Tìm lệnh',
+    title: 'Tìm nhanh',
     body: (
       <>
         Gõ vài chữ trong tên, nội dung hoặc <code>#tag</code> — không cần gõ dấu. Nhấn <kbd>/</kbd> ở bất kỳ đâu để nhảy vào ô tìm.
@@ -304,27 +304,48 @@ export const COMMAND_STEPS: TourStep[] = [
   },
   {
     target: 'c-kind',
-    title: 'Lọc theo loại',
-    body: <>Chỉ xem lệnh server hoặc chỉ xem câu SQL. Bên dưới có thể lọc tiếp theo nhóm hệ thống.</>,
+    title: 'Lọc theo loại và nhóm',
+    body: <>Chọn Server, SQL hoặc Ghi chú. Hàng bên dưới lọc theo nhóm; “Của tôi” chỉ hiện mục bạn tạo.</>,
   },
   {
     target: 'c-list',
-    title: 'Điền biến rồi Copy',
-    placement: 'top',
+    title: 'Chọn một mục',
+    placement: 'right',
     body: (
       <>
-        Phần <code>{'{{trace_id}}'}</code> trong lệnh là biến — điền ở ô phía trên, lệnh tự cập nhật. Giá trị được nhớ và dùng chung cho mọi lệnh có cùng tên biến. Nhãn đỏ
-        nghĩa là lệnh thay đổi dữ liệu / hệ thống, đọc kỹ trước khi chạy.
+        Bấm vào một dòng để xem chi tiết bên phải. Dùng <kbd>↑</kbd> <kbd>↓</kbd> để chuyển nhanh, <kbd>Enter</kbd> để copy — kể cả khi đang gõ trong ô tìm. Rê chuột vào dòng
+        để copy luôn mà không cần mở. Dấu ⚠ là lệnh thay đổi dữ liệu / hệ thống.
+      </>
+    ),
+  },
+  {
+    title: 'Lệnh có ô để điền?',
+    body: (
+      <>
+        Một số lệnh có phần viết dạng <code>{'{{tên}}'}</code> — ví dụ <code>{'{{service}}'}</code> hay <code>{'{{dir:/var/log}}'}</code>. Đó là <b>biến</b>: khi mở lệnh sẽ có ô
+        để điền ngay phía trên, lệnh tự cập nhật trước khi copy. Phần sau dấu <code>:</code> là giá trị mặc định, để trống cũng chạy được.
+        <br />
+        <br />
+        Lệnh không có biến thì không có ô nào — chỉ cần bấm Copy.
+      </>
+    ),
+  },
+  {
+    title: 'Ghi chú',
+    body: (
+      <>
+        Mỗi dòng dạng <code>Tên: giá trị</code> hiện thành một hàng có nút copy riêng; link bấm mở được; dòng có chữ <i>mật khẩu / password / token</i> được che, bấm 👁 để
+        xem. Chỉ lưu tài khoản test / UAT.
       </>
     ),
   },
   {
     target: 'c-add',
-    title: 'Thêm lệnh của bạn',
+    title: 'Thêm lệnh hoặc ghi chú',
     placement: 'left',
     body: (
       <>
-        Lệnh bạn tạo có nút sửa / xoá; lệnh của người khác chỉ xem và copy. Chip <b>Của tôi</b> lọc ra lệnh bạn đã tạo. Nút bên cạnh để nhập / xuất bằng file JSON.
+        Bấm <b>Thêm mới</b>, chọn loại Server / SQL / Ghi chú. Nút <b>Nhập / Xuất</b> bên cạnh để tải toàn bộ kho về file JSON (sao lưu) hoặc nhập hàng loạt từ file.
       </>
     ),
   },

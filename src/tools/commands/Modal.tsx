@@ -10,21 +10,21 @@ export function Modal({ title, onClose, children, footer, wide }: { title: React
     return () => removeEventListener('keydown', onKey);
   }, [onClose]);
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/45 p-3 backdrop-blur-[2px] sm:p-8" onMouseDown={onClose}>
+    <div className="modal-backdrop fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-3 backdrop-blur-sm sm:p-10" onMouseDown={onClose}>
       <div
         role="dialog"
         aria-modal="true"
-        className={`flex max-h-full w-full flex-col overflow-hidden rounded-xl border border-line bg-surface shadow-2xl ${wide ? 'max-w-3xl' : 'max-w-xl'}`}
+        className={`modal-panel flex max-h-full w-full flex-col overflow-hidden rounded-2xl border border-line bg-surface shadow-[0_32px_96px_-24px_rgb(0_0_0/0.5)] ${wide ? 'max-w-[720px]' : 'max-w-xl'}`}
         onMouseDown={(e) => e.stopPropagation()}
       >
-        <div className="flex h-12 shrink-0 items-center gap-2 border-b border-line px-4">
-          <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold">{title}</h2>
+        <div className="flex h-12 shrink-0 items-center gap-2 px-5 pt-1">
+          <h2 className="min-w-0 flex-1 truncate text-[13px] font-medium text-muted">{title}</h2>
           <Button variant="ghost" size="icon-sm" aria-label="Đóng" onClick={onClose}>
             <X size={17} />
           </Button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">{children}</div>
-        {footer && <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-4 py-3">{footer}</div>}
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-1 pb-5">{children}</div>
+        {footer && <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface-2/40 px-5 py-3">{footer}</div>}
       </div>
     </div>,
     document.body,

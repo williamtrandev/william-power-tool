@@ -1,38 +1,91 @@
 import clsx from 'clsx';
-import { Database, Loader2, RotateCcw, SquareTerminal, TriangleAlert } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { Button, Segmented } from '../../components/ui';
+import { Braces, Database, Info, Loader2, RotateCcw, SquareTerminal, StickyNote, TriangleAlert, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Button, Kbd, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
 import { commandVars, dangerOf, type Command, type CommandInput, type HistoryRow } from '../../lib/commands';
-import { CodeView, relTime } from './CommandCard';
+import { CodeView, KIND_META, NoteView, relTime } from './CommandCard';
 import { Modal } from './Modal';
 
-const field = 'focus-ring w-full rounded-md border border-line bg-surface px-2.5 text-[13px] text-fg placeholder:text-faint';
-const labelCls = 'mb-1 block text-[12px] font-medium text-fg-2';
+/** Tags as removable chips: Enter or comma adds, Backspace on empty removes the last one. */
+function TagInput({ tags, onChange, suggestions }: { tags: string[]; onChange: (t: string[]) => void; suggestions: string[] }) {
+  const [draft, setDraft] = useState('');
+  const add = (raw: string) => {
+    const t = raw.trim().replace(/^#/, '');
+    if (t && !tags.includes(t)) onChange([...tags, t]);
+    setDraft('');
+  };
+  return (
+    <div className="flex min-h-9 flex-wrap items-center gap-1 rounded-lg border border-line bg-surface px-1.5 py-1 transition-shadow focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_var(--accent-ring)]">
+      {tags.map((t) => (
+        <span key={t} className="inline-flex h-6 items-center gap-0.5 rounded-md bg-surface-3 pr-0.5 pl-2 text-[12px] font-medium text-fg-2">
+          #{t}
+          <button type="button" aria-label={`Bỏ tag ${t}`} onClick={() => onChange(tags.filter((x) => x !== t))} className="grid size-5 place-items-center rounded text-faint hover:bg-surface-2 hover:text-fg">
+            <X size={12} />
+          </button>
+        </span>
+      ))}
+      <input
+        list="cmd-tag-list"
+        value={draft}
+        onChange={(e) => (e.target.value.endsWith(',') ? add(e.target.value.slice(0, -1)) : setDraft(e.target.value))}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && draft.trim()) {
+            e.preventDefault();
+            e.stopPropagation();
+            add(draft);
+          } else if (e.key === 'Backspace' && !draft && tags.length) onChange(tags.slice(0, -1));
+        }}
+        onBlur={() => draft.trim() && add(draft)}
+        placeholder={tags.length ? '' : 'Thêm tag, Enter để xác nhận'}
+        aria-label="Thêm tag"
+        className="h-6 min-w-[120px] flex-1 bg-transparent px-1 text-[13px] text-fg outline-none placeholder:text-faint"
+      />
+      <datalist id="cmd-tag-list">
+        {suggestions.filter((x) => !tags.includes(x)).map((x) => (
+          <option key={x} value={x} />
+        ))}
+      </datalist>
+    </div>
+  );
+}
+
+function Prop({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+  return (
+    <div className={className}>
+      <p className="mb-1.5 text-[11.5px] font-medium tracking-wide text-faint uppercase">{label}</p>
+      {children}
+    </div>
+  );
+}
 
 interface EditorProps {
   initial: Command | null;
   categories: string[];
+  tagSuggestions: string[];
   onSave: (input: CommandInput) => Promise<void>;
   onClose: () => void;
 }
 
-export function CommandEditor({ initial, categories, onSave, onClose }: EditorProps) {
+export function CommandEditor({ initial, categories, tagSuggestions, onSave, onClose }: EditorProps) {
   const [title, setTitle] = useState(initial?.title ?? '');
   const [kind, setKind] = useState(initial?.kind ?? 'shell');
   const [category, setCategory] = useState(initial?.category ?? '');
-  const [tags, setTags] = useState(initial?.tags.join(', ') ?? '');
+  const [tags, setTags] = useState<string[]>(initial?.tags ?? []);
   const [description, setDescription] = useState(initial?.description ?? '');
   const [body, setBody] = useState(initial?.body ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const bodyRef = useRef<HTMLTextAreaElement>(null);
 
-  const vars = useMemo(() => commandVars(body), [body]);
+  const vars = useMemo(() => (kind === 'note' ? [] : commandVars(body)), [kind, body]);
   const danger = useMemo(() => dangerOf({ kind, body }), [kind, body]);
-  const ok = title.trim() && body.trim();
+  const ok = !!title.trim() && !!body.trim();
+  const note = kind === 'note';
+  const meta = KIND_META[kind];
 
   const save = async () => {
-    if (!ok) return;
+    if (!ok || busy) return;
     setBusy(true);
     setErr(null);
     try {
@@ -40,7 +93,7 @@ export function CommandEditor({ initial, categories, onSave, onClose }: EditorPr
         title: title.trim(),
         kind,
         category: category.trim() || 'Chung',
-        tags: [...new Set(tags.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean))],
+        tags,
         description: description.trim(),
         body: body.replace(/\s+$/, ''),
       });
@@ -51,94 +104,186 @@ export function CommandEditor({ initial, categories, onSave, onClose }: EditorPr
     }
   };
 
+  /** wrap the selection (or a placeholder name) in {{ }} and select the name */
+  const insertVar = () => {
+    const ta = bodyRef.current;
+    if (!ta) return;
+    const { selectionStart: a, selectionEnd: b } = ta;
+    const name = body.slice(a, b).trim().replace(/\s+/g, '_') || 'ten_bien';
+    const next = body.slice(0, a) + `{{${name}}}` + body.slice(b);
+    setBody(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(a + 2, a + 2 + name.length);
+    });
+  };
+
   return (
     <Modal
       wide
-      title={initial ? 'Sửa lệnh' : 'Thêm lệnh'}
+      title={initial ? (note ? 'Sửa ghi chú' : 'Sửa lệnh') : 'Thêm mới'}
       onClose={onClose}
       footer={
         <>
-          {err && <p className="mr-auto text-[12.5px] text-error">{err}</p>}
+          <p className="mr-auto hidden items-center gap-1.5 text-[11.5px] text-faint sm:flex">
+            <Kbd>{/Mac|iP/.test(navigator.platform) ? '⌘' : 'Ctrl'}</Kbd>
+            <Kbd>Enter</Kbd> để lưu · <Kbd>Esc</Kbd> để đóng
+          </p>
           <Button variant="ghost" onClick={onClose}>
             Huỷ
           </Button>
           <Button variant="primary" disabled={!ok || busy} onClick={save}>
             {busy && <Loader2 size={15} className="animate-spin" />}
-            {initial ? 'Lưu thay đổi' : 'Thêm lệnh'}
+            {initial ? 'Lưu thay đổi' : note ? 'Thêm ghi chú' : 'Thêm lệnh'}
           </Button>
         </>
       }
     >
       <form
-        className="grid gap-3 sm:grid-cols-2"
+        className="space-y-5"
         onSubmit={(e) => {
           e.preventDefault();
           save();
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            save();
+          }
+        }}
       >
-        <div className="sm:col-span-2">
-          <label className={labelCls} htmlFor="cmd-title">
-            Tên lệnh
-          </label>
-          <input id="cmd-title" autoFocus className={clsx(field, 'h-9')} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="vd: Tìm trace id trong log gateway" />
-        </div>
+        {/* title + short description, document-style */}
         <div>
-          <span className={labelCls}>Loại</span>
-          <Segmented
-            label="Loại lệnh"
-            value={kind}
-            onChange={setKind}
-            items={[
-              { id: 'shell', label: 'Server', icon: <SquareTerminal size={15} /> },
-              { id: 'sql', label: 'SQL', icon: <Database size={15} /> },
-            ]}
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder={note ? 'Tên ghi chú, vd: Môi trường UAT Watane' : 'Tên lệnh, vd: Tìm trace id trong log gateway'}
+            aria-label="Tên"
+            className="w-full bg-transparent text-[19px] font-semibold tracking-tight text-fg outline-none placeholder:font-medium placeholder:text-faint"
+          />
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={Math.min(4, Math.max(1, description.split('\n').length))}
+            placeholder="Mô tả ngắn: khi nào dùng, cần lưu ý gì… (không bắt buộc)"
+            aria-label="Mô tả"
+            className="mt-1.5 w-full resize-none bg-transparent text-[13.5px] leading-relaxed text-muted outline-none placeholder:text-faint"
           />
         </div>
-        <div>
-          <label className={labelCls} htmlFor="cmd-cat">
-            Nhóm
-          </label>
-          <input id="cmd-cat" list="cmd-cats" className={clsx(field, 'h-9')} value={category} onChange={(e) => setCategory(e.target.value)} placeholder="vd: Gateway, Core, Watane BO" />
-          <datalist id="cmd-cats">
-            {categories.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+
+        {/* properties */}
+        <div className="grid gap-4 rounded-xl border border-line bg-surface-2/40 p-3.5 sm:grid-cols-[auto_minmax(0,1fr)]">
+          <Prop label="Loại">
+            <Segmented
+              label="Loại lệnh"
+              value={kind}
+              onChange={setKind}
+              items={[
+                { id: 'shell', label: 'Server', icon: <SquareTerminal size={15} /> },
+                { id: 'sql', label: 'SQL', icon: <Database size={15} /> },
+                { id: 'note', label: 'Ghi chú', icon: <StickyNote size={15} /> },
+              ]}
+            />
+          </Prop>
+          <Prop label="Nhóm">
+            <input
+              list="cmd-cats"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              placeholder="vd: Ubuntu, Gateway, Database"
+              aria-label="Nhóm"
+              className="focus-ring h-9 w-full rounded-lg border border-line bg-surface px-3 text-[13px] text-fg placeholder:text-faint"
+            />
+            <datalist id="cmd-cats">
+              {categories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+          </Prop>
+          <Prop label="Tag" className="sm:col-span-2">
+            <TagInput tags={tags} onChange={setTags} suggestions={tagSuggestions} />
+          </Prop>
         </div>
-        <div className="sm:col-span-2">
-          <label className={labelCls} htmlFor="cmd-body">
-            Lệnh
-          </label>
+
+        {/* code editor */}
+        <div className="overflow-hidden rounded-xl border border-line bg-surface-2 transition-shadow focus-within:border-accent/60 focus-within:shadow-[0_0_0_3px_var(--accent-ring)]">
+          <div className="flex h-10 items-center gap-2 border-b border-line px-3">
+            <span className={clsx('inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-[11.5px] font-semibold', meta.cls)}>
+              <meta.icon size={13} />
+              {kind === 'shell' ? 'Shell' : meta.label}
+            </span>
+            <span className="text-[12px] text-faint">{note ? 'Nội dung ghi chú' : 'Nội dung lệnh'}</span>
+            {!note && (
+              <Button size="sm" variant="ghost" className="ml-auto" onClick={insertVar} title="Bọc phần đang chọn thành biến, hoặc chèn biến mới">
+                <Braces size={14} /> Chèn biến
+              </Button>
+            )}
+          </div>
           <textarea
-            id="cmd-body"
-            className={clsx(field, 'min-h-[140px] resize-y py-2 font-mono text-[12.5px] leading-relaxed')}
+            ref={bodyRef}
             value={body}
             onChange={(e) => setBody(e.target.value)}
             spellCheck={false}
-            placeholder={kind === 'sql' ? "SELECT * FROM Orders WHERE OrderCode = '{{order_code}}';" : 'grep -rn "{{trace_id}}" /var/log/app/'}
+            aria-label="Nội dung lệnh"
+            placeholder={
+              note
+                ? 'Web: https://uat.example.vn\nAdmin: https://admin-uat.example.vn\nTài khoản: qc_test\nMật khẩu: ••••••\n\nGhi chú tự do cũng được.'
+                : kind === 'sql'
+                  ? "SELECT * FROM Orders WHERE OrderCode = '{{order_code}}';"
+                  : 'grep -RInE "{{pattern:error}}" {{dir:/var/log}}'
+            }
+            className={clsx(
+              'block min-h-[150px] w-full resize-y bg-transparent px-3.5 py-3 text-[13px] leading-relaxed text-fg outline-none placeholder:text-faint',
+              !note && 'font-mono',
+            )}
           />
-          <p className="mt-1 text-[11.5px] text-faint">
-            Dùng <code className="text-fg-2">{'{{ten_bien}}'}</code> hoặc <code className="text-fg-2">{'{{ten_bien:gia_tri_mac_dinh}}'}</code> cho phần người dùng cần điền.
-            {vars.length > 0 && <> Biến: {vars.map((v) => v.name).join(', ')}.</>}
+          <div className="flex min-h-10 flex-wrap items-center gap-1.5 border-t border-line px-3 py-2 text-[12px]">
+            {note ? (
+              <span className="text-faint">
+                Mỗi dòng <code className="text-fg-2">Tên: giá trị</code> thành một hàng có nút copy · link tự bấm được · dòng có chữ <i>mật khẩu / password / token</i> sẽ bị che
+              </span>
+            ) : vars.length ? (
+              <>
+                <span className="text-faint">Biến:</span>
+                {vars.map((v) => (
+                  <span key={v.name} className="inline-flex h-6 items-center rounded-md bg-accent-soft px-2 font-mono text-[11.5px] text-accent" title={v.def ? `Mặc định: ${v.def}` : 'Không có giá trị mặc định'}>
+                    {v.name}
+                    {v.def && <span className="ml-1 text-accent/60">= {v.def}</span>}
+                  </span>
+                ))}
+              </>
+            ) : (
+              <span className="text-faint">
+                Phần cần điền viết dạng <code className="text-fg-2">{'{{ten_bien}}'}</code> hoặc <code className="text-fg-2">{'{{ten_bien:mac_dinh}}'}</code>
+              </span>
+            )}
+            {danger && (
+              <span className="ml-auto inline-flex h-6 items-center gap-1 rounded-md bg-error/12 px-2 font-medium text-error">
+                <TriangleAlert size={13} /> {danger}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {note && body.trim() && (
+          <div>
+            <p className="mb-1.5 text-[11.5px] font-medium tracking-wide text-faint uppercase">Xem trước</p>
+            <NoteView body={body} onCopy={() => {}} />
+          </div>
+        )}
+        {note && (
+          <p className="flex items-start gap-2 rounded-lg bg-warn/10 px-3 py-2.5 text-[12.5px] text-warn">
+            <Info size={15} className="mt-px shrink-0" />
+            Ghi chú hiển thị cho mọi thành viên đã được duyệt. Chỉ lưu tài khoản test / UAT — không lưu mật khẩu production, hãy dùng trình quản lý mật khẩu cho những thứ đó.
           </p>
-          {danger && (
-            <p className="mt-1 flex items-center gap-1 text-[12px] text-error">
-              <TriangleAlert size={13} /> Sẽ gắn nhãn cảnh báo: {danger}
-            </p>
-          )}
-        </div>
-        <div className="sm:col-span-2">
-          <label className={labelCls} htmlFor="cmd-desc">
-            Mô tả / lưu ý <span className="font-normal text-faint">(không bắt buộc)</span>
-          </label>
-          <textarea id="cmd-desc" className={clsx(field, 'min-h-[60px] resize-y py-2')} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Khi nào dùng, cần chú ý gì…" />
-        </div>
-        <div className="sm:col-span-2">
-          <label className={labelCls} htmlFor="cmd-tags">
-            Tag <span className="font-normal text-faint">(cách nhau bằng dấu phẩy)</span>
-          </label>
-          <input id="cmd-tags" className={clsx(field, 'h-9')} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="log, trace, docker" />
-        </div>
+        )}
+
+        {err && (
+          <p role="alert" className="flex items-center gap-2 rounded-lg border border-error/30 bg-error/8 px-3 py-2.5 text-[13px] text-error">
+            <TriangleAlert size={15} /> {err}
+          </p>
+        )}
         <button type="submit" hidden />
       </form>
     </Modal>

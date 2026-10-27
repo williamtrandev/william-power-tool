@@ -96,7 +96,7 @@ end $$;
 create table if not exists public.commands (
   id          uuid primary key default gen_random_uuid(),
   title       text not null check (char_length(title) between 1 and 200),
-  kind        text not null check (kind in ('shell', 'sql')),
+  kind        text not null check (kind in ('shell', 'sql', 'note')),
   category    text not null default 'Chung' check (char_length(category) between 1 and 60),
   tags        text[] not null default '{}',
   description text not null default '' check (char_length(description) <= 4000),
@@ -108,6 +108,10 @@ create table if not exists public.commands (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- 'note' (links, test accounts…) was added later: widen the check on existing databases
+alter table public.commands drop constraint if exists commands_kind_check;
+alter table public.commands add constraint commands_kind_check check (kind in ('shell', 'sql', 'note'));
 
 create index if not exists commands_category_idx on public.commands (category);
 create index if not exists commands_uses_idx on public.commands (uses desc);

@@ -1,5 +1,6 @@
 import clsx from 'clsx';
-import { useMemo, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { GUID_SRC } from '../lib/parser';
 import type { Level, LogFile } from '../lib/types';
 import { shortName } from '../lib/format';
@@ -200,5 +201,147 @@ export function Avatar({ src, name, email, size = 28, className }: { src?: strin
     >
       {initials}
     </span>
+  );
+}
+
+/** Small popover menu that replaces a native <select> (which renders as an OS menu). */
+export function Dropdown<T extends string>({
+  value,
+  onChange,
+  options,
+  icon,
+  label,
+  align = 'right',
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { id: T; label: string; hint?: string }[];
+  icon?: ReactNode;
+  label: string;
+  align?: 'left' | 'right';
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    addEventListener('mousedown', close);
+    addEventListener('keydown', close);
+    return () => {
+      removeEventListener('mousedown', close);
+      removeEventListener('keydown', close);
+    };
+  }, [open]);
+  const cur = options.find((o) => o.id === value);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={label}
+        onClick={() => setOpen((o) => !o)}
+        className={clsx(
+          'focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12.5px] font-medium transition-colors',
+          open ? 'border-line-strong bg-surface-2 text-fg' : 'border-line bg-surface text-fg-2 hover:border-line-strong hover:text-fg',
+        )}
+      >
+        {icon}
+        {cur?.label}
+        <ChevronDown size={14} className={clsx('text-faint transition-transform', open && 'rotate-180')} />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label={label}
+          className={clsx(
+            'animate-in absolute top-full z-40 mt-1.5 min-w-[200px] rounded-xl border border-line bg-surface p-1 shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)]',
+            align === 'right' ? 'right-0' : 'left-0',
+          )}
+        >
+          {options.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              role="option"
+              aria-selected={o.id === value}
+              onClick={() => {
+                onChange(o.id);
+                setOpen(false);
+              }}
+              className={clsx(
+                'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[13px] transition-colors',
+                o.id === value ? 'bg-accent-soft text-accent' : 'text-fg-2 hover:bg-surface-2 hover:text-fg',
+              )}
+            >
+              <span className="flex-1">
+                {o.label}
+                {o.hint && <span className="block text-[11.5px] text-faint">{o.hint}</span>}
+              </span>
+              {o.id === value && <Check size={14} />}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Button that opens a list of actions, each with an icon and an explanation. */
+export function ActionMenu({
+  trigger,
+  label,
+  items,
+}: {
+  trigger: ReactNode;
+  label: string;
+  items: { icon: ReactNode; label: string; hint?: string; onClick: () => void; disabled?: boolean }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    addEventListener('mousedown', close);
+    addEventListener('keydown', close);
+    return () => {
+      removeEventListener('mousedown', close);
+      removeEventListener('keydown', close);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <Button aria-haspopup="menu" aria-expanded={open} aria-label={label} active={open} onClick={() => setOpen((o) => !o)}>
+        {trigger}
+        <ChevronDown size={14} className={clsx('text-faint transition-transform', open && 'rotate-180')} />
+      </Button>
+      {open && (
+        <div role="menu" aria-label={label} className="animate-in absolute top-full right-0 z-40 mt-1.5 w-72 rounded-xl border border-line bg-surface p-1 shadow-[0_16px_48px_-12px_rgb(0_0_0/0.35)]">
+          {items.map((it) => (
+            <button
+              key={it.label}
+              type="button"
+              role="menuitem"
+              disabled={it.disabled}
+              onClick={() => {
+                setOpen(false);
+                it.onClick();
+              }}
+              className="flex w-full items-start gap-3 rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-surface-2 disabled:pointer-events-none disabled:opacity-40"
+            >
+              <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-surface-2 text-muted">{it.icon}</span>
+              <span className="min-w-0">
+                <span className="block text-[13px] font-medium text-fg">{it.label}</span>
+                {it.hint && <span className="block text-[11.5px] leading-snug text-muted">{it.hint}</span>}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

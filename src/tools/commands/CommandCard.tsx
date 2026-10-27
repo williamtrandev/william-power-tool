@@ -1,8 +1,8 @@
 import clsx from 'clsx';
-import { Check, Copy, Database, History, Pencil, SquareTerminal, Trash2, TriangleAlert } from 'lucide-react';
+import { Check, Copy, Database, Eye, EyeOff, History, Pencil, SquareTerminal, StickyNote, Trash2, TriangleAlert } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { Button } from '../../components/ui';
-import { commandVars, dangerOf, fillCommand, tokenize, type Command, type CommandKind, type Tok } from '../../lib/commands';
+import { commandVars, dangerOf, fillCommand, parseNote, tokenize, URL_RE, type Command, type CommandKind, type Tok } from '../../lib/commands';
 
 const TOK_CLS: Record<Tok['k'], string> = {
   kw: 'text-violet-700 dark:text-violet-300 font-semibold',
@@ -15,18 +15,92 @@ const TOK_CLS: Record<Tok['k'], string> = {
   '': '',
 };
 
+export const KIND_META: Record<CommandKind, { label: string; icon: typeof Database; cls: string }> = {
+  shell: { label: 'Server', icon: SquareTerminal, cls: 'bg-teal-500/12 text-teal-700 dark:text-teal-300' },
+  sql: { label: 'SQL', icon: Database, cls: 'bg-violet-500/12 text-violet-700 dark:text-violet-300' },
+  note: { label: 'Ghi chú', icon: StickyNote, cls: 'bg-amber-500/14 text-amber-700 dark:text-amber-300' },
+};
+
 export function KindBadge({ kind }: { kind: CommandKind }) {
-  const sql = kind === 'sql';
+  const m = KIND_META[kind];
   return (
-    <span
-      className={clsx(
-        'inline-flex h-5 shrink-0 items-center gap-1 rounded px-1.5 text-[11px] font-semibold',
-        sql ? 'bg-violet-500/12 text-violet-700 dark:text-violet-300' : 'bg-teal-500/12 text-teal-700 dark:text-teal-300',
-      )}
-    >
-      {sql ? <Database size={12} /> : <SquareTerminal size={12} />}
-      {sql ? 'SQL' : 'Server'}
+    <span className={clsx('inline-flex h-5 shrink-0 items-center gap-1 rounded px-1.5 text-[11px] font-semibold', m.cls)}>
+      <m.icon size={12} />
+      {m.label}
     </span>
+  );
+}
+
+/** text with http(s) links made clickable */
+function Linkify({ text }: { text: string }) {
+  const out: React.ReactNode[] = [];
+  let last = 0;
+  for (const m of text.matchAll(URL_RE)) {
+    if (m.index > last) out.push(text.slice(last, m.index));
+    out.push(
+      <a key={m.index} href={m[0]} target="_blank" rel="noreferrer noopener" className="text-accent underline decoration-accent/30 underline-offset-2 hover:decoration-accent">
+        {m[0]}
+      </a>,
+    );
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) out.push(text.slice(last));
+  return <>{out}</>;
+}
+
+function NoteValue({ value, secret, onCopy }: { value: string; secret: boolean; onCopy: (v: string) => void }) {
+  const [show, setShow] = useState(false);
+  const [done, setDone] = useState(false);
+  const hidden = secret && !show;
+  return (
+    <>
+      <span className={clsx('min-w-0 flex-1 break-all', hidden ? 'font-mono tracking-widest text-muted' : 'text-fg')}>{hidden ? '•'.repeat(Math.min(12, Math.max(6, value.length))) : <Linkify text={value} />}</span>
+      <span className="flex shrink-0 items-center opacity-60 transition-opacity group-hover/row:opacity-100">
+        {secret && (
+          <button type="button" aria-label={show ? 'Ẩn' : 'Hiện'} title={show ? 'Ẩn' : 'Hiện'} onClick={() => setShow((v) => !v)} className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface-3 hover:text-fg">
+            {show ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+        )}
+        <button
+          type="button"
+          aria-label="Copy giá trị"
+          title="Copy giá trị"
+          onClick={() => {
+            onCopy(value);
+            setDone(true);
+            setTimeout(() => setDone(false), 1200);
+          }}
+          className="grid size-7 place-items-center rounded-md text-muted hover:bg-surface-3 hover:text-fg"
+        >
+          {done ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+        </button>
+      </span>
+    </>
+  );
+}
+
+/** Note body: "Tên: giá trị" lines become rows with their own copy button; secrets are masked. */
+export function NoteView({ body, onCopy }: { body: string; onCopy: (v: string) => void }) {
+  const lines = useMemo(() => parseNote(body), [body]);
+  return (
+    <div className="rounded-lg border border-line bg-surface-2 py-1.5 text-[13px] leading-relaxed">
+      {lines.map((l, i) =>
+        l.t === 'blank' ? (
+          <div key={i} className="h-2" />
+        ) : l.t === 'text' ? (
+          <p key={i} className="px-3 py-0.5 break-words text-fg-2">
+            <Linkify text={l.text} />
+          </p>
+        ) : (
+          <div key={i} className="group/row flex items-center gap-3 px-3 py-0.5 hover:bg-surface-3/50">
+            <span className="w-32 shrink-0 truncate text-[12.5px] text-muted" title={l.key}>
+              {l.key}
+            </span>
+            <NoteValue value={l.value} secret={l.secret} onCopy={onCopy} />
+          </div>
+        ),
+      )}
+    </div>
   );
 }
 
@@ -76,12 +150,13 @@ interface Props {
 }
 
 export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onValue, onCopy, onEdit, onDelete, onHistory, onTag }: Props) {
-  const vars = useMemo(() => commandVars(cmd.body), [cmd.body]);
+  const note = cmd.kind === 'note';
+  const vars = useMemo(() => (note ? [] : commandVars(cmd.body)), [note, cmd.body]);
   const danger = useMemo(() => dangerOf(cmd), [cmd]);
   const [copied, setCopied] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const copy = () => {
-    onCopy(cmd, fillCommand(cmd.body, values));
+    onCopy(cmd, note ? cmd.body : fillCommand(cmd.body, values));
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
   };
@@ -134,6 +209,7 @@ export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onV
             <label key={v.name} className="flex min-w-0 items-center rounded-md border border-line bg-surface focus-within:border-accent/60">
               <span className="shrink-0 border-r border-line px-2 font-mono text-[11.5px] text-muted">{v.name}</span>
               <input
+                data-var-input
                 value={values[v.name] ?? ''}
                 onChange={(e) => onValue(v.name, e.target.value)}
                 placeholder={v.def || 'nhập giá trị'}
@@ -147,10 +223,16 @@ export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onV
       )}
 
       <div className="mt-2.5 flex items-start gap-2">
-        <CodeView body={cmd.body} kind={cmd.kind} values={values} />
+        {note ? (
+          <div className="min-w-0 flex-1">
+            <NoteView body={cmd.body} onCopy={(v) => onCopy(cmd, v)} />
+          </div>
+        ) : (
+          <CodeView body={cmd.body} kind={cmd.kind} values={values} />
+        )}
         <Button variant={copied ? 'default' : 'primary'} className="mt-1" onClick={copy}>
           {copied ? <Check size={15} /> : <Copy size={15} />}
-          <span className="hidden sm:inline">{copied ? 'Đã copy' : 'Copy'}</span>
+          <span className="hidden sm:inline">{copied ? 'Đã copy' : note ? 'Copy hết' : 'Copy'}</span>
         </Button>
       </div>
 

@@ -1,6 +1,7 @@
 /** Shared command library (server commands + SQL): types and helpers. Storage is in backend.ts. */
 
-export type CommandKind = 'shell' | 'sql';
+/** shell / sql are runnable commands; note is free text for links, test accounts, environments… */
+export type CommandKind = 'shell' | 'sql' | 'note';
 
 export interface Command {
   id: string;
@@ -30,6 +31,14 @@ export interface HistoryRow {
 }
 
 export const SAMPLE_COMMANDS: CommandInput[] = [
+  {
+    title: 'Môi trường UAT Watane',
+    kind: 'note',
+    category: 'Môi trường',
+    tags: ['uat', 'link'],
+    description: 'Link và tài khoản test dùng chung cho QC.',
+    body: 'Web: https://uat.watane.example.vn\nAdmin: https://admin-uat.watane.example.vn\nTài khoản: qc_test\nMật khẩu: Uat@2026\n\nReset dữ liệu test mỗi sáng thứ 2.',
+  },
   {
     title: 'Xem log core theo thời gian thực, lọc lỗi',
     kind: 'shell',
@@ -141,6 +150,7 @@ const SHELL_DANGER =
 
 /** Commands that change data or services get a warning badge. */
 export function dangerOf(c: Pick<Command, 'kind' | 'body'>): string | null {
+  if (c.kind === 'note') return null;
   const body = c.body.replace(/--.*$|#.*$/gm, ''); // ignore comments
   if (c.kind === 'sql') {
     const m = SQL_DANGER.exec(body);
@@ -178,3 +188,23 @@ export function tokenize(body: string, kind: CommandKind): Tok[] {
   }
   return out;
 }
+
+// ── notes ────────────────────────────────────────────────────────────────────
+
+export type NoteLine = { t: 'kv'; key: string; value: string; secret: boolean } | { t: 'text'; text: string } | { t: 'blank' };
+
+const SECRET_KEY = /pass|mật\s*khẩu|mat\s*khau|secret|token|api[\s_-]?key|\bpin\b|otp/i;
+// "Key: value" — a URL like https://… is not a key (no space after its colon)
+const KV = /^\s*([^:：\n]{1,40}?)\s*[:：]\s+(.+?)\s*$/;
+
+/** A note is plain text; lines shaped like "Tên: giá trị" become copyable rows, secrets masked. */
+export function parseNote(body: string): NoteLine[] {
+  return body.split('\n').map((line) => {
+    if (!line.trim()) return { t: 'blank' };
+    const m = KV.exec(line);
+    if (m && !/^https?$/i.test(m[1])) return { t: 'kv', key: m[1], value: m[2], secret: SECRET_KEY.test(m[1]) };
+    return { t: 'text', text: line };
+  });
+}
+
+export const URL_RE = /\bhttps?:\/\/[^\s<>"')]+/g;

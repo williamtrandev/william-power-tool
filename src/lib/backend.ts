@@ -144,9 +144,15 @@ function supabaseBackend(url: string, anonKey: string): Backend {
       if (error) throw friendly(error);
     },
     async list() {
-      const { data, error } = await table().select('*').order('uses', { ascending: false }).limit(2000);
-      if (error) throw friendly(error);
-      return (data ?? []) as Command[];
+      // PostgREST caps a response at 1000 rows — page through until a short page comes back
+      const STEP = 1000;
+      const all: Command[] = [];
+      for (let from = 0; ; from += STEP) {
+        const { data, error } = await table().select('*').order('id').range(from, from + STEP - 1);
+        if (error) throw friendly(error);
+        all.push(...((data ?? []) as Command[]));
+        if (!data || data.length < STEP) return all;
+      }
     },
     async create(input) {
       const { data, error } = await table().insert(input).select().single();
@@ -193,7 +199,7 @@ function demoBackend(): Backend {
     }
     const t = now();
     const m = (email: string, full_name: string, status: MemberStatus, role: MemberRole): Member => ({ user_id: email, email, full_name, status, role, requested_at: t, decided_by: null, decided_at: null });
-    return {
+    const seed: Store = {
       members: [m('admin@demo', 'Admin Demo', 'approved', 'admin'), m('qc@demo', 'Lan QC', 'approved', 'member'), m('newbie@demo', 'Minh Newbie', 'pending', 'member')],
       commands: SAMPLE_COMMANDS.map((c, i) => {
         const by = i % 3 === 2 ? 'qc@demo' : 'admin@demo';
@@ -201,6 +207,9 @@ function demoBackend(): Backend {
       }),
       history: [],
     };
+    // persist right away so ids stay stable between reads
+    localStorage.setItem(KEY, JSON.stringify(seed));
+    return seed;
   };
   const write = (s: Store) => localStorage.setItem(KEY, JSON.stringify(s));
   const listeners = new Set<(u: User | null) => void>();
