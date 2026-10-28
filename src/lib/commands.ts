@@ -239,3 +239,46 @@ export function variantLabels(list: Pick<Command, 'body' | 'description'>[]): st
   if (new Set(desc).size === list.length && desc.every(Boolean)) return unique(desc.map(clip));
   return fallback;
 }
+
+// ── blocks of several commands ───────────────────────────────────────────────
+
+export interface CommandPart {
+  text: string;
+  /** false for blank lines and comment-only lines */
+  runnable: boolean;
+}
+
+/**
+ * Split a body into the commands it contains: one per line for shell (a trailing "\" joins
+ * the next line), one per statement for SQL (ends with ";"). Notes are not split.
+ */
+export function splitCommands(body: string, kind: CommandKind): CommandPart[] {
+  if (kind === 'note') return [{ text: body, runnable: true }];
+  const comment = kind === 'sql' ? /^\s*--/ : /^\s*#/;
+  const parts: CommandPart[] = [];
+  let cur: string[] = [];
+  const flush = () => {
+    if (cur.length) parts.push({ text: cur.join('\n'), runnable: true });
+    cur = [];
+  };
+  for (const line of body.split('\n')) {
+    if (!cur.length && (!line.trim() || comment.test(line))) {
+      parts.push({ text: line, runnable: false });
+      continue;
+    }
+    cur.push(line);
+    const done = kind === 'sql' ? /;\s*(--.*)?$/.test(line) : !/\\\s*$/.test(line);
+    if (done) flush();
+  }
+  flush();
+  // drop trailing blank lines
+  while (parts.length && !parts[parts.length - 1].runnable && !parts[parts.length - 1].text.trim()) parts.pop();
+  return parts;
+}
+
+/** shell commands joined to run one after another, stopping at the first failure */
+export const chainCommands = (parts: CommandPart[]) =>
+  parts
+    .filter((p) => p.runnable)
+    .map((p) => p.text.trim())
+    .join(' && ');

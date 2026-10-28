@@ -1,8 +1,8 @@
 import clsx from 'clsx';
-import { Check, Copy, CopyPlus, Database, Eye, EyeOff, History, Lock, Pencil, SquareTerminal, StickyNote, Trash2, TriangleAlert } from 'lucide-react';
+import { Check, Copy, CopyPlus, Database, Link2, Eye, EyeOff, History, Lock, Pencil, SquareTerminal, StickyNote, Trash2, TriangleAlert } from 'lucide-react';
 import { memo, useMemo, useState } from 'react';
 import { Button } from '../../components/ui';
-import { commandVars, dangerOf, fillCommand, parseNote, tokenize, URL_RE, type Command, type CommandKind, type Tok } from '../../lib/commands';
+import { chainCommands, commandVars, dangerOf, fillCommand, parseNote, splitCommands, tokenize, URL_RE, type Command, type CommandKind, type Tok } from '../../lib/commands';
 
 const TOK_CLS: Record<Tok['k'], string> = {
   kw: 'text-violet-700 dark:text-violet-300 font-semibold',
@@ -105,10 +105,11 @@ export function NoteView({ body, onCopy }: { body: string; onCopy: (v: string) =
 }
 
 /** Code with syntax colours; `{{var}}` slots show the value that will be copied. */
-export function CodeView({ body, kind, values }: { body: string; kind: CommandKind; values?: Record<string, string> }) {
-  const toks = useMemo(() => tokenize(body, kind), [body, kind]);
+/** Syntax-coloured code; `{{var}}` slots show the value that will be copied. */
+function Code({ text, kind, values }: { text: string; kind: CommandKind; values?: Record<string, string> }) {
+  const toks = useMemo(() => tokenize(text, kind), [text, kind]);
   return (
-    <pre className="min-w-0 flex-1 overflow-x-auto rounded-lg border border-line bg-surface-2 px-3 py-2.5 font-mono text-[12.5px] leading-relaxed whitespace-pre text-fg">
+    <>
       {toks.map((t, i) => {
         if (t.k !== 'var') return t.k ? <span key={i} className={TOK_CLS[t.k]}>{t.t}</span> : t.t;
         const v = values ? fillCommand(t.t, values) : t.t;
@@ -123,7 +124,72 @@ export function CodeView({ body, kind, values }: { body: string; kind: CommandKi
           </span>
         );
       })}
-    </pre>
+    </>
+  );
+}
+
+function PartCopy({ onCopy }: { onCopy: () => void }) {
+  const [done, setDone] = useState(false);
+  return (
+    <button
+      type="button"
+      aria-label="Copy lệnh này"
+      title="Copy riêng lệnh này"
+      onClick={() => {
+        onCopy();
+        setDone(true);
+        setTimeout(() => setDone(false), 1200);
+      }}
+      className="grid size-7 shrink-0 place-items-center rounded-md text-muted opacity-60 transition hover:bg-surface-3 hover:text-fg group-hover/part:opacity-100 focus-visible:opacity-100"
+    >
+      {done ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+    </button>
+  );
+}
+
+/**
+ * Code block. With `onCopyPart`, a body holding several commands (one per line, or SQL
+ * statements) shows each as a numbered row with its own copy button.
+ */
+export function CodeView({
+  body,
+  kind,
+  values,
+  onCopyPart,
+}: {
+  body: string;
+  kind: CommandKind;
+  values?: Record<string, string>;
+  onCopyPart?: (text: string) => void;
+}) {
+  const parts = useMemo(() => splitCommands(body, kind), [body, kind]);
+  const box = 'min-w-0 flex-1 overflow-x-auto rounded-lg border border-line bg-surface-2 font-mono text-[12.5px] leading-relaxed text-fg';
+  if (!onCopyPart || parts.filter((p) => p.runnable).length < 2)
+    return (
+      <pre className={clsx(box, 'px-3 py-2.5 whitespace-pre')}>
+        <Code text={body} kind={kind} values={values} />
+      </pre>
+    );
+  let n = 0;
+  return (
+    // long lines wrap so every row keeps its copy button on the right, like note rows
+    <div className={clsx(box, 'py-1.5')}>
+      {parts.map((p, i) =>
+        p.runnable ? (
+          <div key={i} className="group/part flex items-center gap-3 py-0.5 pr-1.5 pl-3 hover:bg-surface-3/50">
+            <span className="w-4 shrink-0 self-start pt-[5px] text-right text-[11px] text-faint select-none">{++n}</span>
+            <pre className="min-w-0 flex-1 py-1 whitespace-pre-wrap [overflow-wrap:anywhere]">
+              <Code text={p.text} kind={kind} values={values} />
+            </pre>
+            <PartCopy onCopy={() => onCopyPart(fillCommand(p.text, values ?? {}))} />
+          </div>
+        ) : (
+          <pre key={i} className="min-h-[0.75em] pr-3 pl-10 whitespace-pre-wrap [overflow-wrap:anywhere] text-faint italic">
+            {p.text}
+          </pre>
+        ),
+      )}
+    </div>
   );
 }
 
@@ -157,10 +223,18 @@ export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onV
   const danger = useMemo(() => dangerOf(cmd), [cmd]);
   const [copied, setCopied] = useState(false);
   const [confirm, setConfirm] = useState(false);
+  const parts = useMemo(() => (note ? [] : splitCommands(cmd.body, cmd.kind).filter((p) => p.runnable)), [note, cmd.body, cmd.kind]);
+  const multi = parts.length > 1;
+  const [copiedChain, setCopiedChain] = useState(false);
   const copy = () => {
     onCopy(cmd, note ? cmd.body : fillCommand(cmd.body, values));
     setCopied(true);
     setTimeout(() => setCopied(false), 1400);
+  };
+  const copyChain = () => {
+    onCopy(cmd, fillCommand(chainCommands(parts), values));
+    setCopiedChain(true);
+    setTimeout(() => setCopiedChain(false), 1400);
   };
 
   return (
@@ -238,12 +312,20 @@ export const CommandCard = memo(function CommandCard({ cmd, canEdit, values, onV
             <NoteView body={cmd.body} onCopy={(v) => onCopy(cmd, v)} />
           </div>
         ) : (
-          <CodeView body={cmd.body} kind={cmd.kind} values={values} />
+          <CodeView body={cmd.body} kind={cmd.kind} values={values} onCopyPart={(t) => onCopy(cmd, t)} />
         )}
-        <Button variant={copied ? 'default' : 'primary'} className="mt-1" onClick={copy}>
-          {copied ? <Check size={15} /> : <Copy size={15} />}
-          <span className="hidden sm:inline">{copied ? 'Đã copy' : note ? 'Copy hết' : 'Copy'}</span>
-        </Button>
+        <div className="mt-1 flex shrink-0 flex-col gap-1.5">
+          <Button variant={copied ? 'default' : 'primary'} onClick={copy} title={multi ? 'Copy cả khối, giữ nguyên từng dòng' : undefined}>
+            {copied ? <Check size={15} /> : <Copy size={15} />}
+            <span className="hidden sm:inline">{copied ? 'Đã copy' : note || multi ? 'Copy hết' : 'Copy'}</span>
+          </Button>
+          {multi && cmd.kind === 'shell' && (
+            <Button size="sm" onClick={copyChain} title="Copy thành 1 dòng: lệnh1 && lệnh2 && … — chạy lần lượt, dừng ngay khi có lệnh lỗi">
+              {copiedChain ? <Check size={14} /> : <Link2 size={14} />}
+              <span className="hidden sm:inline">{copiedChain ? 'Đã copy' : 'Nối &&'}</span>
+            </Button>
+          )}
+        </div>
       </div>
 
       <footer className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11.5px] text-faint">

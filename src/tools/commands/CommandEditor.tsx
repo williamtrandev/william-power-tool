@@ -407,7 +407,8 @@ export function CommandEditor({ initial, template, categories, tagSuggestions, o
               </>
             ) : (
               <span className="text-faint">
-                Phần cần điền viết dạng <code className="text-fg-2">{'{{ten_bien}}'}</code> hoặc <code className="text-fg-2">{'{{ten_bien:mac_dinh}}'}</code>
+                Phần cần điền viết dạng <code className="text-fg-2">{'{{ten_bien}}'}</code> hoặc <code className="text-fg-2">{'{{ten_bien:mac_dinh}}'}</code> ·{' '}
+                {kind === 'sql' ? 'mỗi câu kết thúc bằng ; có nút copy riêng' : 'mỗi dòng là một lệnh có nút copy riêng (dòng dài nối bằng \\)'}
               </span>
             )}
             {danger && (
