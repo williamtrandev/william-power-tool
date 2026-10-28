@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppHeader, TOOLS, type ToolId } from './components/AppHeader';
 import { LoadingScreen, LoginScreen, UnconfiguredScreen, WaitingScreen } from './components/auth/AuthScreens';
-import { COMMAND_STEPS, LOG_STEPS, WATANE_STEPS } from './components/tour/steps';
+import { ACCOUNT_STEPS, COMMAND_STEPS, LOG_STEPS, WATANE_STEPS } from './components/tour/steps';
 import { Tour } from './components/tour/Tour';
 import { createBackend } from './lib/backend';
 import { useAuth } from './lib/useAuth';
@@ -9,6 +9,7 @@ import { useTheme } from './lib/useTheme';
 import { CommandsTool } from './tools/commands/CommandsTool';
 import { LogTool } from './tools/LogTool';
 import { MembersTool } from './tools/members/MembersTool';
+import { AccountsTool } from './tools/accounts/AccountsTool';
 import { WataneTool } from './tools/watane/WataneTool';
 
 const backend = createBackend();
@@ -98,8 +99,9 @@ export default function App() {
       <LogTool active={current === 'log'} onToast={showToast} />
       <WataneTool active={current === 'watane'} onToast={showToast} />
       <CommandsTool active={current === 'commands'} backend={backend!} me={auth.member} onToast={showToast} />
+      <AccountsTool active={current === 'accounts'} backend={backend!} me={auth.member} onToast={showToast} />
       {admin && <MembersTool active={current === 'members'} backend={backend!} me={auth.member} onToast={showToast} onPending={setPending} />}
-      {tour && <Tour key={tour} steps={{ log: LOG_STEPS, watane: WATANE_STEPS, commands: COMMAND_STEPS, members: [] }[tour]} onClose={closeTour} />}
+      {tour && <Tour key={tour} steps={{ log: LOG_STEPS, watane: WATANE_STEPS, commands: COMMAND_STEPS, accounts: ACCOUNT_STEPS, members: [] }[tour]} onClose={closeTour} />}
       <div
         role="status"
         aria-live="polite"

@@ -308,3 +308,14 @@ mark.hl {
     animation: none;
   }
 }
+
+/* QR scanner line */
+@keyframes qr-scan {
+  0%,
+  100% {
+    top: 14%;
+  }
+  50% {
+    top: calc(86% - 2px);
+  }
+}

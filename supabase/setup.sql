@@ -227,3 +227,238 @@ grant select, insert, update, delete on public.commands to authenticated;
 revoke execute on function public.history_visible(uuid, jsonb) from anon, public;
 grant execute on function public.history_visible(uuid, jsonb) to authenticated;
 grant execute on function public.bump_command_use(uuid), public.set_member(uuid, text, text), public.request_access(), public.is_member(), public.is_app_admin() to authenticated;
+
+-- ── shared accounts (login + password + OTP) ──────────────────────────────────
+-- One row per account of some system: link, username, note, and optionally a password and a
+-- TOTP secret. Password and secret live in a table nobody can read through the API — not
+-- members, not app admins. Members get them through functions that check access and log
+-- every request: acct_password() returns the password, acct_code() computes the current OTP
+-- in the database so the TOTP secret never reaches a browser after it has been added.
+
+create extension if not exists pgcrypto with schema extensions;
+
+create table if not exists public.team_accounts (
+  id            uuid primary key default gen_random_uuid(),
+  system        text not null default '' check (char_length(system) <= 100),
+  username      text not null check (char_length(username) between 1 and 200),
+  url           text not null default '' check (char_length(url) <= 500),
+  note          text not null default '' check (char_length(note) <= 2000),
+  password      text check (char_length(password) <= 500),
+  otp_secret    text,
+  otp_algorithm text not null default 'SHA1' check (otp_algorithm in ('SHA1', 'SHA256', 'SHA512')),
+  otp_digits    integer not null default 6 check (otp_digits in (6, 7, 8)),
+  otp_period    integer not null default 30 check (otp_period between 10 and 300),
+  everyone      boolean not null default true,
+  created_by    text,
+  created_at    timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+-- who may use an account when everyone = false
+create table if not exists public.team_account_access (
+  account_id uuid not null references public.team_accounts (id) on delete cascade,
+  user_id    uuid not null references auth.users (id) on delete cascade,
+  primary key (account_id, user_id)
+);
+
+create table if not exists public.team_account_log (
+  id         bigserial primary key,
+  account_id uuid,
+  account    text not null,
+  action     text not null check (action in ('code', 'password', 'create', 'update', 'delete')),
+  user_email text,
+  at         timestamptz not null default now()
+);
+create index if not exists team_account_log_at_idx on public.team_account_log (at desc);
+
+alter table public.team_accounts enable row level security;
+alter table public.team_account_access enable row level security;
+alter table public.team_account_log enable row level security;
+-- no policies at all: every read and write goes through the functions below
+revoke all on public.team_accounts, public.team_account_access, public.team_account_log from anon, authenticated;
+
+create or replace function public.base32_decode(s text) returns bytea
+  language plpgsql immutable
+  as $$
+declare
+  alphabet constant text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  clean text := upper(regexp_replace(s, '[\s=-]', '', 'g'));
+  buf bigint := 0;
+  bits int := 0;
+  idx int;
+  out bytea := ''::bytea;
+begin
+  if clean = '' then raise exception 'invalid base32 secret'; end if;
+  for i in 1 .. length(clean) loop
+    idx := strpos(alphabet, substr(clean, i, 1)) - 1;
+    if idx < 0 then raise exception 'invalid base32 secret'; end if;
+    buf := (buf << 5) | idx;
+    bits := bits + 5;
+    if bits >= 8 then
+      bits := bits - 8;
+      out := out || set_byte('\x00'::bytea, 0, ((buf >> bits) & 255)::int);
+      buf := buf & ((1::bigint << bits) - 1);
+    end if;
+  end loop;
+  return out;
+end $$;
+
+-- RFC 6238 time-based one-time password
+create or replace function public.totp(secret text, alg text, digits int, period int, at timestamptz) returns text
+  language plpgsql stable
+  as $$
+declare
+  counter bigint := floor(extract(epoch from at) / period)::bigint;
+  msg bytea := '\x0000000000000000'::bytea;
+  h bytea;
+  off int;
+  bin bigint;
+begin
+  for i in 0 .. 7 loop
+    msg := set_byte(msg, 7 - i, ((counter >> (8 * i)) & 255)::int);
+  end loop;
+  h := extensions.hmac(msg, public.base32_decode(secret), lower(alg));
+  off := get_byte(h, length(h) - 1) & 15;
+  bin := ((get_byte(h, off) & 127)::bigint << 24) | (get_byte(h, off + 1)::bigint << 16)
+       | (get_byte(h, off + 2)::bigint << 8) | get_byte(h, off + 3);
+  return lpad((bin % power(10, digits)::bigint)::text, digits, '0');
+end $$;
+
+create or replace function public.can_use_account(aid uuid) returns boolean
+  language sql stable security definer set search_path = public
+  as $$
+    select public.is_app_admin() or (public.is_member() and exists (
+      select 1 from public.team_accounts a
+       where a.id = aid
+         and (a.everyone or exists (select 1 from public.team_account_access x where x.account_id = a.id and x.user_id = auth.uid()))
+    ))
+  $$;
+
+create or replace function public.account_name(a public.team_accounts) returns text
+  language sql immutable
+  as $$ select case when a.system = '' then a.username else a.system || ' · ' || a.username end $$;
+
+-- accounts this user may use: everything except the password and the OTP secret
+create or replace function public.acct_list()
+  returns table (id uuid, system text, username text, url text, note text, has_password boolean, has_otp boolean,
+                 otp_digits int, otp_period int, everyone boolean, created_by text, updated_at timestamptz)
+  language sql stable security definer set search_path = public
+  as $$
+    select a.id, a.system, a.username, a.url, a.note, a.password is not null, a.otp_secret is not null,
+           a.otp_digits, a.otp_period, a.everyone, a.created_by, a.updated_at
+      from public.team_accounts a
+     where public.can_use_account(a.id)
+     order by lower(a.system), lower(a.username)
+  $$;
+
+-- the password; logged
+create or replace function public.acct_password(aid uuid) returns text
+  language plpgsql security definer set search_path = public
+  as $$
+declare a public.team_accounts;
+begin
+  if not public.can_use_account(aid) then raise exception 'not allowed' using errcode = '42501'; end if;
+  select * into a from public.team_accounts where id = aid;
+  if a.password is null then raise exception 'no password stored'; end if;
+  insert into public.team_account_log (account_id, account, action, user_email) values (a.id, public.account_name(a), 'password', public.current_email());
+  return a.password;
+end $$;
+
+-- the current OTP (and the next one, so a code about to expire is not a problem); logged
+create or replace function public.acct_code(aid uuid)
+  returns table (code text, next_code text, remaining int, period int)
+  language plpgsql security definer set search_path = public
+  as $$
+declare
+  a public.team_accounts;
+  now_ts timestamptz := clock_timestamp();
+begin
+  if not public.can_use_account(aid) then raise exception 'not allowed' using errcode = '42501'; end if;
+  select * into a from public.team_accounts where team_accounts.id = aid;
+  if a.otp_secret is null then raise exception 'no otp stored'; end if;
+  insert into public.team_account_log (account_id, account, action, user_email) values (a.id, public.account_name(a), 'code', public.current_email());
+  return query select
+    public.totp(a.otp_secret, a.otp_algorithm, a.otp_digits, a.otp_period, now_ts),
+    public.totp(a.otp_secret, a.otp_algorithm, a.otp_digits, a.otp_period, now_ts + make_interval(secs => a.otp_period)),
+    (a.otp_period - (floor(extract(epoch from now_ts))::bigint % a.otp_period))::int,
+    a.otp_period;
+end $$;
+
+-- admin: add or edit. p_password / p_otp_secret: null keeps the stored value, '' removes it
+create or replace function public.acct_save(
+  aid uuid, p_system text, p_username text, p_url text, p_note text, p_password text,
+  p_otp_secret text, p_otp_algorithm text, p_otp_digits int, p_otp_period int, p_everyone boolean, p_members uuid[]
+) returns uuid
+  language plpgsql security definer set search_path = public
+  as $$
+declare
+  rid uuid := aid;
+  sec text := case when p_otp_secret is null then null else upper(regexp_replace(p_otp_secret, '[\s=-]', '', 'g')) end;
+  a public.team_accounts;
+begin
+  if not public.is_app_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
+  if sec <> '' then perform public.base32_decode(sec); end if; -- validates
+  if rid is null then
+    insert into public.team_accounts (system, username, url, note, password, otp_secret, otp_algorithm, otp_digits, otp_period, everyone, created_by)
+      values (coalesce(p_system, ''), p_username, coalesce(p_url, ''), coalesce(p_note, ''), nullif(p_password, ''), nullif(sec, ''),
+              coalesce(p_otp_algorithm, 'SHA1'), coalesce(p_otp_digits, 6), coalesce(p_otp_period, 30), coalesce(p_everyone, true), public.current_email())
+      returning * into a;
+    rid := a.id;
+  else
+    update public.team_accounts set
+      system = coalesce(p_system, ''), username = p_username, url = coalesce(p_url, ''), note = coalesce(p_note, ''),
+      password = case when p_password is null then password else nullif(p_password, '') end,
+      otp_secret = case when sec is null then otp_secret else nullif(sec, '') end,
+      otp_algorithm = coalesce(p_otp_algorithm, otp_algorithm), otp_digits = coalesce(p_otp_digits, otp_digits),
+      otp_period = coalesce(p_otp_period, otp_period), everyone = coalesce(p_everyone, everyone), updated_at = now()
+    where id = rid
+    returning * into a;
+    if not found then raise exception 'account not found'; end if;
+  end if;
+  delete from public.team_account_access where account_id = rid;
+  if not coalesce(p_everyone, true) and p_members is not null then
+    insert into public.team_account_access (account_id, user_id) select rid, unnest(p_members) on conflict do nothing;
+  end if;
+  insert into public.team_account_log (account_id, account, action, user_email)
+    values (rid, public.account_name(a), case when aid is null then 'create' else 'update' end, public.current_email());
+  return rid;
+end $$;
+
+create or replace function public.acct_delete(aid uuid) returns void
+  language plpgsql security definer set search_path = public
+  as $$
+declare a public.team_accounts;
+begin
+  if not public.is_app_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
+  delete from public.team_accounts where id = aid returning * into a;
+  if found then
+    insert into public.team_account_log (account_id, account, action, user_email) values (aid, public.account_name(a), 'delete', public.current_email());
+  end if;
+end $$;
+
+-- admin: who has access to an account (when not everyone)
+create or replace function public.acct_members(aid uuid) returns setof uuid
+  language plpgsql stable security definer set search_path = public
+  as $$
+begin
+  if not public.is_app_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
+  return query select user_id from public.team_account_access where account_id = aid;
+end $$;
+
+-- admin: recent activity
+create or replace function public.acct_activity(max_rows int default 200)
+  returns table (id bigint, account_id uuid, account text, action text, user_email text, at timestamptz)
+  language plpgsql stable security definer set search_path = public
+  as $$
+begin
+  if not public.is_app_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
+  return query select l.id, l.account_id, l.account, l.action, l.user_email, l.at from public.team_account_log l order by l.at desc limit least(max_rows, 1000);
+end $$;
+
+revoke execute on function public.acct_list(), public.acct_password(uuid), public.acct_code(uuid),
+  public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[]),
+  public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.can_use_account(uuid),
+  public.totp(text, text, int, int, timestamptz), public.base32_decode(text) from anon, public;
+grant execute on function public.acct_list(), public.acct_password(uuid), public.acct_code(uuid),
+  public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[]),
+  public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int) to authenticated;

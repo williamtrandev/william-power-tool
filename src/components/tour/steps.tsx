@@ -34,7 +34,7 @@ export const LOG_STEPS: TourStep[] = [
     title: 'Các công cụ',
     body: (
       <>
-        <b>Log</b> để đọc và tìm log. <b>Giải mã Watane</b> để giải mã / mã hoá code bằng secret key. <b>Kho lệnh</b> lưu lệnh server / SQL dùng chung của team. Mỗi tab có hướng dẫn riêng.
+        <b>Log</b> để đọc và tìm log. <b>Giải mã Watane</b> để giải mã / mã hoá code bằng secret key. <b>Kho lệnh</b> lưu lệnh server / SQL dùng chung của team. <b>Tài khoản</b> gom link, mật khẩu và mã OTP của tài khoản dùng chung. Mỗi tab có hướng dẫn riêng.
       </>
     ),
   },
@@ -346,6 +346,51 @@ export const COMMAND_STEPS: TourStep[] = [
     body: (
       <>
         Bấm <b>Thêm mới</b>, chọn loại Server / SQL / Ghi chú, và chọn <b>Cả team</b> hay <b>Chỉ mình tôi</b> (riêng tư — người khác, kể cả admin, không thấy). Muốn sửa lệnh của người khác cho hợp với mình? Bấm <b>Nhân bản</b> trên lệnh đó để có bản sao của riêng bạn. Nút <b>Nhập / Xuất</b> bên cạnh để tải toàn bộ kho về file JSON (sao lưu) hoặc nhập hàng loạt từ file.
+      </>
+    ),
+  },
+  {
+    target: 'help',
+    title: 'Xem lại hướng dẫn',
+    body: <>Bấm nút này bất cứ khi nào cần xem lại.</>,
+  },
+];
+
+export const ACCOUNT_STEPS: TourStep[] = [
+  {
+    title: 'Tài khoản dùng chung',
+    body: (
+      <>
+        Mỗi tài khoản của một hệ thống gom đủ ở một chỗ: link đăng nhập, tên đăng nhập, mật khẩu và mã OTP (2 lớp). Tìm một lần là có hết, không phải xin ai quét QR hay gửi
+        mật khẩu qua chat.
+      </>
+    ),
+  },
+  {
+    target: 'a-search',
+    title: 'Tìm tài khoản',
+    body: <>Gõ tên hệ thống, tên đăng nhập, link hoặc chữ trong ghi chú — không cần gõ dấu. Lọc nhanh tài khoản có OTP / có mật khẩu ở bên cạnh.</>,
+  },
+  {
+    target: 'a-list',
+    title: 'Dùng tài khoản',
+    placement: 'top',
+    show: () => !!document.querySelector('[data-tour="a-list"] article'),
+    body: (
+      <>
+        Mỗi dòng có nút copy riêng. Mật khẩu bị che — bấm 👁 để xem hoặc copy. <b>Lấy mã</b> hiện mã OTP và tự copy, vòng tròn đếm giây còn lại. Mật khẩu và mã chỉ được lấy
+        khi bạn bấm, mỗi lần đều được ghi vào nhật ký.
+      </>
+    ),
+  },
+  {
+    target: 'a-add',
+    title: 'Thêm tài khoản (admin)',
+    placement: 'left',
+    body: (
+      <>
+        Nhập link, tên đăng nhập, mật khẩu. OTP thì quét mã QR bằng camera, kéo thả / dán ảnh chụp màn hình, hoặc dán link <code>otpauth://</code> — cả QR “Chuyển tài
+        khoản” của Google Authenticator. Chọn <b>Cả team</b> hay <b>Chỉ người được chọn</b>.
       </>
     ),
   },

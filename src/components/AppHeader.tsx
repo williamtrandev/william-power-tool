@@ -1,14 +1,15 @@
 import clsx from 'clsx';
-import { CircleHelp, KeyRound, LogOut, Moon, ScrollText, ShieldCheck, SquareTerminal, Sun, Users } from 'lucide-react';
+import { CircleHelp, KeyRound, KeySquare, LogOut, Moon, ScrollText, ShieldCheck, SquareTerminal, Sun, Users } from 'lucide-react';
 import type { User } from '../lib/backend';
 import { Avatar, Button } from './ui';
 
-export type ToolId = 'log' | 'watane' | 'commands' | 'members';
+export type ToolId = 'log' | 'watane' | 'commands' | 'accounts' | 'members';
 
 export const TOOLS: { id: ToolId; label: string; icon: typeof ScrollText; adminOnly?: boolean }[] = [
   { id: 'log', label: 'Log', icon: ScrollText },
   { id: 'watane', label: 'Giải mã Watane', icon: KeyRound },
   { id: 'commands', label: 'Kho lệnh', icon: SquareTerminal },
+  { id: 'accounts', label: 'Tài khoản', icon: KeySquare },
   { id: 'members', label: 'Thành viên', icon: Users, adminOnly: true },
 ];
 
