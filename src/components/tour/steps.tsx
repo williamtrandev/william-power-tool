@@ -389,7 +389,7 @@ export const ACCOUNT_STEPS: TourStep[] = [
     placement: 'left',
     body: (
       <>
-        Nhập link, tên đăng nhập, mật khẩu. OTP thì quét mã QR bằng camera, kéo thả / dán ảnh chụp màn hình, hoặc dán link <code>otpauth://</code> — cả QR “Chuyển tài
+        Nhập link, tên đăng nhập, mật khẩu. OTP thì <b>quét màn hình</b> (chọn tab / cửa sổ đang hiện mã QR), quét camera, kéo thả / dán ảnh chụp màn hình, hoặc dán link <code>otpauth://</code> — cả QR “Chuyển tài
         khoản” của Google Authenticator. Chọn <b>Cả team</b> hay <b>Chỉ người được chọn</b>.
       </>
     ),

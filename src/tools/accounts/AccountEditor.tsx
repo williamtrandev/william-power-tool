@@ -1,11 +1,11 @@
 import clsx from 'clsx';
-import { Camera, Check, ChevronDown, ClipboardPaste, Eye, EyeOff, ImageUp, Keyboard, KeySquare, Loader2, Lock, Plus, RefreshCw, ScanLine, Trash2, TriangleAlert, Users } from 'lucide-react';
+import { Camera, Check, ChevronDown, ClipboardPaste, Eye, EyeOff, ImageUp, Keyboard, KeySquare, MonitorUp, Loader2, Lock, Plus, RefreshCw, ScanLine, Trash2, TriangleAlert, Users } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Segmented } from '../../components/ui';
 import type { Backend, Member } from '../../lib/backend';
 import { cleanSecret, parseOtpText, readQrFile, secondsLeft, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
 import { Modal } from '../commands/Modal';
-import { QrScanner } from './QrScanner';
+import { QrScanner, ScreenQrScanner } from './QrScanner';
 
 const field =
   'focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-[13.5px] text-fg placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:shadow-[0_0_0_3px_var(--accent-ring)]';
@@ -44,11 +44,14 @@ export function useLiveCode(d: Pick<OtpDraft, 'secret' | 'algorithm' | 'digits' 
 
 export const groupCode = (c: string) => (c.length === 6 ? `${c.slice(0, 3)} ${c.slice(3)}` : c.length === 8 ? `${c.slice(0, 4)} ${c.slice(4)}` : c);
 
-type Source = 'image' | 'camera' | 'text';
+type Source = 'screen' | 'image' | 'camera' | 'text';
+
+const canShareScreen = typeof navigator !== 'undefined' && !!navigator.mediaDevices?.getDisplayMedia;
 
 /** read QR / text into drafts: camera, image (pick, drop or paste), or typed link / secret */
 function SourcePicker({ onDrafts }: { onDrafts: (d: OtpDraft[]) => void }) {
-  const [src, setSrc] = useState<Source>('image');
+  // screen capture is the quickest on a desktop browser; phones fall back to image / camera
+  const [src, setSrc] = useState<Source>(canShareScreen ? 'screen' : 'image');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [text, setText] = useState('');
@@ -100,6 +103,7 @@ function SourcePicker({ onDrafts }: { onDrafts: (d: OtpDraft[]) => void }) {
           setErr(null);
         }}
         items={[
+          ...(canShareScreen ? [{ id: 'screen' as const, label: 'Quét màn hình', icon: <MonitorUp size={15} /> }] : []),
           { id: 'image', label: 'Ảnh / dán ảnh', icon: <ImageUp size={15} /> },
           { id: 'camera', label: 'Quét camera', icon: <Camera size={15} /> },
           { id: 'text', label: 'Nhập tay', icon: <Keyboard size={15} /> },
@@ -143,6 +147,7 @@ function SourcePicker({ onDrafts }: { onDrafts: (d: OtpDraft[]) => void }) {
           />
         </button>
       )}
+      {src === 'screen' && <ScreenQrScanner onText={fromText} />}
       {src === 'camera' && <QrScanner onText={fromText} />}
       {src === 'text' && (
         <div className="space-y-2">
