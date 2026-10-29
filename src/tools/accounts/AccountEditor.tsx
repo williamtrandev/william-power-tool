@@ -187,8 +187,8 @@ function LiveCode({ d }: { d: OtpDraft }) {
   );
 }
 
-/** dot colour of an environment (Prod is red) */
-export const envDot = (e: string) => (isProd(e) ? 'bg-error' : ({ dev: 'bg-faint', uat: 'bg-accent', staging: 'bg-violet-500' } as Record<string, string>)[envKey(e)] ?? 'bg-teal-500');
+/** dot colour of an environment (Live / Prod is red) */
+export const envDot = (e: string) => (isProd(e) ? 'bg-error' : ({ sbb: 'bg-accent', sba: 'bg-violet-500', sbd: 'bg-amber-500', rl: 'bg-teal-500', dev: 'bg-faint', uat: 'bg-accent', staging: 'bg-violet-500' } as Record<string, string>)[envKey(e)] ?? 'bg-faint');
 
 interface Props {
   backend: Backend;
@@ -459,7 +459,7 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
                   onChange={(e) => setNote(e.target.value)}
                   rows={2}
                   className={clsx(field, 'h-auto resize-none py-2.5')}
-                  placeholder="vd: môi trường UAT, đổi mật khẩu mỗi quý…"
+                  placeholder="vd: tài khoản maker, đổi mật khẩu mỗi quý…"
                 />
               </div>
             </div>,

@@ -162,7 +162,7 @@ const readEnvPick = (): Record<string, string> => {
   }
 };
 const ALL = '*';
-const defaultEnv = (s: SystemGroup) => (s.envs.find((e) => e.key === 'uat') ?? s.envs[0])?.key ?? '';
+const defaultEnv = (s: SystemGroup) => (s.envs.find((e) => e.key === 'sbb') ?? s.envs.find((e) => e.key === 'uat') ?? s.envs[0])?.key ?? '';
 
 // ── live OTP codes ───────────────────────────────────────────────────────────
 
@@ -753,13 +753,6 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
               );
             })}
             {list && searching && !visible.length && <p className="px-2 py-3 text-[12.5px] text-muted">Không có tài khoản nào khớp “{q.trim()}”.</p>}
-            <button
-              type="button"
-              onClick={() => setEditing({ system: '', env: '' })}
-              className="mt-auto flex shrink-0 items-center gap-2 rounded-lg px-2 py-2 text-[12.5px] text-muted hover:bg-surface-3/60 hover:text-fg"
-            >
-              <Plus size={14} /> Hệ thống mới
-            </button>
           </aside>
 
           {/* the open system */}
@@ -829,9 +822,6 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
                       ]}
                     />
                   )}
-                  <Button onClick={() => addHere()} title={`Thêm tài khoản vào ${where}`}>
-                    <Plus size={15} /> Thêm
-                  </Button>
                 </div>
 
                 <div data-tour="a-list" className="space-y-3">

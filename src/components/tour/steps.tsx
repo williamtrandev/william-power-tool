@@ -361,7 +361,7 @@ export const ACCOUNT_STEPS: TourStep[] = [
     title: 'Tài khoản dùng chung',
     body: (
       <>
-        Tài khoản gom theo <b>hệ thống</b> và <b>môi trường</b> (Dev, UAT, Prod…): link đăng nhập, tên đăng nhập, mật khẩu và mã OTP ở cùng một chỗ. Không phải xin ai quét QR
+        Tài khoản gom theo <b>hệ thống</b> và <b>môi trường</b> (SBB, SBA, SBD, RL, Live…): link đăng nhập, tên đăng nhập, mật khẩu và mã OTP ở cùng một chỗ. Không phải xin ai quét QR
         hay gửi mật khẩu qua chat.
       </>
     ),
@@ -372,7 +372,7 @@ export const ACCOUNT_STEPS: TourStep[] = [
     placement: 'right',
     body: (
       <>
-        Bấm <b>/</b> rồi gõ tên hệ thống, tên đăng nhập hoặc chữ trong ghi chú — không cần gõ dấu. Nhiều từ thì thu hẹp dần, vd <code>sme prod</code>, <code>uat otp</code>. Mũi tên lên / xuống để
+        Bấm <b>/</b> rồi gõ tên hệ thống, tên đăng nhập hoặc chữ trong ghi chú — không cần gõ dấu. Nhiều từ thì thu hẹp dần, vd <code>sme live</code>, <code>sbb otp</code>. Mũi tên lên / xuống để
         chọn, Enter để mở.
       </>
     ),
@@ -384,7 +384,7 @@ export const ACCOUNT_STEPS: TourStep[] = [
     show: () => !!document.querySelector('[data-tour="a-list"] [data-acc]'),
     body: (
       <>
-        Mỗi môi trường có link riêng ở đầu khung; Prod viền đỏ. <b>Mã OTP tự hiện và tự đổi</b> — bấm vào mã để copy. Mật khẩu bị che, bấm 👁 để xem hoặc copy. Mọi lần xem / copy
+        Mỗi môi trường có link riêng ở đầu khung; Live viền đỏ. <b>Mã OTP tự hiện và tự đổi</b> — bấm vào mã để copy. Mật khẩu bị che, bấm 👁 để xem hoặc copy. Mọi lần xem / copy
         đều được ghi vào nhật ký.
       </>
     ),

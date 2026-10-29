@@ -12,7 +12,7 @@ export type OtpAlgorithm = 'SHA1' | 'SHA256' | 'SHA512';
 export interface TeamAccount {
   id: string;
   system: string;
-  /** environment within the system: Dev, UAT, Prod… ('' = not set) */
+  /** environment within the system: SBB, SBA, SBD, RL, Live… ('' = not set) */
   env: string;
   username: string;
   url: string;
@@ -36,7 +36,7 @@ export const systemKey = (s: string) =>
   s.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
 
 /** environments offered first, in this order; anything else typed is kept as is */
-export const ENVS = ['Dev', 'UAT', 'Staging', 'Prod'] as const;
+export const ENVS = ['SBB', 'SBA', 'SBD', 'RL', 'Live'] as const;
 export const envKey = (s: string) => systemKey(s);
 export const isProd = (s: string) => /^(prod|production|live|thật|that)$/.test(envKey(s));
 export const envRank = (s: string) => {
