@@ -23,6 +23,9 @@ export interface Member {
   avatar_url?: string | null;
 }
 
+/** an approved member, as anyone may see them (to share an account with) */
+export type DirectoryEntry = Pick<Member, 'user_id' | 'email' | 'full_name' | 'avatar_url'>;
+
 export interface User {
   id: string;
   email: string;
@@ -63,6 +66,8 @@ export interface Backend {
   acctDelete(id: string): Promise<void>;
   acctMembers(id: string): Promise<string[]>;
   acctActivity(): Promise<AccountActivity[]>;
+  /** approved members, for sharing an account with selected people */
+  directory(): Promise<DirectoryEntry[]>;
 }
 
 const env = import.meta.env as Record<string, string | undefined>;
@@ -87,6 +92,7 @@ function friendly(e: { message?: string; code?: string } | null | undefined): Er
   if (/provider is not enabled|unsupported provider/i.test(m)) return new Error('Đăng nhập Google chưa được bật — admin cần cấu hình Google trong Supabase');
   if (/invalid base32 secret/i.test(m)) return new Error('Secret OTP không hợp lệ');
   if (/no password stored/i.test(m)) return new Error('Tài khoản này chưa lưu mật khẩu');
+  if (/only the owner can make an account private/i.test(m)) return new Error('Chỉ người tạo mới đặt tài khoản thành riêng tư được');
   if (/no otp stored/i.test(m)) return new Error('Tài khoản này chưa có OTP');
   if (/acct_|team_account/i.test(m) && /not find|does not exist/i.test(m)) return new Error('Database chưa có phần Tài khoản — admin cần chạy lại supabase/setup.sql');
   if (/rate limit/i.test(m)) return new Error('Thao tác quá nhiều lần, thử lại sau ít phút');
@@ -226,6 +232,7 @@ function supabaseBackend(url: string, anonKey: string): Backend {
         p_otp_period: i.otp_period,
         p_everyone: i.everyone,
         p_members: i.members,
+        p_private: i.is_private,
       });
       if (error) throw friendly(error);
       return data as string;
@@ -244,6 +251,11 @@ function supabaseBackend(url: string, anonKey: string): Backend {
       if (error) throw friendly(error);
       return (data ?? []) as AccountActivity[];
     },
+    async directory() {
+      const { data, error } = await sb.rpc('member_directory');
+      if (error) throw friendly(error);
+      return (data ?? []) as DirectoryEntry[];
+    },
   };
 }
 
@@ -252,7 +264,7 @@ function supabaseBackend(url: string, anonKey: string): Backend {
 function demoBackend(): Backend {
   const KEY = 'wpt-demo-db';
   const SESSION = 'wpt-demo-session';
-  type DemoAccount = Omit<TeamAccount, 'has_password' | 'has_otp'> & { password: string | null; otp_secret: string | null; otp_algorithm: AccountInput['otp_algorithm']; members: string[] };
+  type DemoAccount = Omit<TeamAccount, 'has_password' | 'has_otp' | 'can_manage'> & { password: string | null; otp_secret: string | null; otp_algorithm: AccountInput['otp_algorithm']; members: string[] };
   type Store = { members: Member[]; commands: Command[]; history: HistoryRow[]; accounts?: DemoAccount[]; accountLog?: AccountActivity[] };
   const now = () => new Date().toISOString();
   const id = () => crypto.randomUUID();
@@ -274,9 +286,9 @@ function demoBackend(): Backend {
       history: [],
       // well-known test secret (shown in many TOTP tutorials) — demo only
       accounts: [
-        { id: id(), system: 'Demo SBB', username: 'qc_test', url: 'https://sbb-uat.example.vn', note: 'Môi trường UAT, dùng chung cho QC', password: 'Uat@2026', otp_secret: 'JBSWY3DPEHPK3PXP', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], created_by: 'admin@demo', updated_at: t },
-        { id: id(), system: 'Demo AWS', username: 'root', url: 'https://console.aws.amazon.com', note: 'Chỉ admin + qc', password: 'Root!demo', otp_secret: 'GEZDGNBVGY3TQOJQ', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: false, members: ['qc@demo'], created_by: 'admin@demo', updated_at: t },
-        { id: id(), system: 'Wiki nội bộ', username: 'team', url: 'https://wiki.example.vn', note: '', password: 'wiki123', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo SBB', username: 'qc_test', url: 'https://sbb-uat.example.vn', note: 'Môi trường UAT, dùng chung cho QC', password: 'Uat@2026', otp_secret: 'JBSWY3DPEHPK3PXP', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo AWS', username: 'root', url: 'https://console.aws.amazon.com', note: 'Chỉ admin + qc', password: 'Root!demo', otp_secret: 'GEZDGNBVGY3TQOJQ', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: false, members: ['qc@demo'], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Wiki nội bộ', username: 'team', url: 'https://wiki.example.vn', note: '', password: 'wiki123', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
       ],
       accountLog: [],
     };
@@ -299,7 +311,9 @@ function demoBackend(): Backend {
   const log = (s: Store, c: Command, action: HistoryRow['action']) =>
     s.history.unshift({ id: Date.now() + Math.random(), command_id: c.id, action, data: c, changed_by: sessionEmail(), changed_at: now() });
   const visible = (c: Command) => !c.is_private || c.owner_id === sessionEmail();
-  const canUse = (s: Store, a: DemoAccount) => admin(s) || (member(s) && (a.everyone || a.members.includes(sessionEmail() ?? '')));
+  const canUse = (s: Store, a: DemoAccount) =>
+    member(s) && (a.owner_id === sessionEmail() || (!a.is_private && (admin(s) || a.everyone || a.members.includes(sessionEmail() ?? ''))));
+  const canManage = (s: Store, a: DemoAccount) => member(s) && (a.owner_id === sessionEmail() || (admin(s) && !a.is_private));
   const logAcct = (s: Store, a: DemoAccount, action: AccountActivity['action']) => {
     (s.accountLog ??= []).unshift({ id: Date.now() + Math.random(), account_id: a.id, account: [a.system, a.username].filter(Boolean).join(' · '), action, user_email: sessionEmail(), at: now() });
     write(s);
@@ -393,7 +407,7 @@ function demoBackend(): Backend {
     },
     async acctList() {
       const s = read();
-      return (s.accounts ?? []).filter((a) => canUse(s, a)).map(({ password, otp_secret, otp_algorithm: _a, members: _m, ...a }) => ({ ...a, has_password: !!password, has_otp: !!otp_secret }));
+      return (s.accounts ?? []).filter((a) => canUse(s, a)).map(({ password, otp_secret, otp_algorithm: _a, members: _m, ...a }) => ({ ...a, has_password: !!password, has_otp: !!otp_secret, can_manage: canManage(s, a as DemoAccount) }));
     },
     async acctPassword(aid) {
       const s = read();
@@ -414,14 +428,16 @@ function demoBackend(): Backend {
     },
     async acctSave(aid, i) {
       const s = read();
-      if (!admin(s)) throw deny();
+      if (!member(s)) throw deny();
       const list = (s.accounts ??= []);
       const keep = <T,>(v: string | null, old: T) => (v === null ? old : v === '' ? null : v);
-      const base = { system: i.system, username: i.username, url: i.url, note: i.note, otp_algorithm: i.otp_algorithm, otp_digits: i.otp_digits, otp_period: i.otp_period, everyone: i.everyone, members: i.everyone ? [] : i.members, updated_at: now() };
+      const base = { system: i.system, username: i.username, url: i.url, note: i.note, otp_algorithm: i.otp_algorithm, otp_digits: i.otp_digits, otp_period: i.otp_period, everyone: i.everyone && !i.is_private, is_private: i.is_private, members: i.everyone || i.is_private ? [] : i.members, updated_at: now() };
       let a = aid ? list.find((x) => x.id === aid) : undefined;
+      if (a && !canManage(s, a)) throw deny();
+      if (a && i.is_private && !a.is_private && a.owner_id !== sessionEmail()) throw new Error('Chỉ người tạo mới đặt tài khoản thành riêng tư được');
       if (a) Object.assign(a, base, { password: keep(i.password, a.password), otp_secret: keep(i.otp_secret && cleanSecret(i.otp_secret), a.otp_secret) });
       else {
-        a = { ...base, id: id(), password: i.password || null, otp_secret: i.otp_secret ? cleanSecret(i.otp_secret) : null, created_by: sessionEmail() };
+        a = { ...base, id: id(), password: i.password || null, otp_secret: i.otp_secret ? cleanSecret(i.otp_secret) : null, owner_id: sessionEmail(), created_by: sessionEmail() };
         list.push(a);
       }
       logAcct(s, a, aid ? 'update' : 'create');
@@ -429,21 +445,30 @@ function demoBackend(): Backend {
     },
     async acctDelete(aid) {
       const s = read();
-      if (!admin(s)) throw deny();
       const a = (s.accounts ?? []).find((x) => x.id === aid);
+      if (!a || !canManage(s, a)) throw deny();
       s.accounts = (s.accounts ?? []).filter((x) => x.id !== aid);
       if (a) logAcct(s, a, 'delete');
       else write(s);
     },
     async acctMembers(aid) {
       const s = read();
-      if (!admin(s)) throw deny();
-      return (s.accounts ?? []).find((x) => x.id === aid)?.members ?? [];
+      const a = (s.accounts ?? []).find((x) => x.id === aid);
+      if (!a || !canManage(s, a)) throw deny();
+      return a.members;
     },
     async acctActivity() {
       const s = read();
-      if (!admin(s)) throw deny();
-      return s.accountLog ?? [];
+      if (!member(s)) throw deny();
+      const byId = new Map((s.accounts ?? []).map((a) => [a.id, a]));
+      return (s.accountLog ?? []).filter((l) => {
+        const a = l.account_id ? byId.get(l.account_id) : undefined;
+        return a ? canManage(s, a) : admin(s);
+      });
+    },
+    async directory() {
+      const s = read();
+      return member(s) ? s.members.filter((m) => m.status === 'approved') : [];
     },
   };
 }

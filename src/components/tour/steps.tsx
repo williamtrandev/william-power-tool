@@ -385,12 +385,12 @@ export const ACCOUNT_STEPS: TourStep[] = [
   },
   {
     target: 'a-add',
-    title: 'Thêm tài khoản (admin)',
+    title: 'Thêm tài khoản',
     placement: 'left',
     body: (
       <>
         Nhập link, tên đăng nhập, mật khẩu. OTP thì <b>quét màn hình</b> (chọn tab / cửa sổ đang hiện mã QR), quét camera, kéo thả / dán ảnh chụp màn hình, hoặc dán link <code>otpauth://</code> — cả QR “Chuyển tài
-        khoản” của Google Authenticator. Chọn <b>Cả team</b> hay <b>Chỉ người được chọn</b>.
+        khoản” của Google Authenticator. Chọn chia cho <b>Cả team</b>, <b>Người được chọn</b>, hay <b>Chỉ mình tôi</b>. Ai cũng thêm được; người tạo sửa / xoá được tài khoản của mình.
       </>
     ),
   },

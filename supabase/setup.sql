@@ -230,7 +230,9 @@ grant execute on function public.bump_command_use(uuid), public.set_member(uuid,
 
 -- ── shared accounts (login + password + OTP) ──────────────────────────────────
 -- One row per account of some system: link, username, note, and optionally a password and a
--- TOTP secret. Password and secret live in a table nobody can read through the API — not
+-- TOTP secret. Any member can add one; its owner (and admins, unless it is private) manage it.
+-- Shared with the whole team, selected members, or nobody else (private: owner only, admins
+-- included). Password and secret live in a table nobody can read through the API — not
 -- members, not app admins. Members get them through functions that check access and log
 -- every request: acct_password() returns the password, acct_code() computes the current OTP
 -- in the database so the TOTP secret never reaches a browser after it has been added.
@@ -270,6 +272,12 @@ create table if not exists public.team_account_log (
   at         timestamptz not null default now()
 );
 create index if not exists team_account_log_at_idx on public.team_account_log (at desc);
+
+-- added later: who owns an account (members can add their own) and owner-only accounts
+alter table public.team_accounts add column if not exists owner_id uuid references auth.users (id) on delete set null;
+alter table public.team_accounts add column if not exists is_private boolean not null default false;
+update public.team_accounts a set owner_id = m.user_id
+  from public.app_members m where a.owner_id is null and m.email = a.created_by;
 
 alter table public.team_accounts enable row level security;
 alter table public.team_account_access enable row level security;
@@ -324,28 +332,52 @@ begin
   return lpad((bin % power(10, digits)::bigint)::text, digits, '0');
 end $$;
 
+-- private: owner only. Otherwise the owner, admins, and the team or the selected members.
 create or replace function public.can_use_account(aid uuid) returns boolean
   language sql stable security definer set search_path = public
   as $$
-    select public.is_app_admin() or (public.is_member() and exists (
+    select public.is_member() and exists (
       select 1 from public.team_accounts a
        where a.id = aid
-         and (a.everyone or exists (select 1 from public.team_account_access x where x.account_id = a.id and x.user_id = auth.uid()))
-    ))
+         and (a.owner_id = auth.uid()
+              or (not a.is_private and (public.is_app_admin() or a.everyone
+                  or exists (select 1 from public.team_account_access x where x.account_id = a.id and x.user_id = auth.uid())))))
+  $$;
+
+-- edit / delete / see who has access: the owner, or an admin for anything not private
+create or replace function public.can_manage_account(aid uuid) returns boolean
+  language sql stable security definer set search_path = public
+  as $$
+    select public.is_member() and exists (
+      select 1 from public.team_accounts a
+       where a.id = aid and (a.owner_id = auth.uid() or (public.is_app_admin() and not a.is_private)))
   $$;
 
 create or replace function public.account_name(a public.team_accounts) returns text
   language sql immutable
   as $$ select case when a.system = '' then a.username else a.system || ' · ' || a.username end $$;
 
+-- approved members, so anyone sharing an account can pick who gets it
+create or replace function public.member_directory()
+  returns table (user_id uuid, email text, full_name text, avatar_url text)
+  language sql stable security definer set search_path = public
+  as $$
+    select m.user_id, m.email, m.full_name, m.avatar_url from public.app_members m
+     where public.is_member() and m.status = 'approved'
+     order by lower(coalesce(m.full_name, m.email))
+  $$;
+
 -- accounts this user may use: everything except the password and the OTP secret
+drop function if exists public.acct_list();
 create or replace function public.acct_list()
   returns table (id uuid, system text, username text, url text, note text, has_password boolean, has_otp boolean,
-                 otp_digits int, otp_period int, everyone boolean, created_by text, updated_at timestamptz)
+                 otp_digits int, otp_period int, everyone boolean, is_private boolean, owner_id uuid, can_manage boolean,
+                 created_by text, updated_at timestamptz)
   language sql stable security definer set search_path = public
   as $$
     select a.id, a.system, a.username, a.url, a.note, a.password is not null, a.otp_secret is not null,
-           a.otp_digits, a.otp_period, a.everyone, a.created_by, a.updated_at
+           a.otp_digits, a.otp_period, a.everyone, a.is_private, a.owner_id, public.can_manage_account(a.id),
+           a.created_by, a.updated_at
       from public.team_accounts a
      where public.can_use_account(a.id)
      order by lower(a.system), lower(a.username)
@@ -384,39 +416,50 @@ begin
     a.otp_period;
 end $$;
 
--- admin: add or edit. p_password / p_otp_secret: null keeps the stored value, '' removes it
+-- add (any member) or edit (owner / admin). p_password / p_otp_secret: null keeps the stored
+-- value, '' removes it. Only the owner can make an account private.
+drop function if exists public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[]);
 create or replace function public.acct_save(
   aid uuid, p_system text, p_username text, p_url text, p_note text, p_password text,
-  p_otp_secret text, p_otp_algorithm text, p_otp_digits int, p_otp_period int, p_everyone boolean, p_members uuid[]
+  p_otp_secret text, p_otp_algorithm text, p_otp_digits int, p_otp_period int,
+  p_everyone boolean, p_members uuid[], p_private boolean
 ) returns uuid
   language plpgsql security definer set search_path = public
   as $$
 declare
   rid uuid := aid;
   sec text := case when p_otp_secret is null then null else upper(regexp_replace(p_otp_secret, '[\s=-]', '', 'g')) end;
+  priv boolean := coalesce(p_private, false);
   a public.team_accounts;
 begin
-  if not public.is_app_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
+  if not public.is_member() then raise exception 'not allowed' using errcode = '42501'; end if;
   if sec <> '' then perform public.base32_decode(sec); end if; -- validates
   if rid is null then
-    insert into public.team_accounts (system, username, url, note, password, otp_secret, otp_algorithm, otp_digits, otp_period, everyone, created_by)
+    insert into public.team_accounts (system, username, url, note, password, otp_secret, otp_algorithm, otp_digits, otp_period,
+                                      everyone, is_private, owner_id, created_by)
       values (coalesce(p_system, ''), p_username, coalesce(p_url, ''), coalesce(p_note, ''), nullif(p_password, ''), nullif(sec, ''),
-              coalesce(p_otp_algorithm, 'SHA1'), coalesce(p_otp_digits, 6), coalesce(p_otp_period, 30), coalesce(p_everyone, true), public.current_email())
+              coalesce(p_otp_algorithm, 'SHA1'), coalesce(p_otp_digits, 6), coalesce(p_otp_period, 30),
+              coalesce(p_everyone, true) and not priv, priv, auth.uid(), public.current_email())
       returning * into a;
     rid := a.id;
   else
+    if not public.can_manage_account(rid) then raise exception 'not allowed' using errcode = '42501'; end if;
+    select * into a from public.team_accounts where id = rid;
+    if priv and not a.is_private and a.owner_id is distinct from auth.uid() then
+      raise exception 'only the owner can make an account private' using errcode = '42501';
+    end if;
     update public.team_accounts set
       system = coalesce(p_system, ''), username = p_username, url = coalesce(p_url, ''), note = coalesce(p_note, ''),
       password = case when p_password is null then password else nullif(p_password, '') end,
       otp_secret = case when sec is null then otp_secret else nullif(sec, '') end,
       otp_algorithm = coalesce(p_otp_algorithm, otp_algorithm), otp_digits = coalesce(p_otp_digits, otp_digits),
-      otp_period = coalesce(p_otp_period, otp_period), everyone = coalesce(p_everyone, everyone), updated_at = now()
+      otp_period = coalesce(p_otp_period, otp_period),
+      everyone = coalesce(p_everyone, everyone) and not priv, is_private = priv, updated_at = now()
     where id = rid
     returning * into a;
-    if not found then raise exception 'account not found'; end if;
   end if;
   delete from public.team_account_access where account_id = rid;
-  if not coalesce(p_everyone, true) and p_members is not null then
+  if not a.everyone and not a.is_private and p_members is not null then
     insert into public.team_account_access (account_id, user_id) select rid, unnest(p_members) on conflict do nothing;
   end if;
   insert into public.team_account_log (account_id, account, action, user_email)
@@ -429,36 +472,44 @@ create or replace function public.acct_delete(aid uuid) returns void
   as $$
 declare a public.team_accounts;
 begin
-  if not public.is_app_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
+  if not public.can_manage_account(aid) then raise exception 'not allowed' using errcode = '42501'; end if;
   delete from public.team_accounts where id = aid returning * into a;
   if found then
     insert into public.team_account_log (account_id, account, action, user_email) values (aid, public.account_name(a), 'delete', public.current_email());
   end if;
 end $$;
 
--- admin: who has access to an account (when not everyone)
+-- who has access to an account (when shared with selected members)
 create or replace function public.acct_members(aid uuid) returns setof uuid
   language plpgsql stable security definer set search_path = public
   as $$
 begin
-  if not public.is_app_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
+  if not public.can_manage_account(aid) then raise exception 'not allowed' using errcode = '42501'; end if;
   return query select user_id from public.team_account_access where account_id = aid;
 end $$;
 
--- admin: recent activity
+-- recent activity: admins see everything except private accounts; others see the accounts they own
 create or replace function public.acct_activity(max_rows int default 200)
   returns table (id bigint, account_id uuid, account text, action text, user_email text, at timestamptz)
   language plpgsql stable security definer set search_path = public
   as $$
 begin
-  if not public.is_app_admin() then raise exception 'not allowed' using errcode = '42501'; end if;
-  return query select l.id, l.account_id, l.account, l.action, l.user_email, l.at from public.team_account_log l order by l.at desc limit least(max_rows, 1000);
+  if not public.is_member() then raise exception 'not allowed' using errcode = '42501'; end if;
+  return query
+    select l.id, l.account_id, l.account, l.action, l.user_email, l.at
+      from public.team_account_log l
+      left join public.team_accounts a on a.id = l.account_id
+     where (a.id is not null and (a.owner_id = auth.uid() or (public.is_app_admin() and not a.is_private)))
+        or (a.id is null and public.is_app_admin())
+     order by l.at desc
+     limit least(max_rows, 1000);
 end $$;
 
 revoke execute on function public.acct_list(), public.acct_password(uuid), public.acct_code(uuid),
-  public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[]),
-  public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.can_use_account(uuid),
+  public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
+  public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.member_directory(),
+  public.can_use_account(uuid), public.can_manage_account(uuid),
   public.totp(text, text, int, int, timestamptz), public.base32_decode(text) from anon, public;
 grant execute on function public.acct_list(), public.acct_password(uuid), public.acct_code(uuid),
-  public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[]),
-  public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int) to authenticated;
+  public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
+  public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.member_directory() to authenticated;

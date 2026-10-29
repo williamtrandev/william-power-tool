@@ -20,6 +20,11 @@ export interface TeamAccount {
   otp_digits: number;
   otp_period: number;
   everyone: boolean;
+  /** owner only — hidden from everyone else, admins included */
+  is_private: boolean;
+  owner_id: string | null;
+  /** this user may edit / delete it */
+  can_manage: boolean;
   created_by: string | null;
   updated_at: string;
 }
@@ -53,6 +58,7 @@ export interface AccountInput {
   otp_period: number;
   everyone: boolean;
   members: string[];
+  is_private: boolean;
 }
 
 /** an account read from a QR / link, before it is saved */

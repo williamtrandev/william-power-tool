@@ -1,8 +1,8 @@
 import clsx from 'clsx';
-import { Camera, Check, ChevronDown, ClipboardPaste, Eye, EyeOff, ImageUp, Keyboard, KeySquare, MonitorUp, Loader2, Lock, Plus, RefreshCw, ScanLine, Trash2, TriangleAlert, Users } from 'lucide-react';
+import { Camera, Check, ChevronDown, UserCheck, ClipboardPaste, Eye, EyeOff, ImageUp, Keyboard, KeySquare, MonitorUp, Loader2, Lock, Plus, RefreshCw, ScanLine, Trash2, TriangleAlert, Users } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Segmented } from '../../components/ui';
-import type { Backend, Member } from '../../lib/backend';
+import type { Backend, DirectoryEntry } from '../../lib/backend';
 import { cleanSecret, parseOtpText, readQrFile, secondsLeft, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
 import { Modal } from '../commands/Modal';
 import { QrScanner, ScreenQrScanner } from './QrScanner';
@@ -191,7 +191,10 @@ interface Props {
   backend: Backend;
   initial: TeamAccount | null;
   /** approved members, to pick who may use the account */
-  members: Member[];
+  members: DirectoryEntry[];
+  /** current user: picks the default sharing and whether "only me" may be chosen */
+  meId: string;
+  admin: boolean;
   onSaved: (msg: string) => void;
   onClose: () => void;
 }
@@ -199,7 +202,7 @@ interface Props {
 /** what happens to a stored secret value when saving an existing account */
 type Keep = 'keep' | 'set' | 'remove';
 
-export function AccountEditor({ backend, initial, members, onSaved, onClose }: Props) {
+export function AccountEditor({ backend, initial, members, meId, admin, onSaved, onClose }: Props) {
   const editing = !!initial;
   const [system, setSystem] = useState(initial?.system ?? '');
   const [username, setUsername] = useState(initial?.username ?? '');
@@ -222,13 +225,19 @@ export function AccountEditor({ backend, initial, members, onSaved, onClose }: P
   const [digits, setDigits] = useState(initial?.otp_digits ?? 6);
   const [period, setPeriod] = useState(initial?.otp_period ?? 30);
 
-  const [everyone, setEveryone] = useState(initial?.everyone ?? true);
+  // who may use it: whole team, picked members, or the owner alone (new accounts by members start private)
+  const [access, setAccess] = useState<'team' | 'some' | 'private'>(
+    initial ? (initial.is_private ? 'private' : initial.everyone ? 'team' : 'some') : admin ? 'team' : 'private',
+  );
+  const everyone = access === 'team';
+  // only the owner may make an account owner-only
+  const canPrivate = !initial || initial.owner_id === meId || initial.is_private;
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (initial && !initial.everyone) backend.acctMembers(initial.id).then((ids) => setChosen(new Set(ids)), () => {});
+    if (initial && !initial.everyone && !initial.is_private) backend.acctMembers(initial.id).then((ids) => setChosen(new Set(ids)), () => {});
   }, [backend, initial]);
 
   const takeDrafts = (d: OtpDraft[]) => {
@@ -247,7 +256,7 @@ export function AccountEditor({ backend, initial, members, onSaved, onClose }: P
   const single = otpMode === 'set' && drafts?.length === 1 ? drafts[0] : null;
 
   const memberIds = [...chosen];
-  const accessOk = everyone || memberIds.length > 0;
+  const accessOk = access !== 'some' || memberIds.length > 0;
   const otpOk = otpMode !== 'set' || !!drafts;
   const ok = accessOk && otpOk && (multi ? picked.some(Boolean) : !!username.trim());
   const missing = [!multi && !username.trim() && 'tên đăng nhập', !otpOk && 'mã QR / secret OTP', !accessOk && 'người được dùng'].filter(Boolean) as string[];
@@ -256,7 +265,7 @@ export function AccountEditor({ backend, initial, members, onSaved, onClose }: P
     if (!ok || busy) return;
     setBusy(true);
     setErr(null);
-    const access = { everyone, members: everyone ? [] : memberIds };
+    const share = { everyone, members: access === 'some' ? memberIds : [], is_private: access === 'private' };
     try {
       if (multi) {
         // a Google Authenticator export: one account per ticked entry, OTP only
@@ -272,7 +281,7 @@ export function AccountEditor({ backend, initial, members, onSaved, onClose }: P
             otp_algorithm: d.algorithm,
             otp_digits: d.digits,
             otp_period: d.period,
-            ...access,
+            ...share,
           });
         onSaved(`Đã thêm ${list.length} tài khoản`);
       } else {
@@ -287,7 +296,7 @@ export function AccountEditor({ backend, initial, members, onSaved, onClose }: P
           otp_algorithm: algorithm,
           otp_digits: digits,
           otp_period: period,
-          ...access,
+          ...share,
         });
         onSaved(editing ? 'Đã lưu tài khoản' : 'Đã thêm tài khoản');
       }
@@ -534,16 +543,23 @@ export function AccountEditor({ backend, initial, members, onSaved, onClose }: P
             <div className="flex flex-wrap items-center gap-3">
               <Segmented
                 label="Ai được dùng"
-                value={everyone ? 'all' : 'some'}
-                onChange={(v) => setEveryone(v === 'all')}
+                value={access}
+                onChange={setAccess}
                 items={[
-                  { id: 'all', label: 'Cả team', icon: <Users size={15} /> },
-                  { id: 'some', label: 'Chỉ người được chọn', icon: <Lock size={15} /> },
+                  { id: 'team', label: 'Cả team', icon: <Users size={15} /> },
+                  { id: 'some', label: 'Người được chọn', icon: <UserCheck size={15} /> },
+                  ...(canPrivate ? [{ id: 'private' as const, label: 'Chỉ mình tôi', icon: <Lock size={15} /> }] : []),
                 ]}
               />
-              <span className="text-[12px] text-muted">{everyone ? 'Mọi thành viên đã duyệt.' : `${memberIds.length} người được chọn · admin luôn dùng được.`}</span>
+              <span className="text-[12px] text-muted">
+                {access === 'team'
+                  ? 'Mọi thành viên đã duyệt.'
+                  : access === 'private'
+                    ? 'Chỉ bạn — thành viên khác và cả admin đều không thấy.'
+                    : `${memberIds.length} người được chọn · bạn${admin ? '' : ' và admin'} luôn dùng được.`}
+              </span>
             </div>
-            {!everyone && (
+            {access === 'some' && (
               <ul className="mt-2 max-h-56 divide-y divide-line overflow-y-auto rounded-xl border border-line bg-surface">
                 {members.map((m) => (
                   <li key={m.user_id}>
@@ -564,7 +580,6 @@ export function AccountEditor({ backend, initial, members, onSaved, onClose }: P
                       <Avatar src={m.avatar_url} name={m.full_name} email={m.email} size={26} />
                       <span className="min-w-0 flex-1 truncate text-[13px] text-fg">{m.full_name || m.email}</span>
                       {m.full_name && <span className="truncate text-[12px] text-faint">{m.email}</span>}
-                      {m.role === 'admin' && <span className="text-[11px] text-accent">admin</span>}
                     </label>
                   </li>
                 ))}

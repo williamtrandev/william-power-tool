@@ -1,8 +1,8 @@
 import clsx from 'clsx';
-import { Check, Copy, ExternalLink, Eye, EyeOff, History, KeySquare, Loader2, Lock, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users, X } from 'lucide-react';
+import { Check, Copy, ExternalLink, UserCheck, UserRound, Eye, EyeOff, History, KeySquare, Loader2, Lock, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Segmented } from '../../components/ui';
-import type { Backend, Member } from '../../lib/backend';
+import type { Backend, DirectoryEntry, Member } from '../../lib/backend';
 import type { AccountActivity, TeamAccount } from '../../lib/otp';
 import { Modal } from '../commands/Modal';
 import { AccountEditor, groupCode } from './AccountEditor';
@@ -200,14 +200,12 @@ function OtpRow({ acc, backend, onToast }: { acc: TeamAccount; backend: Backend;
 function AccountCard({
   acc,
   backend,
-  admin,
   onToast,
   onEdit,
   onDelete,
 }: {
   acc: TeamAccount;
   backend: Backend;
-  admin: boolean;
   onToast: (m: string) => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -232,7 +230,7 @@ function AccountCard({
             <p className="text-[12px] text-faint">Chưa có link</p>
           )}
         </div>
-        {admin && (
+        {acc.can_manage && (
           <div className="-mt-1 -mr-1 flex items-center opacity-60 transition-opacity group-hover:opacity-100">
             <Button variant="ghost" size="icon-sm" aria-label="Sửa" title="Sửa" onClick={onEdit}>
               <Pencil size={15} />
@@ -272,8 +270,9 @@ function AccountCard({
 
       {acc.note && <p className="mx-4 mt-2.5 text-[12.5px] whitespace-pre-line text-muted">{acc.note}</p>}
       <p className="mt-auto flex items-center gap-1.5 px-4 pt-3 pb-3 text-[11.5px] text-faint">
-        {acc.everyone ? <Users size={12} /> : <Lock size={12} />}
-        {acc.everyone ? 'Cả team' : 'Người được chọn'}
+        {acc.is_private ? <Lock size={12} /> : acc.everyone ? <Users size={12} /> : <UserCheck size={12} />}
+        {acc.is_private ? 'Chỉ mình tôi' : acc.everyone ? 'Cả team' : 'Người được chọn'}
+        {acc.created_by && !acc.is_private && <span>· thêm bởi {acc.created_by.split('@')[0]}</span>}
         {!acc.has_otp && <span className="ml-auto">Không có OTP</span>}
       </p>
     </article>
@@ -288,14 +287,14 @@ const ACTION: Record<AccountActivity['action'], { label: string; cls: string }> 
   delete: { label: 'xoá', cls: 'bg-error/12 text-error' },
 };
 
-function ActivityDialog({ backend, onClose }: { backend: Backend; onClose: () => void }) {
+function ActivityDialog({ backend, admin, onClose }: { backend: Backend; admin: boolean; onClose: () => void }) {
   const [rows, setRows] = useState<AccountActivity[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     backend.acctActivity().then(setRows, (e: Error) => setErr(e.message));
   }, [backend]);
   return (
-    <Modal wide title="Nhật ký — ai xem mật khẩu / lấy mã của tài khoản nào" onClose={onClose}>
+    <Modal wide title={admin ? 'Nhật ký — ai xem mật khẩu / lấy mã của tài khoản nào' : 'Nhật ký các tài khoản bạn tạo'} onClose={onClose}>
       {err && <p className="text-[13px] text-error">{err}</p>}
       {!rows && !err && (
         <p className="flex items-center gap-2 text-[13px] text-muted">
@@ -331,7 +330,9 @@ function ActivityDialog({ backend, onClose }: { backend: Backend; onClose: () =>
   );
 }
 
-type Filter = 'all' | 'otp' | 'password';
+type Filter = 'all' | 'mine' | 'otp' | 'password';
+
+const matches = (a: TeamAccount, f: Filter, me: string) => (f === 'all' ? true : f === 'mine' ? a.owner_id === me : f === 'otp' ? a.has_otp : a.has_password);
 
 interface Props {
   active: boolean;
@@ -349,7 +350,7 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [editing, setEditing] = useState<TeamAccount | 'new' | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
+  const [members, setMembers] = useState<DirectoryEntry[]>([]);
   const [showLog, setShowLog] = useState(false);
 
   const load = useCallback(async () => {
@@ -367,18 +368,18 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
     if (active && !list && !loading && !err) load();
   }, [active, list, loading, err, load]);
   useEffect(() => {
-    if (admin && editing) backend.members().then((m) => setMembers(m.filter((x) => x.status === 'approved')), () => {});
-  }, [admin, editing, backend]);
+    if (editing) backend.directory().then(setMembers, () => {});
+  }, [editing, backend]);
 
   const shown = useMemo(() => {
     const words = fold(q).split(/\s+/).filter(Boolean);
     return (list ?? []).filter(
       (a) =>
-        (filter === 'all' || (filter === 'otp' ? a.has_otp : a.has_password)) &&
+        matches(a, filter, me.user_id) &&
         words.every((w) => fold(`${a.system} ${a.username} ${a.url} ${a.note}`).includes(w)),
     );
-  }, [list, q, filter]);
-  const count = (f: Filter) => (list ?? []).filter((a) => f === 'all' || (f === 'otp' ? a.has_otp : a.has_password)).length;
+  }, [list, q, filter, me.user_id]);
+  const count = (f: Filter) => (list ?? []).filter((a) => matches(a, f, me.user_id)).length;
 
   const remove = async (a: TeamAccount) => {
     try {
@@ -397,23 +398,20 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           <div className="min-w-0 flex-1 basis-[300px]">
             <h1 className="text-lg font-semibold tracking-tight">Tài khoản dùng chung</h1>
             <p className="mt-0.5 text-[12.5px] text-muted">
-              Mỗi tài khoản gom đủ link, tên đăng nhập, mật khẩu và mã OTP. Mật khẩu và secret OTP được giữ trên máy chủ — chỉ hiện khi bạn bấm, và mỗi lần đều được ghi lại.
+              Mỗi tài khoản gom đủ link, tên đăng nhập, mật khẩu và mã OTP. Ai cũng thêm được; người tạo quyết định chia cho cả team, vài người, hay chỉ mình mình. Mật khẩu
+              và secret OTP được giữ trên máy chủ — chỉ hiện khi bấm, và mỗi lần đều được ghi lại.
             </p>
           </div>
           <div className="flex items-center gap-1.5">
             <Button variant="ghost" size="icon" aria-label="Tải lại" title="Tải lại" onClick={load} disabled={loading}>
               <RefreshCw size={16} className={clsx(loading && 'animate-spin')} />
             </Button>
-            {admin && (
-              <>
-                <Button onClick={() => setShowLog(true)}>
-                  <History size={15} /> Nhật ký
-                </Button>
-                <Button variant="primary" data-tour="a-add" onClick={() => setEditing('new')}>
-                  <Plus size={16} /> Thêm tài khoản
-                </Button>
-              </>
-            )}
+            <Button onClick={() => setShowLog(true)} title={admin ? 'Ai xem mật khẩu / lấy mã của tài khoản nào' : 'Ai đã dùng các tài khoản bạn tạo'}>
+              <History size={15} /> Nhật ký
+            </Button>
+            <Button variant="primary" data-tour="a-add" onClick={() => setEditing('new')}>
+              <Plus size={16} /> Thêm tài khoản
+            </Button>
           </div>
         </div>
 
@@ -442,6 +440,7 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
             onChange={setFilter}
             items={[
               { id: 'all', label: `Tất cả · ${count('all')}`, icon: <Users size={15} /> },
+              { id: 'mine', label: `Của tôi · ${count('mine')}`, icon: <UserRound size={15} /> },
               { id: 'otp', label: `Có OTP · ${count('otp')}`, icon: <KeySquare size={15} /> },
               { id: 'password', label: `Có mật khẩu · ${count('password')}`, icon: <Lock size={15} /> },
             ]}
@@ -470,16 +469,14 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
             <p className="max-w-sm text-[12.5px] text-muted">
               {list.length
                 ? ''
-                : admin
-                  ? 'Bấm “Thêm tài khoản”: nhập link, tên đăng nhập, mật khẩu, và quét mã QR OTP nếu có.'
-                  : 'Nhờ admin thêm tài khoản cần dùng.'}
+                : 'Bấm “Thêm tài khoản”: nhập link, tên đăng nhập, mật khẩu, và quét mã QR OTP nếu có.'}
             </p>
           </div>
         )}
 
         <div data-tour="a-list" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {shown.map((a) => (
-            <AccountCard key={a.id} acc={a} backend={backend} admin={admin} onToast={onToast} onEdit={() => setEditing(a)} onDelete={() => remove(a)} />
+            <AccountCard key={a.id} acc={a} backend={backend} onToast={onToast} onEdit={() => setEditing(a)} onDelete={() => remove(a)} />
           ))}
         </div>
       </div>
@@ -490,6 +487,8 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           backend={backend}
           initial={editing === 'new' ? null : editing}
           members={members}
+          meId={me.user_id}
+          admin={admin}
           onSaved={(m) => {
             onToast(m);
             load();
@@ -497,7 +496,7 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           onClose={() => setEditing(null)}
         />
       )}
-      {showLog && <ActivityDialog backend={backend} onClose={() => setShowLog(false)} />}
+      {showLog && <ActivityDialog backend={backend} admin={admin} onClose={() => setShowLog(false)} />}
     </div>
   );
 }
