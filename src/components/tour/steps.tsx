@@ -369,7 +369,7 @@ export const ACCOUNT_STEPS: TourStep[] = [
   {
     target: 'a-search',
     title: 'Tìm tài khoản',
-    body: <>Gõ tên hệ thống, tên đăng nhập, link hoặc chữ trong ghi chú — không cần gõ dấu. Lọc nhanh tài khoản có OTP / có mật khẩu ở bên cạnh.</>,
+    body: <>Gõ tên hệ thống, tên đăng nhập, link hoặc chữ trong ghi chú — không cần gõ dấu. Lọc nhanh tài khoản có OTP / có mật khẩu ở bên cạnh, hoặc bấm tên một hệ thống ở hàng bên dưới để chỉ xem hệ thống đó.</>,
   },
   {
     target: 'a-list',
@@ -378,7 +378,7 @@ export const ACCOUNT_STEPS: TourStep[] = [
     show: () => !!document.querySelector('[data-tour="a-list"] article'),
     body: (
       <>
-        Mỗi dòng có nút copy riêng. Mật khẩu bị che — bấm 👁 để xem hoặc copy. <b>Lấy mã</b> hiện mã OTP và tự copy, vòng tròn đếm giây còn lại. Mật khẩu và mã chỉ được lấy
+        Tài khoản được gom theo <b>hệ thống</b> — bấm tên nhóm để thu gọn / mở ra, nút <b>Thêm</b> ở nhóm điền sẵn tên hệ thống. Mỗi dòng có nút copy riêng. Mật khẩu bị che — bấm 👁 để xem hoặc copy. <b>Lấy mã</b> hiện mã OTP và tự copy, vòng tròn đếm giây còn lại. Mật khẩu và mã chỉ được lấy
         khi bạn bấm, mỗi lần đều được ghi vào nhật ký.
       </>
     ),

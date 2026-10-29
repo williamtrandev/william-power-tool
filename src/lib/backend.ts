@@ -287,6 +287,7 @@ function demoBackend(): Backend {
       // well-known test secret (shown in many TOTP tutorials) — demo only
       accounts: [
         { id: id(), system: 'Demo SBB', username: 'qc_test', url: 'https://sbb-uat.example.vn', note: 'Môi trường UAT, dùng chung cho QC', password: 'Uat@2026', otp_secret: 'JBSWY3DPEHPK3PXP', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo SBB', username: 'qc_admin', url: 'https://sbb-uat.example.vn/admin', note: 'Quyền admin trên UAT', password: 'Adm@2026', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
         { id: id(), system: 'Demo AWS', username: 'root', url: 'https://console.aws.amazon.com', note: 'Chỉ admin + qc', password: 'Root!demo', otp_secret: 'GEZDGNBVGY3TQOJQ', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: false, members: ['qc@demo'], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
         { id: id(), system: 'Wiki nội bộ', username: 'team', url: 'https://wiki.example.vn', note: '', password: 'wiki123', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
       ],

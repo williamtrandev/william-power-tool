@@ -29,6 +29,10 @@ export interface TeamAccount {
   updated_at: string;
 }
 
+/** accounts of one system group together: case, accents and spacing don't matter */
+export const systemKey = (s: string) =>
+  s.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
+
 export interface OtpCode {
   code: string;
   next_code: string;

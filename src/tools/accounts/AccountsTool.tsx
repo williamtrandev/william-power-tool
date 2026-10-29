@@ -1,9 +1,9 @@
 import clsx from 'clsx';
-import { Check, Copy, ExternalLink, UserCheck, UserRound, Eye, EyeOff, History, KeySquare, Loader2, Lock, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users, X } from 'lucide-react';
+import { Check, ChevronRight, Copy, ExternalLink, Layers, UserCheck, UserRound, Eye, EyeOff, History, KeySquare, Loader2, Lock, Pencil, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Button, Segmented } from '../../components/ui';
 import type { Backend, DirectoryEntry, Member } from '../../lib/backend';
-import type { AccountActivity, TeamAccount } from '../../lib/otp';
+import { systemKey, type AccountActivity, type TeamAccount } from '../../lib/otp';
 import { Modal } from '../commands/Modal';
 import { AccountEditor, groupCode } from './AccountEditor';
 
@@ -212,15 +212,21 @@ function AccountCard({
 }) {
   const [confirm, setConfirm] = useState(false);
   const [doneUser, copyUser] = useCopied();
-  const title = acc.system || acc.username;
   return (
     <article className="group flex flex-col rounded-xl border border-line bg-surface transition-colors hover:border-line-strong">
-      <header className="flex items-start gap-3 p-4 pb-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-xl text-[15px] font-bold text-white" style={{ background: tint(title) }}>
-          {title.trim()[0]?.toUpperCase() ?? '?'}
+      <header className="flex items-start gap-2.5 p-4 pb-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-muted">
+          <UserRound size={17} />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[14.5px] font-semibold text-fg">{title}</p>
+          <div className="flex min-w-0 items-center gap-0.5">
+            <p className="truncate font-mono text-[14px] font-semibold text-fg" title={acc.username}>
+              {acc.username}
+            </p>
+            <IconBtn label="Copy tên đăng nhập" onClick={() => copyUser(acc.username).then(() => onToast('Đã copy tên đăng nhập'))}>
+              {doneUser ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
+            </IconBtn>
+          </div>
           {acc.url ? (
             <a href={acc.url} target="_blank" rel="noreferrer noopener" className="flex min-w-0 items-center gap-1 text-[12px] text-accent hover:underline" title={acc.url}>
               <span className="truncate">{acc.url.replace(/^https?:\/\//, '')}</span>
@@ -253,20 +259,12 @@ function AccountCard({
         )}
       </header>
 
-      <div className="mx-3 rounded-lg border border-line bg-surface-2 py-1">
-        <Row
-          label="Đăng nhập"
-          actions={
-            <IconBtn label="Copy tên đăng nhập" onClick={() => copyUser(acc.username).then(() => onToast('Đã copy tên đăng nhập'))}>
-              {doneUser ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />}
-            </IconBtn>
-          }
-        >
-          <span className="font-mono text-[13px] break-all text-fg">{acc.username}</span>
-        </Row>
-        {acc.has_password && <PasswordRow acc={acc} backend={backend} onToast={onToast} />}
-        {acc.has_otp && <OtpRow acc={acc} backend={backend} onToast={onToast} />}
-      </div>
+      {(acc.has_password || acc.has_otp) && (
+        <div className="mx-3 rounded-lg border border-line bg-surface-2 py-1">
+          {acc.has_password && <PasswordRow acc={acc} backend={backend} onToast={onToast} />}
+          {acc.has_otp && <OtpRow acc={acc} backend={backend} onToast={onToast} />}
+        </div>
+      )}
 
       {acc.note && <p className="mx-4 mt-2.5 text-[12.5px] whitespace-pre-line text-muted">{acc.note}</p>}
       <p className="mt-auto flex items-center gap-1.5 px-4 pt-3 pb-3 text-[11.5px] text-faint">
@@ -276,6 +274,76 @@ function AccountCard({
         {!acc.has_otp && <span className="ml-auto">Không có OTP</span>}
       </p>
     </article>
+  );
+}
+
+interface SystemGroup {
+  key: string;
+  label: string;
+  items: TeamAccount[];
+}
+
+/** accounts of each system together, A→Z, accounts without a system last */
+function groupBySystem(list: TeamAccount[]): SystemGroup[] {
+  const map = new Map<string, SystemGroup>();
+  for (const a of list) {
+    const key = systemKey(a.system);
+    const g = map.get(key) ?? map.set(key, { key, label: a.system.trim(), items: [] }).get(key)!;
+    g.items.push(a);
+  }
+  return [...map.values()].sort((a, b) => (!a.key ? 1 : !b.key ? -1 : a.label.localeCompare(b.label, 'vi', { sensitivity: 'base' })));
+}
+
+const COLLAPSED_KEY = 'wpt-acct-collapsed';
+const readCollapsed = () => {
+  try {
+    return new Set<string>(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]'));
+  } catch {
+    return new Set<string>();
+  }
+};
+
+function SystemSection({ group, open, onToggle, onAdd, children }: { group: SystemGroup; open: boolean; onToggle: () => void; onAdd: () => void; children: ReactNode }) {
+  const name = group.label || 'Chưa đặt hệ thống';
+  const otp = group.items.filter((a) => a.has_otp).length;
+  const link = group.items.find((a) => a.url)?.url;
+  return (
+    <section className="rounded-2xl border border-line bg-surface-2/40">
+      <div className="flex items-center gap-2 py-2 pr-2 pl-2">
+        <button type="button" onClick={onToggle} aria-expanded={open} className="focus-ring flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left hover:bg-surface-3/50">
+          <ChevronRight size={16} className={clsx('shrink-0 text-muted transition-transform', open && 'rotate-90')} />
+          <span
+            className="grid size-8 shrink-0 place-items-center rounded-lg text-[14px] font-bold text-white"
+            style={{ background: group.label ? tint(group.label) : 'var(--faint)' }}
+          >
+            {group.label ? group.label[0].toUpperCase() : '?'}
+          </span>
+          <span className={clsx('truncate text-[14.5px] font-semibold', group.label ? 'text-fg' : 'text-muted')}>{name}</span>
+          <span className="shrink-0 rounded-full bg-surface-3 px-2 py-0.5 text-[11.5px] font-medium text-fg-2 tabular-nums">{group.items.length} tài khoản</span>
+          {otp > 0 && (
+            <span className="hidden shrink-0 items-center gap-1 text-[11.5px] text-muted sm:flex">
+              <KeySquare size={12} /> {otp} OTP
+            </span>
+          )}
+        </button>
+        {link && (
+          <a
+            href={link}
+            target="_blank"
+            rel="noreferrer noopener"
+            title={link}
+            className="hidden max-w-[16rem] items-center gap-1 truncate rounded-md px-2 py-1 text-[12px] text-accent hover:bg-accent-soft md:flex"
+          >
+            <span className="truncate">{link.replace(/^https?:\/\//, '')}</span>
+            <ExternalLink size={11} className="shrink-0" />
+          </a>
+        )}
+        <Button variant="ghost" size="sm" onClick={onAdd} title={`Thêm tài khoản vào ${name}`}>
+          <Plus size={14} /> Thêm
+        </Button>
+      </div>
+      {open && <div className="grid gap-3 px-3 pb-3 sm:grid-cols-2 xl:grid-cols-3">{children}</div>}
+    </section>
   );
 }
 
@@ -350,6 +418,9 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState<Filter>('all');
   const [editing, setEditing] = useState<TeamAccount | 'new' | null>(null);
+  const [newSystem, setNewSystem] = useState('');
+  const [sys, setSys] = useState<string | null>(null);
+  const [collapsed, setCollapsed] = useState(readCollapsed);
   const [members, setMembers] = useState<DirectoryEntry[]>([]);
   const [showLog, setShowLog] = useState(false);
 
@@ -376,9 +447,32 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
     return (list ?? []).filter(
       (a) =>
         matches(a, filter, me.user_id) &&
+        (sys === null || systemKey(a.system) === sys) &&
         words.every((w) => fold(`${a.system} ${a.username} ${a.url} ${a.note}`).includes(w)),
     );
-  }, [list, q, filter, me.user_id]);
+  }, [list, q, filter, sys, me.user_id]);
+  const groups = useMemo(() => groupBySystem(shown), [shown]);
+  // chips list every system the current filter can show, whatever is picked or searched
+  const allGroups = useMemo(() => groupBySystem((list ?? []).filter((a) => matches(a, filter, me.user_id))), [list, filter, me.user_id]);
+  const systems = useMemo(() => groupBySystem(list ?? []).map((g) => g.label).filter(Boolean), [list]);
+  useEffect(() => {
+    if (sys !== null && list && !allGroups.some((g) => g.key === sys)) setSys(null);
+  }, [sys, list, allGroups]);
+  const toggle = (key: string) =>
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      try {
+        localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next]));
+      } catch {
+        /* per-viewer convenience only */
+      }
+      return next;
+    });
+  const addTo = (system: string) => {
+    setNewSystem(system);
+    setEditing('new');
+  };
   const count = (f: Filter) => (list ?? []).filter((a) => matches(a, f, me.user_id)).length;
 
   const remove = async (a: TeamAccount) => {
@@ -409,7 +503,7 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
             <Button onClick={() => setShowLog(true)} title={admin ? 'Ai xem mật khẩu / lấy mã của tài khoản nào' : 'Ai đã dùng các tài khoản bạn tạo'}>
               <History size={15} /> Nhật ký
             </Button>
-            <Button variant="primary" data-tour="a-add" onClick={() => setEditing('new')}>
+            <Button variant="primary" data-tour="a-add" onClick={() => addTo('')}>
               <Plus size={16} /> Thêm tài khoản
             </Button>
           </div>
@@ -447,6 +541,28 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           />
         </div>
 
+        {allGroups.length > 1 && (
+          <div data-tour="a-systems" className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+            {[{ key: null, label: 'Tất cả hệ thống', n: allGroups.reduce((n, g) => n + g.items.length, 0) }, ...allGroups.map((g) => ({ key: g.key, label: g.label || 'Chưa đặt hệ thống', n: g.items.length }))].map(
+              (c) => (
+                <button
+                  key={c.key ?? '*'}
+                  type="button"
+                  onClick={() => setSys(c.key)}
+                  className={clsx(
+                    'focus-ring flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] whitespace-nowrap transition-colors',
+                    sys === c.key ? 'border-accent/50 bg-accent-soft font-medium text-accent' : 'border-line bg-surface text-fg-2 hover:border-line-strong hover:text-fg',
+                  )}
+                >
+                  {c.key === null && <Layers size={13} />}
+                  {c.label}
+                  <span className="text-[11px] opacity-70 tabular-nums">{c.n}</span>
+                </button>
+              ),
+            )}
+          </div>
+        )}
+
         {err && (
           <div className="flex items-center gap-3 rounded-lg border border-error/40 bg-error/8 px-3 py-2.5 text-[13px] text-error">
             <span className="flex-1">{err}</span>
@@ -474,9 +590,13 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           </div>
         )}
 
-        <div data-tour="a-list" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {shown.map((a) => (
-            <AccountCard key={a.id} acc={a} backend={backend} onToast={onToast} onEdit={() => setEditing(a)} onDelete={() => remove(a)} />
+        <div data-tour="a-list" className="space-y-3">
+          {groups.map((g) => (
+            <SystemSection key={g.key} group={g} open={!!q.trim() || sys !== null || !collapsed.has(g.key)} onToggle={() => toggle(g.key)} onAdd={() => addTo(g.label)}>
+              {g.items.map((a) => (
+                <AccountCard key={a.id} acc={a} backend={backend} onToast={onToast} onEdit={() => setEditing(a)} onDelete={() => remove(a)} />
+              ))}
+            </SystemSection>
           ))}
         </div>
       </div>
@@ -489,6 +609,8 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           members={members}
           meId={me.user_id}
           admin={admin}
+          systems={systems}
+          defaultSystem={editing === 'new' ? newSystem : undefined}
           onSaved={(m) => {
             onToast(m);
             load();

@@ -3,7 +3,7 @@ import { Camera, Check, ChevronDown, UserCheck, ClipboardPaste, Eye, EyeOff, Ima
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Segmented } from '../../components/ui';
 import type { Backend, DirectoryEntry } from '../../lib/backend';
-import { cleanSecret, parseOtpText, readQrFile, secondsLeft, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
+import { cleanSecret, parseOtpText, readQrFile, secondsLeft, systemKey, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
 import { Modal } from '../commands/Modal';
 import { QrScanner, ScreenQrScanner } from './QrScanner';
 
@@ -195,6 +195,10 @@ interface Props {
   /** current user: picks the default sharing and whether "only me" may be chosen */
   meId: string;
   admin: boolean;
+  /** systems already in use, suggested so the same system groups together */
+  systems: string[];
+  /** prefilled system when adding from a system's group */
+  defaultSystem?: string;
   onSaved: (msg: string) => void;
   onClose: () => void;
 }
@@ -202,9 +206,9 @@ interface Props {
 /** what happens to a stored secret value when saving an existing account */
 type Keep = 'keep' | 'set' | 'remove';
 
-export function AccountEditor({ backend, initial, members, meId, admin, onSaved, onClose }: Props) {
+export function AccountEditor({ backend, initial, members, meId, admin, systems, defaultSystem, onSaved, onClose }: Props) {
   const editing = !!initial;
-  const [system, setSystem] = useState(initial?.system ?? '');
+  const [system, setSystem] = useState(initial?.system ?? defaultSystem ?? '');
   const [username, setUsername] = useState(initial?.username ?? '');
   const [url, setUrl] = useState(initial?.url ?? '');
   const [note, setNote] = useState(initial?.note ?? '');
@@ -266,13 +270,15 @@ export function AccountEditor({ backend, initial, members, meId, admin, onSaved,
     setBusy(true);
     setErr(null);
     const share = { everyone, members: access === 'some' ? memberIds : [], is_private: access === 'private' };
+    // reuse the spelling already in use, so "sme" lands in the "SME" group
+    const canon = (s: string) => systems.find((x) => systemKey(x) === systemKey(s)) ?? s.trim();
     try {
       if (multi) {
         // a Google Authenticator export: one account per ticked entry, OTP only
         const list = drafts!.filter((_, i) => picked[i]);
         for (const d of list)
           await backend.acctSave(null, {
-            system: d.issuer,
+            system: canon(d.issuer),
             username: d.label,
             url: '',
             note: '',
@@ -286,7 +292,7 @@ export function AccountEditor({ backend, initial, members, meId, admin, onSaved,
         onSaved(`Đã thêm ${list.length} tài khoản`);
       } else {
         await backend.acctSave(initial?.id ?? null, {
-          system: system.trim(),
+          system: canon(system),
           username: username.trim(),
           url: url.trim(),
           note: note.trim(),
@@ -344,14 +350,26 @@ export function AccountEditor({ backend, initial, members, meId, admin, onSaved,
             'Thông tin đăng nhập',
             <div className="grid gap-3 sm:grid-cols-2">
               <div>
-                <Label hint="vd: SBB, AWS, Gitlab">Hệ thống</Label>
-                <input autoFocus value={system} onChange={(e) => setSystem(e.target.value)} className={field} placeholder="Tên hệ thống" />
+                <Label hint="cùng tên sẽ gom chung một nhóm">Hệ thống</Label>
+                <input
+                  autoFocus={!defaultSystem}
+                  list="acct-systems"
+                  value={system}
+                  onChange={(e) => setSystem(e.target.value)}
+                  className={field}
+                  placeholder="Chọn hoặc gõ tên hệ thống"
+                />
+                <datalist id="acct-systems">
+                  {systems.map((s) => (
+                    <option key={s} value={s} />
+                  ))}
+                </datalist>
               </div>
               <div>
                 <Label>
                   Tên đăng nhập <span className="text-error">*</span>
                 </Label>
-                <input value={username} onChange={(e) => setUsername(e.target.value)} className={field} placeholder="vd: qc_test" autoComplete="off" />
+                <input autoFocus={!!defaultSystem} value={username} onChange={(e) => setUsername(e.target.value)} className={field} placeholder="vd: qc_test" autoComplete="off" />
               </div>
               <div className="sm:col-span-2">
                 <Label hint="không bắt buộc">Link đăng nhập</Label>
