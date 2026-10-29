@@ -3,7 +3,7 @@ import { Camera, Check, ChevronDown, UserCheck, ClipboardPaste, Eye, EyeOff, Ima
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Segmented } from '../../components/ui';
 import type { Backend, DirectoryEntry } from '../../lib/backend';
-import { cleanSecret, parseOtpText, readQrFile, secondsLeft, systemKey, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
+import { cleanSecret, parseOtpText, readQrFile, ENVS, envKey, isProd, secondsLeft, systemKey, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
 import { Modal } from '../commands/Modal';
 import { QrScanner, ScreenQrScanner } from './QrScanner';
 
@@ -187,6 +187,9 @@ function LiveCode({ d }: { d: OtpDraft }) {
   );
 }
 
+/** dot colour of an environment (Prod is red) */
+export const envDot = (e: string) => (isProd(e) ? 'bg-error' : ({ dev: 'bg-faint', uat: 'bg-accent', staging: 'bg-violet-500' } as Record<string, string>)[envKey(e)] ?? 'bg-teal-500');
+
 interface Props {
   backend: Backend;
   initial: TeamAccount | null;
@@ -197,8 +200,12 @@ interface Props {
   admin: boolean;
   /** systems already in use, suggested so the same system groups together */
   systems: string[];
-  /** prefilled system when adding from a system's group */
+  /** prefilled system / environment when adding from a system's page */
   defaultSystem?: string;
+  defaultEnv?: string;
+  /** open with the OTP part already on: read from a pasted / dropped QR, or ready to scan */
+  startOtp?: boolean;
+  initialDrafts?: OtpDraft[];
   onSaved: (msg: string) => void;
   onClose: () => void;
 }
@@ -206,9 +213,10 @@ interface Props {
 /** what happens to a stored secret value when saving an existing account */
 type Keep = 'keep' | 'set' | 'remove';
 
-export function AccountEditor({ backend, initial, members, meId, admin, systems, defaultSystem, onSaved, onClose }: Props) {
+export function AccountEditor({ backend, initial, members, meId, admin, systems, defaultSystem, defaultEnv, startOtp, initialDrafts, onSaved, onClose }: Props) {
   const editing = !!initial;
   const [system, setSystem] = useState(initial?.system ?? defaultSystem ?? '');
+  const [env, setEnv] = useState(initial?.env ?? defaultEnv ?? '');
   const [username, setUsername] = useState(initial?.username ?? '');
   const [url, setUrl] = useState(initial?.url ?? '');
   const [note, setNote] = useState(initial?.note ?? '');
@@ -220,7 +228,7 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
 
   // OTP: off, or read from a QR / link (several accounts at once from a Google export)
   const hadOtp = !!initial?.has_otp;
-  const [otpMode, setOtpMode] = useState<Keep>(hadOtp ? 'keep' : 'remove');
+  const [otpMode, setOtpMode] = useState<Keep>(hadOtp ? 'keep' : startOtp || initialDrafts ? 'set' : 'remove');
   const [drafts, setDrafts] = useState<OtpDraft[] | null>(null);
   const [picked, setPicked] = useState<boolean[]>([]);
   const [showSecret, setShowSecret] = useState(false);
@@ -256,6 +264,10 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
       setPeriod(x.period);
     }
   };
+  useEffect(() => {
+    if (initialDrafts) takeDrafts(initialDrafts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, with the QR the editor was opened from
+  }, []);
   const multi = otpMode === 'set' && !!drafts && drafts.length > 1;
   const single = otpMode === 'set' && drafts?.length === 1 ? drafts[0] : null;
 
@@ -278,7 +290,8 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
         const list = drafts!.filter((_, i) => picked[i]);
         for (const d of list)
           await backend.acctSave(null, {
-            system: canon(d.issuer),
+            system: canon(d.issuer || system),
+            env: env.trim(),
             username: d.label,
             url: '',
             note: '',
@@ -293,6 +306,7 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
       } else {
         await backend.acctSave(initial?.id ?? null, {
           system: canon(system),
+          env: ENVS.find((e) => envKey(e) === envKey(env)) ?? env.trim(),
           username: username.trim(),
           url: url.trim(),
           note: note.trim(),
@@ -366,12 +380,35 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
                 </datalist>
               </div>
               <div>
+                <Label hint="mỗi môi trường có link riêng">Môi trường</Label>
+                <input value={env} onChange={(e) => setEnv(e.target.value)} className={field} placeholder="Không có" autoComplete="off" />
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {ENVS.map((e) => {
+                    const on = envKey(e) === envKey(env);
+                    return (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => setEnv(on ? '' : e)}
+                        className={clsx(
+                          'flex h-6 items-center gap-1.5 rounded-md border px-2 text-[11.5px] transition-colors',
+                          on ? 'border-accent/50 bg-accent-soft font-medium text-accent' : 'border-line text-muted hover:border-line-strong hover:text-fg',
+                        )}
+                      >
+                        <span className={clsx('size-1.5 rounded-full', envDot(e))} />
+                        {e}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
                 <Label>
                   Tên đăng nhập <span className="text-error">*</span>
                 </Label>
                 <input autoFocus={!!defaultSystem} value={username} onChange={(e) => setUsername(e.target.value)} className={field} placeholder="vd: qc_test" autoComplete="off" />
               </div>
-              <div className="sm:col-span-2">
+              <div>
                 <Label hint="không bắt buộc">Link đăng nhập</Label>
                 <input value={url} onChange={(e) => setUrl(e.target.value)} className={field} placeholder="https://…" autoComplete="off" />
               </div>

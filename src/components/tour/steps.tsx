@@ -361,25 +361,43 @@ export const ACCOUNT_STEPS: TourStep[] = [
     title: 'Tài khoản dùng chung',
     body: (
       <>
-        Mỗi tài khoản của một hệ thống gom đủ ở một chỗ: link đăng nhập, tên đăng nhập, mật khẩu và mã OTP (2 lớp). Tìm một lần là có hết, không phải xin ai quét QR hay gửi
-        mật khẩu qua chat.
+        Tài khoản gom theo <b>hệ thống</b> và <b>môi trường</b> (Dev, UAT, Prod…): link đăng nhập, tên đăng nhập, mật khẩu và mã OTP ở cùng một chỗ. Không phải xin ai quét QR
+        hay gửi mật khẩu qua chat.
       </>
     ),
   },
   {
     target: 'a-search',
-    title: 'Tìm tài khoản',
-    body: <>Gõ tên hệ thống, tên đăng nhập, link hoặc chữ trong ghi chú — không cần gõ dấu. Lọc nhanh tài khoản có OTP / có mật khẩu ở bên cạnh, hoặc bấm tên một hệ thống ở hàng bên dưới để chỉ xem hệ thống đó.</>,
+    title: 'Tìm nhanh',
+    placement: 'right',
+    body: (
+      <>
+        Bấm <b>/</b> rồi gõ tên hệ thống, tên đăng nhập hoặc chữ trong ghi chú — không cần gõ dấu. Nhiều từ thì thu hẹp dần, vd <code>sme prod</code>, <code>uat otp</code>. Mũi tên lên / xuống để
+        chọn, Enter để mở.
+      </>
+    ),
   },
   {
     target: 'a-list',
     title: 'Dùng tài khoản',
     placement: 'top',
-    show: () => !!document.querySelector('[data-tour="a-list"] article'),
+    show: () => !!document.querySelector('[data-tour="a-list"] [data-acc]'),
     body: (
       <>
-        Tài khoản được gom theo <b>hệ thống</b> — bấm tên nhóm để thu gọn / mở ra, nút <b>Thêm</b> ở nhóm điền sẵn tên hệ thống. Mỗi dòng có nút copy riêng. Mật khẩu bị che — bấm 👁 để xem hoặc copy. <b>Lấy mã</b> hiện mã OTP và tự copy, vòng tròn đếm giây còn lại. Mật khẩu và mã chỉ được lấy
-        khi bạn bấm, mỗi lần đều được ghi vào nhật ký.
+        Mỗi môi trường có link riêng ở đầu khung; Prod viền đỏ. <b>Mã OTP tự hiện và tự đổi</b> — bấm vào mã để copy. Mật khẩu bị che, bấm 👁 để xem hoặc copy. Mọi lần xem / copy
+        đều được ghi vào nhật ký.
+      </>
+    ),
+  },
+  {
+    target: 'a-drop',
+    title: 'Thêm vào đúng hệ thống',
+    placement: 'top',
+    show: () => !!document.querySelector('[data-tour="a-drop"]'),
+    body: (
+      <>
+        Đang mở hệ thống nào thì thêm vào hệ thống đó, môi trường đã điền sẵn. Có ảnh QR thì chỉ cần <b>Ctrl V</b> hoặc kéo thả vào trang; <b>Quét QR</b> để quét tab / cửa sổ
+        đang hiện mã (cả QR “Chuyển tài khoản” của Google Authenticator).
       </>
     ),
   },
@@ -389,8 +407,7 @@ export const ACCOUNT_STEPS: TourStep[] = [
     placement: 'left',
     body: (
       <>
-        Nhập link, tên đăng nhập, mật khẩu. OTP thì <b>quét màn hình</b> (chọn tab / cửa sổ đang hiện mã QR), quét camera, kéo thả / dán ảnh chụp màn hình, hoặc dán link <code>otpauth://</code> — cả QR “Chuyển tài
-        khoản” của Google Authenticator. Chọn chia cho <b>Cả team</b>, <b>Người được chọn</b>, hay <b>Chỉ mình tôi</b>. Ai cũng thêm được; người tạo sửa / xoá được tài khoản của mình.
+        Hệ thống mới thì thêm ở đây. Chọn chia cho <b>Cả team</b>, <b>Người được chọn</b>, hay <b>Chỉ mình tôi</b>. Ai cũng thêm được; người tạo sửa / xoá được tài khoản của mình.
       </>
     ),
   },

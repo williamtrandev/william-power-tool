@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SAMPLE_COMMANDS, type Command, type CommandInput, type HistoryRow } from './commands';
-import { cleanSecret, secondsLeft, totp, type AccountActivity, type AccountInput, type OtpCode, type TeamAccount } from './otp';
+import { cleanSecret, secondsLeft, totp, type AccountActivity, type AccountCode, type AccountInput, type OtpCode, type TeamAccount } from './otp';
 
 /**
  * Google sign-in, accounts and the shared command library on Supabase (schema and access rules: supabase/setup.sql).
@@ -61,6 +61,10 @@ export interface Backend {
   acctList(): Promise<TeamAccount[]>;
   acctPassword(id: string): Promise<string>;
   acctCode(id: string): Promise<OtpCode>;
+  /** current + next code of every given account the user may use; seeing is logged at most hourly */
+  acctCodes(ids: string[]): Promise<AccountCode[]>;
+  /** log that a code was copied */
+  acctCopied(id: string): Promise<void>;
   /** admin; returns the account id */
   acctSave(id: string | null, input: AccountInput): Promise<string>;
   acctDelete(id: string): Promise<void>;
@@ -218,10 +222,21 @@ function supabaseBackend(url: string, anonKey: string): Backend {
       if (!row) throw new Error('Không lấy được mã');
       return row;
     },
+    async acctCodes(ids) {
+      if (!ids.length) return [];
+      const { data, error } = await sb.rpc('acct_codes', { ids });
+      if (error) throw friendly(error);
+      return (data ?? []) as AccountCode[];
+    },
+    async acctCopied(id) {
+      const { error } = await sb.rpc('acct_copied', { aid: id });
+      if (error) throw friendly(error);
+    },
     async acctSave(id, i) {
       const { data, error } = await sb.rpc('acct_save', {
         aid: id,
         p_system: i.system,
+        p_env: i.env,
         p_username: i.username,
         p_url: i.url,
         p_note: i.note,
@@ -286,10 +301,15 @@ function demoBackend(): Backend {
       history: [],
       // well-known test secret (shown in many TOTP tutorials) — demo only
       accounts: [
-        { id: id(), system: 'Demo SBB', username: 'qc_test', url: 'https://sbb-uat.example.vn', note: 'Môi trường UAT, dùng chung cho QC', password: 'Uat@2026', otp_secret: 'JBSWY3DPEHPK3PXP', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
-        { id: id(), system: 'Demo SBB', username: 'qc_admin', url: 'https://sbb-uat.example.vn/admin', note: 'Quyền admin trên UAT', password: 'Adm@2026', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
-        { id: id(), system: 'Demo AWS', username: 'root', url: 'https://console.aws.amazon.com', note: 'Chỉ admin + qc', password: 'Root!demo', otp_secret: 'GEZDGNBVGY3TQOJQ', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: false, members: ['qc@demo'], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
-        { id: id(), system: 'Wiki nội bộ', username: 'team', url: 'https://wiki.example.vn', note: '', password: 'wiki123', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo SBB', env: 'UAT', username: 'qc_test', url: 'https://sbb-uat.example.vn', note: 'Maker, dùng chung cho QC', password: 'Uat@2026', otp_secret: 'JBSWY3DPEHPK3PXP', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo SBB', env: 'UAT', username: 'qc_checker', url: 'https://sbb-uat.example.vn', note: 'Checker, duyệt giao dịch', password: 'Chk@2026', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo SBB', env: 'UAT', username: 'qc_admin', url: 'https://sbb-uat.example.vn/admin', note: 'Quyền admin trên UAT', password: 'Adm@2026', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo SBB', env: 'Dev', username: 'dev_test', url: 'https://sbb-dev.example.vn', note: 'Tài khoản dev chung', password: 'dev123', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo SBB', env: 'Prod', username: 'ops_root', url: 'https://sbb.example.vn', note: 'Chỉ dùng khi xử lý sự cố', password: 'Prod!demo', otp_secret: 'KRSXG5CTMVRXEZLU', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo Evoucher', env: 'UAT', username: 'ev_qc', url: 'https://evoucher-uat.example.vn', note: 'QC chung', password: 'ev123', otp_secret: 'MFRGGZDFMZTWQ2LK', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo Evoucher', env: 'Prod', username: 'ev_support', url: 'https://evoucher.example.vn', note: 'Hỗ trợ khách hàng', password: 'evp!demo', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Demo AWS', env: '', username: 'root', url: 'https://console.aws.amazon.com', note: 'Chỉ admin + qc', password: 'Root!demo', otp_secret: 'GEZDGNBVGY3TQOJQ', otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: false, members: ['qc@demo'], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
+        { id: id(), system: 'Wiki nội bộ', env: '', username: 'team', url: 'https://wiki.example.vn', note: '', password: 'wiki123', otp_secret: null, otp_algorithm: 'SHA1', otp_digits: 6, otp_period: 30, everyone: true, members: [], is_private: false, owner_id: 'admin@demo', created_by: 'admin@demo', updated_at: t },
       ],
       accountLog: [],
     };
@@ -316,7 +336,7 @@ function demoBackend(): Backend {
     member(s) && (a.owner_id === sessionEmail() || (!a.is_private && (admin(s) || a.everyone || a.members.includes(sessionEmail() ?? ''))));
   const canManage = (s: Store, a: DemoAccount) => member(s) && (a.owner_id === sessionEmail() || (admin(s) && !a.is_private));
   const logAcct = (s: Store, a: DemoAccount, action: AccountActivity['action']) => {
-    (s.accountLog ??= []).unshift({ id: Date.now() + Math.random(), account_id: a.id, account: [a.system, a.username].filter(Boolean).join(' · '), action, user_email: sessionEmail(), at: now() });
+    (s.accountLog ??= []).unshift({ id: Date.now() + Math.random(), account_id: a.id, account: [a.system, a.env, a.username].filter(Boolean).join(' · '), action, user_email: sessionEmail(), at: now() });
     write(s);
   };
   const own = (s: Store, c: Command) => member(s) && (c.owner_id === sessionEmail() || (admin(s) && !c.is_private));
@@ -408,7 +428,7 @@ function demoBackend(): Backend {
     },
     async acctList() {
       const s = read();
-      return (s.accounts ?? []).filter((a) => canUse(s, a)).map(({ password, otp_secret, otp_algorithm: _a, members: _m, ...a }) => ({ ...a, has_password: !!password, has_otp: !!otp_secret, can_manage: canManage(s, a as DemoAccount) }));
+      return (s.accounts ?? []).filter((a) => canUse(s, a)).map(({ password, otp_secret, otp_algorithm: _a, members: _m, ...a }) => ({ ...a, env: a.env ?? '', has_password: !!password, has_otp: !!otp_secret, can_manage: canManage(s, a as DemoAccount) }));
     },
     async acctPassword(aid) {
       const s = read();
@@ -427,12 +447,30 @@ function demoBackend(): Backend {
       const opt = { algorithm: a.otp_algorithm, digits: a.otp_digits, period: a.otp_period };
       return { code: await totp(a.otp_secret, opt), next_code: await totp(a.otp_secret, { ...opt, at: Date.now() + a.otp_period * 1000 }), remaining: secondsLeft(a.otp_period), period: a.otp_period };
     },
+    async acctCodes(ids) {
+      const s = read();
+      if (!member(s)) throw deny();
+      const out: AccountCode[] = [];
+      for (const a of (s.accounts ?? []).filter((x) => ids.includes(x.id) && x.otp_secret && canUse(s, x))) {
+        const hour = Date.now() - 3600_000;
+        if (!(s.accountLog ?? []).some((l) => l.account_id === a.id && l.user_email === sessionEmail() && l.action === 'code' && +new Date(l.at) > hour)) logAcct(s, a, 'code');
+        const opt = { algorithm: a.otp_algorithm, digits: a.otp_digits, period: a.otp_period };
+        out.push({ id: a.id, code: await totp(a.otp_secret!, opt), next_code: await totp(a.otp_secret!, { ...opt, at: Date.now() + a.otp_period * 1000 }), remaining: secondsLeft(a.otp_period), period: a.otp_period });
+      }
+      return out;
+    },
+    async acctCopied(aid) {
+      const s = read();
+      const a = (s.accounts ?? []).find((x) => x.id === aid);
+      if (!a || !canUse(s, a)) throw deny();
+      logAcct(s, a, 'copy');
+    },
     async acctSave(aid, i) {
       const s = read();
       if (!member(s)) throw deny();
       const list = (s.accounts ??= []);
       const keep = <T,>(v: string | null, old: T) => (v === null ? old : v === '' ? null : v);
-      const base = { system: i.system, username: i.username, url: i.url, note: i.note, otp_algorithm: i.otp_algorithm, otp_digits: i.otp_digits, otp_period: i.otp_period, everyone: i.everyone && !i.is_private, is_private: i.is_private, members: i.everyone || i.is_private ? [] : i.members, updated_at: now() };
+      const base = { system: i.system, env: i.env, username: i.username, url: i.url, note: i.note, otp_algorithm: i.otp_algorithm, otp_digits: i.otp_digits, otp_period: i.otp_period, everyone: i.everyone && !i.is_private, is_private: i.is_private, members: i.everyone || i.is_private ? [] : i.members, updated_at: now() };
       let a = aid ? list.find((x) => x.id === aid) : undefined;
       if (a && !canManage(s, a)) throw deny();
       if (a && i.is_private && !a.is_private && a.owner_id !== sessionEmail()) throw new Error('Chỉ người tạo mới đặt tài khoản thành riêng tư được');

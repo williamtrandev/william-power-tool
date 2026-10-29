@@ -267,7 +267,7 @@ create table if not exists public.team_account_log (
   id         bigserial primary key,
   account_id uuid,
   account    text not null,
-  action     text not null check (action in ('code', 'password', 'create', 'update', 'delete')),
+  action     text not null check (action in ('code', 'copy', 'password', 'create', 'update', 'delete')),
   user_email text,
   at         timestamptz not null default now()
 );
@@ -278,6 +278,12 @@ alter table public.team_accounts add column if not exists owner_id uuid referenc
 alter table public.team_accounts add column if not exists is_private boolean not null default false;
 update public.team_accounts a set owner_id = m.user_id
   from public.app_members m where a.owner_id is null and m.email = a.created_by;
+-- added later: environment within a system (Dev, UAT, Prod…), and logging copied OTP codes
+alter table public.team_accounts add column if not exists env text not null default '' check (char_length(env) <= 40);
+alter table public.team_account_log drop constraint if exists team_account_log_action_check;
+alter table public.team_account_log add constraint team_account_log_action_check
+  check (action in ('code', 'copy', 'password', 'create', 'update', 'delete'));
+create index if not exists team_account_log_recent_idx on public.team_account_log (account_id, user_email, action, at desc);
 
 alter table public.team_accounts enable row level security;
 alter table public.team_account_access enable row level security;
@@ -355,7 +361,7 @@ create or replace function public.can_manage_account(aid uuid) returns boolean
 
 create or replace function public.account_name(a public.team_accounts) returns text
   language sql immutable
-  as $$ select case when a.system = '' then a.username else a.system || ' · ' || a.username end $$;
+  as $$ select concat_ws(' · ', nullif(a.system, ''), nullif(a.env, ''), a.username) $$;
 
 -- approved members, so anyone sharing an account can pick who gets it
 create or replace function public.member_directory()
@@ -370,17 +376,17 @@ create or replace function public.member_directory()
 -- accounts this user may use: everything except the password and the OTP secret
 drop function if exists public.acct_list();
 create or replace function public.acct_list()
-  returns table (id uuid, system text, username text, url text, note text, has_password boolean, has_otp boolean,
+  returns table (id uuid, system text, env text, username text, url text, note text, has_password boolean, has_otp boolean,
                  otp_digits int, otp_period int, everyone boolean, is_private boolean, owner_id uuid, can_manage boolean,
                  created_by text, updated_at timestamptz)
   language sql stable security definer set search_path = public
   as $$
-    select a.id, a.system, a.username, a.url, a.note, a.password is not null, a.otp_secret is not null,
+    select a.id, a.system, a.env, a.username, a.url, a.note, a.password is not null, a.otp_secret is not null,
            a.otp_digits, a.otp_period, a.everyone, a.is_private, a.owner_id, public.can_manage_account(a.id),
            a.created_by, a.updated_at
       from public.team_accounts a
      where public.can_use_account(a.id)
-     order by lower(a.system), lower(a.username)
+     order by lower(a.system), lower(a.env), lower(a.username)
   $$;
 
 -- the password; logged
@@ -416,11 +422,50 @@ begin
     a.otp_period;
 end $$;
 
+-- current and next OTP of several accounts at once, for codes shown without a click. Seeing a
+-- code is logged at most once an hour per person and account; copying one is always logged.
+create or replace function public.acct_codes(ids uuid[])
+  returns table (id uuid, code text, next_code text, remaining int, period int)
+  language plpgsql security definer set search_path = public
+  as $$
+declare
+  a public.team_accounts;
+  now_ts timestamptz := clock_timestamp();
+  me text := public.current_email();
+begin
+  if not public.is_member() then raise exception 'not allowed' using errcode = '42501'; end if;
+  for a in select * from public.team_accounts t where t.id = any(ids[1:200]) and t.otp_secret is not null loop
+    continue when not public.can_use_account(a.id);
+    if not exists (select 1 from public.team_account_log l
+                    where l.account_id = a.id and l.user_email = me and l.action = 'code' and l.at > now_ts - interval '1 hour') then
+      insert into public.team_account_log (account_id, account, action, user_email) values (a.id, public.account_name(a), 'code', me);
+    end if;
+    id := a.id;
+    code := public.totp(a.otp_secret, a.otp_algorithm, a.otp_digits, a.otp_period, now_ts);
+    next_code := public.totp(a.otp_secret, a.otp_algorithm, a.otp_digits, a.otp_period, now_ts + make_interval(secs => a.otp_period));
+    remaining := (a.otp_period - (floor(extract(epoch from now_ts))::bigint % a.otp_period))::int;
+    period := a.otp_period;
+    return next;
+  end loop;
+end $$;
+
+-- a member copied an OTP code
+create or replace function public.acct_copied(aid uuid) returns void
+  language plpgsql security definer set search_path = public
+  as $$
+declare a public.team_accounts;
+begin
+  if not public.can_use_account(aid) then raise exception 'not allowed' using errcode = '42501'; end if;
+  select * into a from public.team_accounts where id = aid;
+  insert into public.team_account_log (account_id, account, action, user_email) values (a.id, public.account_name(a), 'copy', public.current_email());
+end $$;
+
 -- add (any member) or edit (owner / admin). p_password / p_otp_secret: null keeps the stored
 -- value, '' removes it. Only the owner can make an account private.
 drop function if exists public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[]);
+drop function if exists public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean);
 create or replace function public.acct_save(
-  aid uuid, p_system text, p_username text, p_url text, p_note text, p_password text,
+  aid uuid, p_system text, p_env text, p_username text, p_url text, p_note text, p_password text,
   p_otp_secret text, p_otp_algorithm text, p_otp_digits int, p_otp_period int,
   p_everyone boolean, p_members uuid[], p_private boolean
 ) returns uuid
@@ -435,9 +480,9 @@ begin
   if not public.is_member() then raise exception 'not allowed' using errcode = '42501'; end if;
   if sec <> '' then perform public.base32_decode(sec); end if; -- validates
   if rid is null then
-    insert into public.team_accounts (system, username, url, note, password, otp_secret, otp_algorithm, otp_digits, otp_period,
+    insert into public.team_accounts (system, env, username, url, note, password, otp_secret, otp_algorithm, otp_digits, otp_period,
                                       everyone, is_private, owner_id, created_by)
-      values (coalesce(p_system, ''), p_username, coalesce(p_url, ''), coalesce(p_note, ''), nullif(p_password, ''), nullif(sec, ''),
+      values (coalesce(p_system, ''), coalesce(p_env, ''), p_username, coalesce(p_url, ''), coalesce(p_note, ''), nullif(p_password, ''), nullif(sec, ''),
               coalesce(p_otp_algorithm, 'SHA1'), coalesce(p_otp_digits, 6), coalesce(p_otp_period, 30),
               coalesce(p_everyone, true) and not priv, priv, auth.uid(), public.current_email())
       returning * into a;
@@ -449,7 +494,7 @@ begin
       raise exception 'only the owner can make an account private' using errcode = '42501';
     end if;
     update public.team_accounts set
-      system = coalesce(p_system, ''), username = p_username, url = coalesce(p_url, ''), note = coalesce(p_note, ''),
+      system = coalesce(p_system, ''), env = coalesce(p_env, ''), username = p_username, url = coalesce(p_url, ''), note = coalesce(p_note, ''),
       password = case when p_password is null then password else nullif(p_password, '') end,
       otp_secret = case when sec is null then otp_secret else nullif(sec, '') end,
       otp_algorithm = coalesce(p_otp_algorithm, otp_algorithm), otp_digits = coalesce(p_otp_digits, otp_digits),
@@ -506,10 +551,12 @@ begin
 end $$;
 
 revoke execute on function public.acct_list(), public.acct_password(uuid), public.acct_code(uuid),
-  public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
+  public.acct_save(uuid, text, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
+  public.acct_codes(uuid[]), public.acct_copied(uuid),
   public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.member_directory(),
   public.can_use_account(uuid), public.can_manage_account(uuid),
   public.totp(text, text, int, int, timestamptz), public.base32_decode(text) from anon, public;
 grant execute on function public.acct_list(), public.acct_password(uuid), public.acct_code(uuid),
-  public.acct_save(uuid, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
+  public.acct_save(uuid, text, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
+  public.acct_codes(uuid[]), public.acct_copied(uuid),
   public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.member_directory() to authenticated;

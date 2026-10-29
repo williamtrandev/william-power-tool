@@ -12,6 +12,8 @@ export type OtpAlgorithm = 'SHA1' | 'SHA256' | 'SHA512';
 export interface TeamAccount {
   id: string;
   system: string;
+  /** environment within the system: Dev, UAT, Prod… ('' = not set) */
+  env: string;
   username: string;
   url: string;
   note: string;
@@ -33,6 +35,15 @@ export interface TeamAccount {
 export const systemKey = (s: string) =>
   s.normalize('NFD').replace(/\p{M}/gu, '').replace(/đ/gi, 'd').toLowerCase().replace(/\s+/g, ' ').trim();
 
+/** environments offered first, in this order; anything else typed is kept as is */
+export const ENVS = ['Dev', 'UAT', 'Staging', 'Prod'] as const;
+export const envKey = (s: string) => systemKey(s);
+export const isProd = (s: string) => /^(prod|production|live|thật|that)$/.test(envKey(s));
+export const envRank = (s: string) => {
+  const i = ENVS.findIndex((e) => envKey(e) === envKey(s));
+  return i < 0 ? (s ? ENVS.length : ENVS.length + 1) : i;
+};
+
 export interface OtpCode {
   code: string;
   next_code: string;
@@ -40,11 +51,15 @@ export interface OtpCode {
   period: number;
 }
 
+export interface AccountCode extends OtpCode {
+  id: string;
+}
+
 export interface AccountActivity {
   id: number;
   account_id: string | null;
   account: string;
-  action: 'code' | 'password' | 'create' | 'update' | 'delete';
+  action: 'code' | 'copy' | 'password' | 'create' | 'update' | 'delete';
   user_email: string | null;
   at: string;
 }
@@ -52,6 +67,7 @@ export interface AccountActivity {
 /** what an admin fills in. password / otp_secret: null keeps the stored value, '' removes it */
 export interface AccountInput {
   system: string;
+  env: string;
   username: string;
   url: string;
   note: string;
