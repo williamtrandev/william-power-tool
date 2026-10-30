@@ -41,7 +41,7 @@ export function FileBar({ files, onAdd, onToggleFile, onRemoveFile, onClearAll, 
   }, [confirm]);
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-line bg-surface px-4 py-2">
-      <div data-tour="file-bar" className="flex min-w-0 flex-1 flex-wrap gap-1.5">
+      <div data-tour="file-bar" className="flex min-w-0 flex-1 flex-wrap gap-1.5 max-sm:basis-full">
         {files.map((f) => (
           <div
             key={f.id}

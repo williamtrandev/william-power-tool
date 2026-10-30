@@ -20,7 +20,12 @@ const PAD = 6;
 const CARD_W = 340;
 const GAP = 12;
 
-const find = (t?: string) => (t ? document.querySelector<HTMLElement>(`[data-tour="${t}"]`) : null);
+/** first match that is on screen (the tool tabs exist twice: header on desktop, bottom bar on phones) */
+const find = (t?: string) => {
+  if (!t) return null;
+  const all = [...document.querySelectorAll<HTMLElement>(`[data-tour="${t}"]`)];
+  return all.find((el) => el.getClientRects().length > 0) ?? all[0] ?? null;
+};
 
 /** A step is shown when its condition holds and its target (if any) is on screen. */
 function visible(s: TourStep): boolean {

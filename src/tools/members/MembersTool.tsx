@@ -107,7 +107,7 @@ export function MembersTool({ active, backend, me, onToast, onPending }: Props) 
               {self.full_name ? `${self.email} · ` : ''}Tài khoản của bạn — không tự đổi quyền được
             </p>
           </div>
-          <div className="flex gap-5 text-center">
+          <div className="flex gap-5 text-center max-sm:w-full max-sm:justify-around max-sm:border-t max-sm:border-accent/15 max-sm:pt-2.5">
             {(
               [
                 ['Thành viên', count('approved') + 1],

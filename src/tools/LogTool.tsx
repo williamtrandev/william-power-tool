@@ -244,7 +244,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
   );
 
   return (
-    <div className={clsx('flex min-h-0 flex-1 flex-col', !active && 'hidden')} style={{ '--log-fs': `${display.fontSize}px` } as React.CSSProperties}>
+    <div className={clsx('flex min-h-0 flex-1 flex-col max-md:overflow-y-auto', !active && 'hidden')} style={{ '--log-fs': `${display.fontSize}px` } as React.CSSProperties}>
       {/* one stable spot for the file bar, so its popovers survive the 0 → 1 file transition */}
       {logs.ready && (logs.files.length > 0 || folder.connected) && fileBar}
       {!logs.ready ? (

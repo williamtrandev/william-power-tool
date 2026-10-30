@@ -160,7 +160,7 @@ export function Segmented<T extends string>({
   tour?: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} data-tour={tour} className="inline-flex rounded-lg border border-line bg-surface p-0.5">
+    <div role="tablist" aria-label={label} data-tour={tour} className="inline-flex max-w-full overflow-x-auto rounded-lg border border-line bg-surface p-0.5 [scrollbar-width:none]">
       {items.map((it) => (
         <button
           key={it.id}
@@ -169,7 +169,8 @@ export function Segmented<T extends string>({
           aria-selected={value === it.id}
           onClick={() => onChange(it.id)}
           className={clsx(
-            'focus-ring inline-flex h-7 items-center gap-1.5 rounded-md px-3 text-[12.5px] font-medium transition-colors',
+            // phones: icons go, so four tabs still fit on one line
+            'focus-ring inline-flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-[12.5px] font-medium whitespace-nowrap transition-colors sm:px-3 max-sm:[&>svg]:hidden',
             value === it.id ? 'bg-surface-3 text-fg' : 'text-muted hover:text-fg',
           )}
         >

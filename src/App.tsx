@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppHeader, TOOLS, type ToolId } from './components/AppHeader';
+import { AppHeader, MobileNav, TOOLS, type ToolId } from './components/AppHeader';
 import { LoadingScreen, LoginScreen, UnconfiguredScreen, WaitingScreen } from './components/auth/AuthScreens';
-import { ACCOUNT_STEPS, COMMAND_STEPS, LOG_STEPS, WATANE_STEPS } from './components/tour/steps';
+import { ACCOUNT_STEPS, COMMAND_STEPS, LOG_STEPS, OT_STEPS, WATANE_STEPS } from './components/tour/steps';
 import { Tour } from './components/tour/Tour';
 import { createBackend } from './lib/backend';
 import { useAuth } from './lib/useAuth';
@@ -10,6 +10,7 @@ import { CommandsTool } from './tools/commands/CommandsTool';
 import { LogTool } from './tools/LogTool';
 import { MembersTool } from './tools/members/MembersTool';
 import { AccountsTool } from './tools/accounts/AccountsTool';
+import { OtTool } from './tools/ot/OtTool';
 import { WataneTool } from './tools/watane/WataneTool';
 
 const backend = createBackend();
@@ -100,12 +101,14 @@ export default function App() {
       <WataneTool active={current === 'watane'} onToast={showToast} />
       <CommandsTool active={current === 'commands'} backend={backend!} me={auth.member} onToast={showToast} />
       <AccountsTool active={current === 'accounts'} backend={backend!} me={auth.member} onToast={showToast} />
+      <OtTool active={current === 'ot'} backend={backend!} me={auth.member} onToast={showToast} />
       {admin && <MembersTool active={current === 'members'} backend={backend!} me={auth.member} onToast={showToast} onPending={setPending} />}
-      {tour && <Tour key={tour} steps={{ log: LOG_STEPS, watane: WATANE_STEPS, commands: COMMAND_STEPS, accounts: ACCOUNT_STEPS, members: [] }[tour]} onClose={closeTour} />}
+      <MobileNav tool={current} admin={admin} pending={pending} onTool={pickTool} />
+      {tour && <Tour key={tour} steps={{ log: LOG_STEPS, watane: WATANE_STEPS, commands: COMMAND_STEPS, accounts: ACCOUNT_STEPS, ot: OT_STEPS, members: [] }[tour]} onClose={closeTour} />}
       <div
         role="status"
         aria-live="polite"
-        className={`pointer-events-none fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-lg bg-fg px-3.5 py-2 text-[12.5px] text-bg shadow-lg transition-opacity ${toast ? 'opacity-100' : 'opacity-0'}`}
+        className={`pointer-events-none fixed bottom-20 left-1/2 sm:bottom-5 z-50 -translate-x-1/2 rounded-lg bg-fg px-3.5 py-2 text-[12.5px] text-bg shadow-lg transition-opacity ${toast ? 'opacity-100' : 'opacity-0'}`}
       >
         {toast}
       </div>
