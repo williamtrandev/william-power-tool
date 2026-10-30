@@ -80,9 +80,9 @@ export function OtTool({ active, backend, me, onToast }: Props) {
   // your roster row is the one carrying your sign-in email
   const myRow = roster.find((p) => p.email === me.email);
   const mineId = myRow?.id;
-  // the sheet: everyone active, plus anyone hidden who still has OT this month (by name, as exported)
+  // the sheet: only people who did OT this month (by name, as exported); others are logged via "Ghi OT"
   const sheet = useMemo(
-    () => roster.filter((p) => p.active || entries.some((e) => e.person_id === p.id)).sort((a, b) => a.name.localeCompare(b.name, 'vi')),
+    () => roster.filter((p) => entries.some((e) => e.person_id === p.id)).sort((a, b) => a.name.localeCompare(b.name, 'vi')),
     [roster, entries],
   );
   // on screen, you come first
@@ -133,7 +133,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
     setExporting(true);
     try {
       const { exportOtMonth } = await import('./otExport');
-      await exportOtMonth({ month, people: sheet, entries, labels });
+      await exportOtMonth({ month, roster: sheet, entries, labels });
       onToast('Đã xuất file Excel');
     } catch (e) {
       onToast('Không xuất được file: ' + (e as Error).message);
@@ -241,7 +241,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
             [
               ['Tổng giờ OT', fmtHours(total), 'giờ'],
               ['Giờ của bạn', fmtHours(mine), 'giờ'],
-              ['Người có OT', String(otPeople), `/ ${people.length}`],
+              ['Người có OT', String(otPeople), `/ ${roster.filter((p) => p.active).length}`],
               ['Ngày có OT', String(otDays), 'ngày'],
             ] as const
           ).map(([label, v, unit], i) => (
@@ -293,15 +293,20 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                 </div>
               </div>
             )}
-            {!people.length ? (
+            {!roster.length ? (
               <div className="px-4 py-10 text-center text-[13px] text-muted">
-                Chưa có ai trong bảng OT.{' '}
+                Chưa có ai trong danh sách OT.{' '}
                 <button type="button" className="text-accent hover:underline" onClick={() => setManaging(true)}>
                   Thêm người
                 </button>
               </div>
-            ) : !days.length ? (
-              <p className="px-4 py-10 text-center text-[13px] text-muted">Tháng này chưa có ai ghi OT. Bấm “Ghi OT” hoặc tắt “Chỉ ngày có OT” rồi bấm vào một ô.</p>
+            ) : !people.length || !days.length ? (
+              <div className="px-4 py-10 text-center text-[13px] text-muted">
+                Tháng này chưa có ai ghi OT.{' '}
+                <button type="button" className="text-accent hover:underline" onClick={startAdd}>
+                  Ghi OT
+                </button>
+              </div>
             ) : (
               <div ref={scroller} className="overflow-x-auto">
                 <table className="w-full border-separate border-spacing-0 text-[12.5px]">
@@ -409,7 +414,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
               </div>
             )}
             <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line px-4 py-2 text-[11.5px] text-faint">
-              <span>Bấm vào ô để ghi / sửa giờ{admin ? '' : ' của bạn'}; bấm tiêu đề cột để đặt tên cho ngày.</span>
+              <span>Chỉ hiện người có OT trong tháng — người khác ghi qua nút “Ghi OT”. Bấm vào ô để ghi / sửa giờ{admin ? '' : ' của bạn'}; bấm tiêu đề cột để đặt tên cho ngày.</span>
               <span className="flex items-center gap-1.5">
                 <span className="size-2.5 rounded-sm bg-emerald-500/25" /> Cuối tuần / ngày lễ
               </span>

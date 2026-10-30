@@ -6,14 +6,20 @@ import { dayKind, dayMonth, holidayName, monthLabel, type MonthKey, type OtEntry
  * and under each person's hours a second row saying what they did that day.
  * exceljs is loaded on demand: it is only needed when someone exports.
  */
-export async function exportOtMonth({ month, people, entries, labels }: { month: MonthKey; people: OtPerson[]; entries: OtEntry[]; labels: Map<string, string> }) {
+export async function exportOtMonth({ month, roster, entries, labels }: { month: MonthKey; roster: OtPerson[]; entries: OtEntry[]; labels: Map<string, string> }) {
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'William Tool';
   wb.created = new Date();
 
   const byKey = new Map(entries.map((e) => [`${e.person_id}|${e.work_date}`, e]));
-  const dates = [...new Set([...entries.map((e) => e.work_date), ...labels.keys()])].sort();
+  // only what has data: days someone did OT, people who did any
+  const dates = [...new Set(entries.map((e) => e.work_date))].sort();
+  const people = roster.filter((p) => entries.some((e) => e.person_id === p.id));
+  const heading = (d: string) => {
+    const label = labels.get(d) ?? holidayName(d);
+    return label ? `${dayMonth(d)}\n(${label})` : dayMonth(d);
+  };
   const lastCol = dates.length + 2;
   const HEAD = 3;
 
@@ -22,9 +28,16 @@ export async function exportOtMonth({ month, people, entries, labels }: { month:
     views: [{ state: 'frozen', xSplit: 1, ySplit: HEAD }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 },
   });
-  ws.getColumn(1).width = 14;
-  dates.forEach((_, i) => (ws.getColumn(i + 2).width = 18));
-  ws.getColumn(lastCol).width = 14;
+  // exceljs cannot autofit, so size every column from what it holds: wide enough for the day title
+  // and for most notes on one line, capped so a long note wraps instead of making a huge column
+  ws.getColumn(1).width = Math.max(10, ...people.map((p) => p.name.length * 1.15 + 3));
+  const widths = dates.map((d) => {
+    const head = Math.max(...heading(d).split('\n').map((l) => l.length * 1.1 + 3));
+    const notes = Math.max(0, ...people.map((p) => longestLine(byKey.get(`${p.id}|${d}`)?.note ?? '') * 0.9 + 2));
+    return Math.min(MAX_W, Math.max(9, head, notes));
+  });
+  widths.forEach((w, i) => (ws.getColumn(i + 2).width = w));
+  ws.getColumn(lastCol).width = 13;
 
   // title
   ws.mergeCells(1, 1, 1, lastCol);
@@ -36,12 +49,11 @@ export async function exportOtMonth({ month, people, entries, labels }: { month:
 
   // header: "26/9" with the day's title under it, like "(Dựng RL)"
   const head = ws.getRow(HEAD);
-  head.height = dates.some((d) => labels.has(d) || holidayName(d)) ? 40 : 26;
+  head.height = Math.max(2, ...dates.map((d, i) => heading(d).split('\n').reduce((n, l) => n + wrapped(l, widths[i] / 1.1), 0))) * 17 + 6;
   put(head.getCell(1), 'Tên', { fill: BLUE, font: WHITE_BOLD, align: CENTER });
   dates.forEach((d, i) => {
-    const label = labels.get(d) ?? holidayName(d);
     const off = dayKind(d) !== 'weekday';
-    put(head.getCell(i + 2), label ? `${dayMonth(d)}\n(${label})` : dayMonth(d), { fill: BLUE, font: { ...WHITE_BOLD, color: { argb: off ? 'FFFFE699' : 'FFFFFFFF' } }, align: CENTER });
+    put(head.getCell(i + 2), heading(d), { fill: BLUE, font: { ...WHITE_BOLD, color: { argb: off ? 'FFFFE699' : 'FFFFFFFF' } }, align: CENTER });
   });
   put(head.getCell(lastCol), 'TỔNG (giờ)', { fill: YELLOW, font: { ...FONT, bold: true }, align: CENTER });
 
@@ -61,11 +73,11 @@ export async function exportOtMonth({ month, people, entries, labels }: { month:
       const e = byKey.get(`${p.id}|${d}`);
       put(hoursRow.getCell(j + 2), e?.hours ?? 0, { fill: e && dayKind(d) !== 'weekday' ? GREEN : band, font: { ...FONT, bold: !!e, color: { argb: e ? 'FF000000' : 'FFA6A6A6' } }, align: RIGHT, edge: 'top' });
       put(noteRow.getCell(j + 2), e?.note ?? '', { fill: band, font: NOTE, align: { horizontal: 'left', vertical: 'top', wrapText: true }, edge: 'bottom' });
-      if (e?.note) lines = Math.max(lines, wrappedLines(e.note, 18));
+      if (e?.note) lines = Math.max(lines, e.note.split('\n').reduce((n, l) => n + wrapped(l, widths[j] / 0.9), 0));
     });
     hoursRow.height = 20;
     // exceljs cannot autofit, so size the note row from the longest note
-    noteRow.height = lines * 14 + 3;
+    noteRow.height = lines * 15 + 4;
 
     ws.mergeCells(r, lastCol, r + 1, lastCol);
     const total = ws.getCell(r, lastCol);
@@ -130,8 +142,22 @@ function put(cell: Cell, value: Cell['value'], o: { fill: Fill; font: Partial<Fo
 
 const sum = (list: OtEntry[]) => list.reduce((a, e) => a + e.hours, 0);
 
-/** rough line count of a note in a column `width` characters wide */
-const wrappedLines = (s: string, width: number) => s.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / (width * 1.4))), 0);
+/** widest a day column gets (in Excel character units) before its notes wrap */
+const MAX_W = 34;
+const longestLine = (s: string) => Math.max(0, ...s.split('\n').map((l) => l.length));
+/** lines a text takes when wrapped at `chars` characters per line, breaking at spaces like Excel */
+function wrapped(text: string, chars: number): number {
+  let lines = 1;
+  let len = 0;
+  for (const w of text.split(/\s+/)) {
+    const add = (len ? 1 : 0) + w.length;
+    if (len && len + add > chars) {
+      lines++;
+      len = w.length;
+    } else len += add;
+  }
+  return lines;
+}
 
 /** 1 → "A", 27 → "AA" */
 function col(n: number): string {
