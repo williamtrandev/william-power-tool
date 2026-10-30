@@ -1,11 +1,9 @@
-import type { Borders, Cell, Fill, Worksheet } from 'exceljs';
-import { DAY_KIND_LABEL, dayKind, dayMonth, fullName, holidayName, monthLabel, weekdayLong, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
+import type { Alignment, Borders, Cell, Fill, Font } from 'exceljs';
+import { dayKind, dayMonth, holidayName, monthLabel, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
 
 /**
- * The month as an .xlsx with three sheets:
- *  - "Tổng hợp": the team's usual sheet — one row per person, one column per OT day (titled), total in yellow
- *  - "Chi tiết": one row per person per day with what they did, filterable
- *  - "Theo người": hours split by weekday / weekend / holiday, which is what OT pay is computed from
+ * The month as one sheet laid out like the team's own: one column per OT day (titled), the total in yellow,
+ * and under each person's hours a second row saying what they did that day.
  * exceljs is loaded on demand: it is only needed when someone exports.
  */
 export async function exportOtMonth({ month, people, entries, labels }: { month: MonthKey; people: OtPerson[]; entries: OtEntry[]; labels: Map<string, string> }) {
@@ -16,137 +14,82 @@ export async function exportOtMonth({ month, people, entries, labels }: { month:
 
   const byKey = new Map(entries.map((e) => [`${e.person_id}|${e.work_date}`, e]));
   const dates = [...new Set([...entries.map((e) => e.work_date), ...labels.keys()])].sort();
-  const title = `BẢNG TỔNG HỢP GIỜ OT — ${monthLabel(month).toUpperCase()}`;
-
-  // ── Tổng hợp ──
-  const sum = wb.addWorksheet('Tổng hợp', { views: [{ state: 'frozen', xSplit: 1, ySplit: 3 }] });
   const lastCol = dates.length + 2;
-  sum.mergeCells(1, 1, 1, lastCol);
-  sum.getCell(1, 1).value = title;
-  sum.getCell(1, 1).font = { bold: true, size: 14, color: { argb: 'FF1F3864' } };
-  sum.getRow(1).height = 24;
+  const HEAD = 3;
 
-  const head = sum.getRow(3);
-  head.height = dates.some((d) => labels.has(d)) ? 42 : 24;
-  head.getCell(1).value = 'Tên';
+  // sheet names cannot contain "/"
+  const ws = wb.addWorksheet(`OT T${Number(month.slice(5))}-${month.slice(0, 4)}`, {
+    views: [{ state: 'frozen', xSplit: 1, ySplit: HEAD }],
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 },
+  });
+  ws.getColumn(1).width = 14;
+  dates.forEach((_, i) => (ws.getColumn(i + 2).width = 18));
+  ws.getColumn(lastCol).width = 14;
+
+  // title
+  ws.mergeCells(1, 1, 1, lastCol);
+  const title = ws.getCell(1, 1);
+  title.value = `BẢNG TỔNG HỢP GIỜ OT — ${monthLabel(month).toUpperCase()}`;
+  title.font = { ...FONT, bold: true, size: 15, color: { argb: 'FF1F3864' } };
+  title.alignment = { vertical: 'middle' };
+  ws.getRow(1).height = 26;
+
+  // header: "26/9" with the day's title under it, like "(Dựng RL)"
+  const head = ws.getRow(HEAD);
+  head.height = dates.some((d) => labels.has(d) || holidayName(d)) ? 40 : 26;
+  put(head.getCell(1), 'Tên', { fill: BLUE, font: WHITE_BOLD, align: CENTER });
   dates.forEach((d, i) => {
     const label = labels.get(d) ?? holidayName(d);
-    head.getCell(i + 2).value = label ? `${dayMonth(d)}\n(${label})` : dayMonth(d);
+    const off = dayKind(d) !== 'weekday';
+    put(head.getCell(i + 2), label ? `${dayMonth(d)}\n(${label})` : dayMonth(d), { fill: BLUE, font: { ...WHITE_BOLD, color: { argb: off ? 'FFFFE699' : 'FFFFFFFF' } }, align: CENTER });
   });
-  head.getCell(lastCol).value = 'TỔNG (giờ)';
-  for (let c = 1; c <= lastCol; c++) {
-    const cell = head.getCell(c);
-    const d = dates[c - 2];
-    const special = d && dayKind(d) !== 'weekday';
-    style(cell, {
-      fill: c === lastCol ? YELLOW : BLUE,
-      font: { bold: true, size: 12, color: { argb: c === lastCol ? 'FF000000' : special ? 'FFFFE699' : 'FFFFFFFF' } },
-      align: 'center',
-    });
-  }
+  put(head.getCell(lastCol), 'TỔNG (giờ)', { fill: YELLOW, font: { ...FONT, bold: true }, align: CENTER });
 
-  people.forEach((p, r) => {
-    const row = sum.getRow(4 + r);
-    const band = r % 2 ? BAND : undefined;
-    row.getCell(1).value = p.name;
-    style(row.getCell(1), { fill: BLUE, font: { bold: true, size: 12, color: { argb: 'FFFFFFFF' } } });
-    dates.forEach((d, i) => {
+  // two rows per person: hours, then what they did
+  people.forEach((p, i) => {
+    const r = HEAD + 1 + i * 2;
+    const hoursRow = ws.getRow(r);
+    const noteRow = ws.getRow(r + 1);
+    const band = i % 2 ? BAND : WHITE;
+    const mine = entries.filter((e) => e.person_id === p.id);
+
+    ws.mergeCells(r, 1, r + 1, 1);
+    put(ws.getCell(r, 1), p.name, { fill: BLUE, font: WHITE_BOLD, align: { horizontal: 'left', vertical: 'middle', wrapText: true } });
+
+    let lines = 1;
+    dates.forEach((d, j) => {
       const e = byKey.get(`${p.id}|${d}`);
-      const cell = row.getCell(i + 2);
-      cell.value = e?.hours ?? 0;
-      if (e?.note) cell.note = e.note;
-      style(cell, { fill: e && dayKind(d) !== 'weekday' ? GREEN : band, align: 'right' });
+      put(hoursRow.getCell(j + 2), e?.hours ?? 0, { fill: e && dayKind(d) !== 'weekday' ? GREEN : band, font: { ...FONT, bold: !!e, color: { argb: e ? 'FF000000' : 'FFA6A6A6' } }, align: RIGHT, edge: 'top' });
+      put(noteRow.getCell(j + 2), e?.note ?? '', { fill: band, font: NOTE, align: { horizontal: 'left', vertical: 'top', wrapText: true }, edge: 'bottom' });
+      if (e?.note) lines = Math.max(lines, wrappedLines(e.note, 18));
     });
-    const total = row.getCell(lastCol);
-    const hours = entries.filter((e) => e.person_id === p.id).reduce((a, e) => a + e.hours, 0);
-    total.value = dates.length ? { formula: `SUM(${col(2)}${4 + r}:${col(lastCol - 1)}${4 + r})`, result: hours } : 0;
-    style(total, { fill: YELLOW, font: { bold: true, size: 12, color: { argb: 'FFFF0000' } }, align: 'right' });
+    hoursRow.height = 20;
+    // exceljs cannot autofit, so size the note row from the longest note
+    noteRow.height = lines * 14 + 3;
+
+    ws.mergeCells(r, lastCol, r + 1, lastCol);
+    const total = ws.getCell(r, lastCol);
+    total.value = dates.length ? { formula: `SUM(${col(2)}${r}:${col(lastCol - 1)}${r})`, result: sum(mine) } : 0;
+    put(total, total.value, { fill: YELLOW, font: { ...FONT, bold: true, size: 13, color: { argb: 'FFFF0000' } }, align: { horizontal: 'right', vertical: 'middle' } });
   });
 
-  const foot = sum.getRow(4 + people.length);
-  foot.getCell(1).value = 'Tổng';
-  style(foot.getCell(1), { fill: BLUE, font: { bold: true, size: 12, color: { argb: 'FFFFFFFF' } } });
+  // team total per day
+  const foot = ws.getRow(HEAD + 1 + people.length * 2);
+  foot.height = 22;
+  put(foot.getCell(1), 'Tổng', { fill: BLUE, font: WHITE_BOLD, align: CENTER });
+  const hourRows = people.map((_, i) => HEAD + 1 + i * 2);
   for (let c = 2; c <= lastCol; c++) {
     const d = dates[c - 2];
-    const hours = d ? entries.filter((e) => e.work_date === d).reduce((a, e) => a + e.hours, 0) : entries.reduce((a, e) => a + e.hours, 0);
-    foot.getCell(c).value = people.length ? { formula: `SUM(${col(c)}4:${col(c)}${3 + people.length})`, result: hours } : 0;
-    style(foot.getCell(c), { fill: c === lastCol ? YELLOW : BAND_STRONG, font: { bold: true, size: 12, color: { argb: c === lastCol ? 'FFFF0000' : 'FF000000' } }, align: 'right' });
+    const result = sum(d ? entries.filter((e) => e.work_date === d) : entries);
+    const cell = foot.getCell(c);
+    // only the hour rows: the note rows in between are text
+    cell.value = hourRows.length ? { formula: `SUM(${hourRows.map((r) => `${col(c)}${r}`).join(',')})`, result } : 0;
+    put(cell, cell.value, { fill: c === lastCol ? YELLOW : BAND_STRONG, font: { ...FONT, bold: true, color: { argb: c === lastCol ? 'FFFF0000' : 'FF000000' } }, align: RIGHT });
   }
-  sum.getColumn(1).width = 16;
-  dates.forEach((d, i) => (sum.getColumn(i + 2).width = Math.max(9, Math.min(22, (labels.get(d)?.length ?? 0) + 4))));
-  sum.getColumn(lastCol).width = 14;
-  sum.getCell(5 + people.length, 1).value = 'Ô xanh: OT cuối tuần / ngày lễ. Di chuột vào ô để xem nội dung công việc.';
-  sum.getCell(5 + people.length, 1).font = { italic: true, size: 10, color: { argb: 'FF7F7F7F' } };
 
-  // ── Chi tiết ──
-  const det = wb.addWorksheet('Chi tiết', { views: [{ state: 'frozen', ySplit: 1 }] });
-  det.columns = [
-    { header: 'Ngày', key: 'date', width: 12, style: { numFmt: 'dd/mm/yyyy' } },
-    { header: 'Thứ', key: 'wd', width: 10 },
-    { header: 'Loại ngày', key: 'kind', width: 12 },
-    { header: 'Tên', key: 'short', width: 12 },
-    { header: 'Họ tên', key: 'name', width: 24 },
-    { header: 'Email', key: 'email', width: 28 },
-    { header: 'Số giờ', key: 'hours', width: 9 },
-    { header: 'Nội dung công việc', key: 'note', width: 60 },
-    { header: 'Tiêu đề ngày', key: 'label', width: 22 },
-    { header: 'Cập nhật bởi', key: 'by', width: 26 },
-  ];
-  const who = new Map(people.map((p) => [p.id, p]));
-  const sorted = [...entries].sort((a, b) => a.work_date.localeCompare(b.work_date) || (who.get(a.person_id)?.name ?? '').localeCompare(who.get(b.person_id)?.name ?? '', 'vi'));
-  for (const e of sorted) {
-    const p = who.get(e.person_id);
-    const row = det.addRow({
-      // a real date so the column sorts and filters as dates; exceljs writes Dates as UTC, so build it at UTC midnight
-      date: new Date(e.work_date + 'T00:00:00Z'),
-      wd: weekdayLong(e.work_date),
-      kind: DAY_KIND_LABEL[dayKind(e.work_date)],
-      short: p?.name ?? '',
-      name: p ? fullName(p) : '(đã xoá)',
-      email: p?.email ?? '',
-      hours: e.hours,
-      note: e.note,
-      label: labels.get(e.work_date) ?? holidayName(e.work_date) ?? '',
-      by: e.updated_by ?? '',
-    });
-    row.getCell('note').alignment = { wrapText: true, vertical: 'top' };
-    if (dayKind(e.work_date) !== 'weekday') row.getCell('kind').fill = GREEN;
-  }
-  const detTotal = det.addRow({ short: 'Tổng', hours: sorted.length ? { formula: `SUM(G2:G${sorted.length + 1})`, result: sorted.reduce((a, e) => a + e.hours, 0) } : 0 });
-  detTotal.font = { bold: true };
-  headerRow(det);
-  det.autoFilter = { from: 'A1', to: `J${sorted.length + 1}` };
-
-  // ── Theo người ──
-  const per = wb.addWorksheet('Theo người', { views: [{ state: 'frozen', ySplit: 1 }] });
-  per.columns = [
-    { header: 'Tên', key: 'short', width: 12 },
-    { header: 'Họ tên', key: 'name', width: 24 },
-    { header: 'Email', key: 'email', width: 28 },
-    { header: 'Số ngày OT', key: 'days', width: 12 },
-    { header: 'Giờ ngày thường', key: 'weekday', width: 16 },
-    { header: 'Giờ cuối tuần', key: 'weekend', width: 14 },
-    { header: 'Giờ ngày lễ', key: 'holiday', width: 12 },
-    { header: 'Tổng giờ', key: 'total', width: 11 },
-    { header: 'TB giờ / ngày', key: 'avg', width: 13, style: { numFmt: '0.0' } },
-  ];
-  const stats = people
-    .map((p) => {
-      const mine = entries.filter((e) => e.person_id === p.id);
-      const by = (k: string) => mine.filter((e) => dayKind(e.work_date) === k).reduce((a, e) => a + e.hours, 0);
-      const total = mine.reduce((a, e) => a + e.hours, 0);
-      return { short: p.name, name: fullName(p), email: p.email ?? '', days: mine.length, weekday: by('weekday'), weekend: by('weekend'), holiday: by('holiday'), total, avg: mine.length ? total / mine.length : 0 };
-    })
-    .sort((a, b) => b.total - a.total);
-  stats.forEach((s) => per.addRow(s));
-  const n = stats.length + 1;
-  const perTotal = per.addRow({
-    short: 'Tổng',
-    ...Object.fromEntries((['days', 'weekday', 'weekend', 'holiday', 'total'] as const).map((k, i) => [k, { formula: `SUM(${col(4 + i)}2:${col(4 + i)}${n})`, result: stats.reduce((a, s) => a + s[k], 0) }])),
-  });
-  perTotal.font = { bold: true };
-  per.getColumn('total').font = { bold: true, color: { argb: 'FFC00000' } };
-  headerRow(per);
+  const legend = ws.getCell(foot.number + 2, 1);
+  legend.value = 'Dòng in nghiêng dưới mỗi người: nội dung công việc trong ngày. Ô xanh: OT cuối tuần / ngày lễ.';
+  legend.font = { ...FONT, italic: true, size: 10, color: { argb: 'FF7F7F7F' } };
 
   const buf = await wb.xlsx.writeBuffer();
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
@@ -157,31 +100,38 @@ export async function exportOtMonth({ month, people, entries, labels }: { month:
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-// colours of the team's sheet
+// look of the team's sheet
 const solid = (argb: string): Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 const BLUE = solid('FF4472C4');
+const WHITE = solid('FFFFFFFF');
 const BAND = solid('FFDCE6F1');
 const BAND_STRONG = solid('FFB4C6E7');
 const YELLOW = solid('FFFFFF00');
 const GREEN = solid('FFC6E0B4');
-const THIN: Partial<Borders> = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
+const FONT: Partial<Font> = { name: 'Times New Roman', size: 12 };
+const WHITE_BOLD: Partial<Font> = { ...FONT, bold: true, color: { argb: 'FFFFFFFF' } };
+const NOTE: Partial<Font> = { ...FONT, italic: true, size: 10.5, color: { argb: 'FF404040' } };
+const CENTER: Partial<Alignment> = { horizontal: 'center', vertical: 'middle', wrapText: true };
+const RIGHT: Partial<Alignment> = { horizontal: 'right', vertical: 'middle' };
+const LINE = { style: 'thin' as const, color: { argb: 'FF000000' } };
+const HAIR = { style: 'hair' as const, color: { argb: 'FFA6A6A6' } };
 
-function style(cell: Cell, o: { fill?: Fill; font?: Cell['font']; align?: 'left' | 'center' | 'right' }) {
-  if (o.fill) cell.fill = o.fill;
-  cell.font = { size: 12, ...o.font };
-  cell.border = THIN;
-  cell.alignment = { horizontal: o.align ?? 'left', vertical: 'middle', wrapText: true };
+/** edge: the hours and note rows of one person read as one cell, split by a faint line */
+function put(cell: Cell, value: Cell['value'], o: { fill: Fill; font: Partial<Font>; align: Partial<Alignment>; edge?: 'top' | 'bottom' }) {
+  cell.value = value;
+  cell.fill = o.fill;
+  cell.font = o.font;
+  cell.alignment = o.align;
+  const b: Partial<Borders> = { top: LINE, left: LINE, bottom: LINE, right: LINE };
+  if (o.edge === 'top') b.bottom = HAIR;
+  if (o.edge === 'bottom') b.top = HAIR;
+  cell.border = b;
 }
 
-function headerRow(ws: Worksheet) {
-  const r = ws.getRow(1);
-  r.height = 22;
-  r.eachCell((c) => {
-    c.fill = BLUE;
-    c.font = { bold: true, color: { argb: 'FFFFFFFF' } };
-    c.alignment = { vertical: 'middle' };
-  });
-}
+const sum = (list: OtEntry[]) => list.reduce((a, e) => a + e.hours, 0);
+
+/** rough line count of a note in a column `width` characters wide */
+const wrappedLines = (s: string, width: number) => s.split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / (width * 1.4))), 0);
 
 /** 1 → "A", 27 → "AA" */
 function col(n: number): string {
