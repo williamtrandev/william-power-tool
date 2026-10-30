@@ -1,24 +1,18 @@
 import clsx from 'clsx';
 import { Loader2, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Dropdown } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
 import { dayMonth, fmtHours, fullName, holidayName, parseHours, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
-import { relTime } from '../commands/CommandCard';
-import { Modal } from '../commands/Modal';
+import { relTime } from '../../lib/format';
+import { Modal } from '../../components/Modal';
+import { field, Label } from '../../components/form';
 
-const field =
-  'focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-[13.5px] text-fg placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:shadow-[0_0_0_3px_var(--accent-ring)]';
-
-function Label({ children, hint }: { children: ReactNode; hint?: string }) {
-  return (
-    <p className="mb-1.5 text-[12.5px] font-medium text-fg-2">
-      {children} {hint && <span className="font-normal text-faint">— {hint}</span>}
-    </p>
-  );
-}
 
 const QUICK = [1, 2, 3, 4, 6, 8];
+
+/** what the editor opens on: an existing entry, or a person + day to log */
+export type Editing = OtEntry | { person_id: string; work_date: string };
 
 /** Add or change one person's OT on one day, and the day's shared title. */
 export function OtEditor({
@@ -37,7 +31,7 @@ export function OtEditor({
 }: {
   backend: Backend;
   /** an existing entry, or the person + day to start from */
-  initial: OtEntry | { person_id: string; work_date: string };
+  initial: Editing;
   /** who can be picked: the active roster */
   people: OtPerson[];
   avatars: Map<string, string | null | undefined>;

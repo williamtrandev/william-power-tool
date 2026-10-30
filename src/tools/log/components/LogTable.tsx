@@ -4,10 +4,10 @@ import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayou
 import { snippetOf, sumHasHit } from '../lib/search';
 import { useRaw } from '../lib/rawCache';
 import { SUS_MIN, type LogEntry, type LogFile } from '../lib/types';
-import { fmtDate, fmtTime } from '../lib/format';
+import { fmtDate, fmtTime } from '../../../lib/format';
 import { useLogDisplay, useMedia } from '../lib/useLogDisplay';
 import { RAIL_W, ScrollRail } from './ScrollRail';
-import { FileTag, Highlight, LevelBadge } from './ui';
+import { FileTag, Highlight, LevelBadge } from './logUi';
 
 /** Which optional columns are actually rendered (user prefs + screen width). */
 interface Cols {

@@ -2,8 +2,8 @@ import clsx from 'clsx';
 import { Eye, EyeOff, HardDriveDownload, Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { LogFile } from '../lib/types';
-import { fmtBytes, nf, shortName } from '../lib/format';
-import { Button } from './ui';
+import { fmtBytes, nf, shortName } from '../../../lib/format';
+import { Button } from '../../../components/ui';
 
 interface Props {
   files: LogFile[];

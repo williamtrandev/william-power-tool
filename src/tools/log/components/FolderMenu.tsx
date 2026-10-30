@@ -2,8 +2,8 @@ import clsx from 'clsx';
 import { Check, FolderOpen, FolderSync, KeyRound, RefreshCw, Unplug } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { FolderState } from '../lib/useFolder';
-import { fmtBytes } from '../lib/format';
-import { Button, Switch } from './ui';
+import { fmtBytes } from '../../../lib/format';
+import { Button, Switch } from '../../../components/ui';
 
 function ago(ts: number | null, now: number): string {
   if (ts == null) return '';

@@ -3,6 +3,7 @@ import { Check, Copy, CopyPlus, Database, Link2, Eye, EyeOff, History, Lock, Pen
 import { memo, useMemo, useState } from 'react';
 import { Button } from '../../components/ui';
 import { chainCommands, commandVars, dangerOf, fillCommand, parseNote, splitCommands, tokenize, URL_RE, type Command, type CommandKind, type Tok } from '../../lib/commands';
+import { relTime } from '../../lib/format';
 
 const TOK_CLS: Record<Tok['k'], string> = {
   kw: 'text-violet-700 dark:text-violet-300 font-semibold',
@@ -191,15 +192,6 @@ export function CodeView({
       )}
     </div>
   );
-}
-
-export function relTime(iso: string): string {
-  const d = (Date.now() - new Date(iso).getTime()) / 1000;
-  if (d < 60) return 'vừa xong';
-  if (d < 3600) return `${Math.floor(d / 60)} phút trước`;
-  if (d < 86400) return `${Math.floor(d / 3600)} giờ trước`;
-  if (d < 86400 * 30) return `${Math.floor(d / 86400)} ngày trước`;
-  return new Date(iso).toLocaleDateString('vi-VN');
 }
 
 interface Props {

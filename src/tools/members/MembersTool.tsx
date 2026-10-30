@@ -3,7 +3,7 @@ import { Ban, Check, Clock, Loader2, RefreshCw, Search, ShieldCheck, ShieldOff, 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar, Button, Segmented } from '../../components/ui';
 import type { Backend, Member, MemberRole, MemberStatus } from '../../lib/backend';
-import { relTime } from '../commands/CommandCard';
+import { relTime } from '../../lib/format';
 
 interface Props {
   active: boolean;

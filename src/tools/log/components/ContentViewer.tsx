@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { ChevronRight } from 'lucide-react';
 import { createContext, useContext, useMemo, useState } from 'react';
-import { Highlight } from './ui';
+import { Highlight } from './logUi';
 
 /** Stack frame line: .NET "   at X.Y()" or PHP "#12 /path(…)" */
 const FRAME = /^\s*(?:at\s+\S|#\d+\s)/;

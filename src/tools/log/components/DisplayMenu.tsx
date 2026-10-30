@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { Check, SlidersHorizontal } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { FONT_SIZES, resetLogDisplay, setLogDisplay, useLogDisplay, type LogDisplay } from '../lib/useLogDisplay';
-import { Button } from './ui';
+import { Button } from '../../../components/ui';
 
 const COLS: { id: keyof LogDisplay['cols']; label: string }[] = [
   { id: 'time', label: 'Thời gian' },

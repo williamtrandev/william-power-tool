@@ -7,7 +7,7 @@ import { createBackend } from './lib/backend';
 import { useAuth } from './lib/useAuth';
 import { useTheme } from './lib/useTheme';
 import { CommandsTool } from './tools/commands/CommandsTool';
-import { LogTool } from './tools/LogTool';
+import { LogTool } from './tools/log/LogTool';
 import { MembersTool } from './tools/members/MembersTool';
 import { AccountsTool } from './tools/accounts/AccountsTool';
 import { OtTool } from './tools/ot/OtTool';

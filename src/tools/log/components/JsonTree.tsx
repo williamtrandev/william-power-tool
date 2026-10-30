@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { ChevronRight } from 'lucide-react';
 import { useState } from 'react';
-import { Highlight } from './ui';
+import { Highlight } from './logUi';
 
 export type ExpandMode = 'auto' | 'all' | 'none';
 

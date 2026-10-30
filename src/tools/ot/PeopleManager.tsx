@@ -1,21 +1,12 @@
 import clsx from 'clsx';
 import { Link2, Loader2, Pencil, Plus, Trash2, UserPlus, UserRoundX } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Avatar, Button } from '../../components/ui';
 import type { Backend, DirectoryEntry, Member } from '../../lib/backend';
 import { cleanEmail, fullName, givenName, isEmail, type OtPerson } from '../../lib/ot';
-import { Modal } from '../commands/Modal';
+import { Modal } from '../../components/Modal';
+import { fieldSm as field, Label } from '../../components/form';
 
-const field =
-  'focus-ring h-9 w-full rounded-lg border border-line bg-surface px-3 text-[13px] text-fg placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:shadow-[0_0_0_3px_var(--accent-ring)]';
-
-function Label({ children, hint }: { children: ReactNode; hint?: string }) {
-  return (
-    <p className="mb-1 text-[12px] font-medium text-fg-2">
-      {children} {hint && <span className="font-normal text-faint">— {hint}</span>}
-    </p>
-  );
-}
 
 type Draft = { id: string | null; name: string; full_name: string; email: string; active: boolean };
 const blank: Draft = { id: null, name: '', full_name: '', email: '', active: true };
@@ -113,11 +104,11 @@ export function PeopleManager({
       <p className="text-[12.5px] font-semibold">{d.id ? `Sửa ${people.find((p) => p.id === d.id)?.name ?? ''}` : 'Thêm người'}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
-          <Label hint="hiện trên bảng và file Excel">Tên hiển thị</Label>
+          <Label compact hint="hiện trên bảng và file Excel">Tên hiển thị</Label>
           <input autoFocus className={field} value={d.name} maxLength={60} placeholder="VD: Quỳnh" onChange={(e) => setD({ ...d, name: e.target.value })} />
         </div>
         <div>
-          <Label>Họ tên đầy đủ</Label>
+          <Label compact>Họ tên đầy đủ</Label>
           <input
             className={field}
             value={d.full_name}
@@ -129,7 +120,7 @@ export function PeopleManager({
         </div>
       </div>
       <div>
-        <Label hint="tuỳ chọn — để nhận ra người đó khi đăng nhập">Email</Label>
+        <Label compact hint="tuỳ chọn — để nhận ra người đó khi đăng nhập">Email</Label>
         <input
           className={field}
           type="email"

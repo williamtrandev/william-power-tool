@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { ArrowRight, History, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { dayMonth, fmtHours, type OtChange, type OtPerson } from '../../lib/ot';
-import { relTime } from '../commands/CommandCard';
+import { relTime } from '../../lib/format';
 
 const ACTION = {
   insert: { icon: <Plus size={13} />, cls: 'bg-emerald-500/14 text-emerald-700 dark:text-emerald-300' },

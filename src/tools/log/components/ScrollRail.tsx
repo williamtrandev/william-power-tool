@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { ChevronsDown, ChevronsUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { fmtDateTime } from '../lib/format';
+import { fmtDateTime } from '../../../lib/format';
 import { SUS_MIN, type LogEntry } from '../lib/types';
 
 export const RAIL_W = 14;

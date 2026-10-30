@@ -2,8 +2,8 @@ import { ZoomOut } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { LogEntry } from '../lib/types';
 import { buildTimeline, niceMax, type Slot } from '../lib/timeline';
-import { fmtStep, nf } from '../lib/format';
-import { Button } from './ui';
+import { fmtStep, nf } from '../../../lib/format';
+import { Button } from '../../../components/ui';
 
 interface Props {
   rows: LogEntry[];

@@ -1,25 +1,25 @@
 import clsx from 'clsx';
 import { FileUp } from 'lucide-react';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { DetailPanel, type DetailTab } from '../components/DetailPanel';
-import { DropZone } from '../components/DropZone';
-import { FilterBar } from '../components/FilterBar';
-import { GroupsPanel } from '../components/GroupsPanel';
-import { Histogram } from '../components/Histogram';
-import { LogTable, type LogTableHandle } from '../components/LogTable';
-import { Toolbar, type Sort } from '../components/Toolbar';
-import { FileBar } from '../components/FileBar';
-import { FolderMenu } from '../components/FolderMenu';
-import { JourneyPanel } from '../components/JourneyPanel';
-import { folderKey, useFolder } from '../lib/useFolder';
-import { fmtBytes } from '../lib/format';
-import { groupSuspicious, parseQuery, runSearch, sigOf } from '../lib/search';
-import { SUS_MIN, type Level, type LogEntry } from '../lib/types';
-import { useLogs } from '../lib/useLogs';
-import { exportBlob } from '../lib/rawCache';
-import { sampleLogFiles } from '../lib/sampleLogs';
-import { setLogDisplay, useLogDisplay } from '../lib/useLogDisplay';
-import { usePanelWidth } from '../lib/usePanelWidth';
+import { DetailPanel, type DetailTab } from './components/DetailPanel';
+import { DropZone } from './components/DropZone';
+import { FilterBar } from './components/FilterBar';
+import { GroupsPanel } from './components/GroupsPanel';
+import { Histogram } from './components/Histogram';
+import { LogTable, type LogTableHandle } from './components/LogTable';
+import { Toolbar, type Sort } from './components/Toolbar';
+import { FileBar } from './components/FileBar';
+import { FolderMenu } from './components/FolderMenu';
+import { JourneyPanel } from './components/JourneyPanel';
+import { folderKey, useFolder } from './lib/useFolder';
+import { fmtBytes } from '../../lib/format';
+import { groupSuspicious, parseQuery, runSearch, sigOf } from './lib/search';
+import { SUS_MIN, type Level, type LogEntry } from './lib/types';
+import { useLogs } from './lib/useLogs';
+import { exportBlob } from './lib/rawCache';
+import { sampleLogFiles } from './lib/sampleLogs';
+import { setLogDisplay, useLogDisplay } from './lib/useLogDisplay';
+import { usePanelWidth } from './lib/usePanelWidth';
 
 interface Props {
   /** false while another tool tab is shown — state is kept, global key/drop handlers are paused */

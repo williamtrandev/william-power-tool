@@ -1,8 +1,8 @@
 import clsx from 'clsx';
 import { ClipboardList, FileSpreadsheet, KeyRound, Lock, LockOpen, ShieldCheck } from 'lucide-react';
 import { useCallback, useState } from 'react';
-import { decrypt, encrypt, keyInfo } from '../../lib/aesCodec';
-import { useKeyStore } from '../../lib/useKeyStore';
+import { decrypt, encrypt, keyInfo } from './lib/aesCodec';
+import { useKeyStore } from './lib/useKeyStore';
 import { FilePanel } from './FilePanel';
 import { KeyManager } from './KeyManager';
 import { Segmented } from '../../components/ui';

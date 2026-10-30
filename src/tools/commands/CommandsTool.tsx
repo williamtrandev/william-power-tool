@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActionMenu, Button, Dropdown, Kbd, Segmented } from '../../components/ui';
 import type { Backend, Member } from '../../lib/backend';
 import { dangerOf, fillCommand, loadVarValues, saveVarValues, titleKey, variantLabels, type Command, type CommandInput, type CommandKind } from '../../lib/commands';
-import { CommandCard, KIND_META, relTime } from './CommandCard';
+import { relTime } from '../../lib/format';
+import { CommandCard, KIND_META } from './CommandCard';
 import { CommandEditor, HistoryDialog } from './CommandEditor';
 
 type KindFilter = 'all' | CommandKind;

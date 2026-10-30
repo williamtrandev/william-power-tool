@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Button, Kbd, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
 import { commandVars, dangerOf, titleKey, type Command, type CommandInput, type HistoryRow } from '../../lib/commands';
-import { CodeView, KIND_META, KindBadge, NoteView, relTime } from './CommandCard';
-import { Modal } from './Modal';
+import { relTime } from '../../lib/format';
+import { CodeView, KIND_META, KindBadge, NoteView } from './CommandCard';
+import { Modal } from '../../components/Modal';
 
 /** Tags as removable chips: Enter or comma adds, Backspace on empty removes the last one. */
 function TagInput({ tags, onChange, suggestions }: { tags: string[]; onChange: (t: string[]) => void; suggestions: string[] }) {

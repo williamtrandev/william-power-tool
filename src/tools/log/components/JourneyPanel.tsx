@@ -2,9 +2,10 @@ import clsx from 'clsx';
 import { Check, ChevronRight, ClipboardCopy, Clock, Loader2, Plus, Route, Search, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { buildJourney, journeyText, parseIds, stepFailed, type Journey, type JourneyStep } from '../lib/journey';
-import { fmtDateTime, fmtDuration, fmtTime, nf, shortName } from '../lib/format';
+import { fmtDateTime, fmtDuration, fmtTime, nf, shortName } from '../../../lib/format';
 import type { LogEntry, LogFile } from '../lib/types';
-import { Button, Highlight, LEVEL_META } from './ui';
+import { Button } from '../../../components/ui';
+import { Highlight, LEVEL_META } from './logUi';
 
 interface Props {
   entries: LogEntry[];

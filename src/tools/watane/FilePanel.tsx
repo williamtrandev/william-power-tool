@@ -1,9 +1,9 @@
 import clsx from 'clsx';
 import { AlertCircle, Download, FileSpreadsheet, Loader2, RefreshCw } from 'lucide-react';
 import { useDeferredValue, useMemo, useRef, useState } from 'react';
-import { type CodecResult } from '../../lib/aesCodec';
+import { type CodecResult } from './lib/aesCodec';
 import { fmtBytes, nf } from '../../lib/format';
-import { ACCEPT, B64ISH, exportTable, readSheet, readTable, type Table } from '../../lib/sheetFile';
+import { ACCEPT, B64ISH, exportTable, readSheet, readTable, type Table } from './lib/sheetFile';
 import { Button } from '../../components/ui';
 
 const DEFAULT_COL = 'EncryptedCode';
@@ -37,7 +37,7 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
   const defaultNewCol = decrypting ? 'Code giải mã' : 'Code mã hoá';
   const outCol = newCol.trim() || defaultNewCol;
 
-  const use = (t: Table) => {
+  const openTable = (t: Table) => {
     setTable(t);
     setCol(guessColumn(t));
     setOnlyErrors(false);
@@ -46,7 +46,7 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
   const load = async (file: File) => {
     setBusy(true);
     try {
-      use(await readTable(file));
+      openTable(await readTable(file));
     } catch (e) {
       onToast('Không đọc được file: ' + (e as Error).message);
     } finally {
@@ -161,7 +161,7 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
             Sheet
             <select
               value={table.sheetName}
-              onChange={(e) => table.wb && use(readSheet({ fileName: table.fileName, size: table.size, wb: table.wb }, e.target.value))}
+              onChange={(e) => table.wb && openTable(readSheet({ fileName: table.fileName, size: table.size, wb: table.wb }, e.target.value))}
               className="focus-ring h-8 min-w-[130px] rounded-md border border-line bg-surface px-2 text-[12.5px] text-fg"
             >
               {table.sheetNames!.map((s) => (
@@ -179,7 +179,7 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
               value={(table.headerRow ?? 0) + 1}
               onChange={(e) => {
                 const n = Number(e.target.value);
-                if (n >= 1) use(readSheet({ fileName: table.fileName, size: table.size, wb: table.wb! }, table.sheetName!, n - 1 - (table.rangeStart ?? 0)));
+                if (n >= 1) openTable(readSheet({ fileName: table.fileName, size: table.size, wb: table.wb! }, table.sheetName!, n - 1 - (table.rangeStart ?? 0)));
               }}
               className="focus-ring h-8 w-[84px] rounded-md border border-line bg-surface px-2 text-[12.5px] text-fg tabular-nums"
             />

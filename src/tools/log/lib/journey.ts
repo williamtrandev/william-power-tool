@@ -1,5 +1,5 @@
 import { SUS_MIN, LEVELS, type Level, type LogEntry, type LogFile } from './types';
-import { fmtTime } from './format';
+import { fmtTime } from '../../../lib/format';
 
 /**
  * "Hành trình": everything that happened for a customer / merchant / order id across all files.

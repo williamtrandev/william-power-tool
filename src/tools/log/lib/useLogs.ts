@@ -4,7 +4,7 @@ import type { ParseMessage } from './parse.worker';
 import type { LogEntry, LogFile, ParseResult, ResumeFrom } from './types';
 import { syncBlobs } from './rawCache';
 import { inferTraces } from './parser';
-import { FILE_COLORS } from './format';
+import { FILE_COLORS } from '../../../lib/format';
 import { clearStored, deleteStored, listStored, newStoreId, putStored, setStoredOn } from './fileStore';
 
 export interface LoadingState {

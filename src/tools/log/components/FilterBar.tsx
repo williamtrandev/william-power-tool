@@ -1,8 +1,8 @@
 import clsx from 'clsx';
 import { Clock, Layers, X } from 'lucide-react';
 import { LEVELS, type Level } from '../lib/types';
-import { fmtDateTime, nf } from '../lib/format';
-import { LEVEL_META } from './ui';
+import { fmtDateTime, nf } from '../../../lib/format';
+import { LEVEL_META } from './logUi';
 
 interface Props {
   levelCounts: Record<Level, number>;

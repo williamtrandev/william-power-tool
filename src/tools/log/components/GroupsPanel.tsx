@@ -2,8 +2,8 @@ import clsx from 'clsx';
 import { CheckCircle2 } from 'lucide-react';
 import type { Group } from '../lib/search';
 import type { LogFile } from '../lib/types';
-import { fmtTime, nf } from '../lib/format';
-import { Highlight, LEVEL_META } from './ui';
+import { fmtTime, nf } from '../../../lib/format';
+import { Highlight, LEVEL_META } from './logUi';
 
 interface Props {
   groups: Group[];

@@ -4,19 +4,10 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Segmented } from '../../components/ui';
 import type { Backend, DirectoryEntry } from '../../lib/backend';
 import { cleanSecret, parseOtpText, readQrFile, ENVS, envKey, isProd, secondsLeft, systemKey, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
-import { Modal } from '../commands/Modal';
+import { Modal } from '../../components/Modal';
+import { field, Label } from '../../components/form';
 import { QrScanner, ScreenQrScanner } from './QrScanner';
 
-const field =
-  'focus-ring h-10 w-full rounded-lg border border-line bg-surface px-3 text-[13.5px] text-fg placeholder:text-faint hover:border-line-strong focus:border-accent/60 focus:shadow-[0_0_0_3px_var(--accent-ring)]';
-
-function Label({ children, hint }: { children: ReactNode; hint?: string }) {
-  return (
-    <p className="mb-1.5 text-[12.5px] font-medium text-fg-2">
-      {children} {hint && <span className="font-normal text-faint">— {hint}</span>}
-    </p>
-  );
-}
 
 /** current code for a secret being added, so the admin can compare it with their phone */
 export function useLiveCode(d: Pick<OtpDraft, 'secret' | 'algorithm' | 'digits' | 'period'> | null) {

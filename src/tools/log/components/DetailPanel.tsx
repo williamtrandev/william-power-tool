@@ -23,10 +23,11 @@ import { decode, embeddedJson, scoreOf, type Reason } from '../lib/parser';
 import { decodedText, useRaw } from '../lib/rawCache';
 import { setViewPrefs, useViewPrefs, type ViewPrefs } from '../lib/useViewPrefs';
 import { SUS_MIN, type LogEntry, type LogFile } from '../lib/types';
-import { fmtDuration, fmtFull, fmtTime, nf, shortName } from '../lib/format';
+import { fmtDuration, fmtFull, fmtTime, nf, shortName } from '../../../lib/format';
 import { ContentViewer } from './ContentViewer';
 import { JsonTree, type ExpandMode } from './JsonTree';
-import { Button, FileTag, Highlight, LevelBadge, LEVEL_META } from './ui';
+import { Button } from '../../../components/ui';
+import { FileTag, Highlight, LevelBadge, LEVEL_META } from './logUi';
 
 export type DetailTab = 'detail' | 'ctx' | 'trace';
 

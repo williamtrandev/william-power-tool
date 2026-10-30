@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { ArrowDownWideNarrow, Download, HelpCircle, Regex, Route, Search, ShieldAlert, X } from 'lucide-react';
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { DisplayMenu } from './DisplayMenu';
-import { Button, Kbd, Switch } from './ui';
+import { Button, Kbd, Switch } from '../../../components/ui';
 
 export type Sort = 'asc' | 'desc' | 'score';
 

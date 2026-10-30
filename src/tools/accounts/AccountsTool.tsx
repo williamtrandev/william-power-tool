@@ -29,7 +29,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { Button, Kbd, Segmented } from '../../components/ui';
 import type { Backend, DirectoryEntry, Member } from '../../lib/backend';
 import { envKey, envRank, isProd, parseOtpText, readQrFile, systemKey, type AccountActivity, type OtpDraft, type TeamAccount } from '../../lib/otp';
-import { Modal } from '../commands/Modal';
+import { Modal } from '../../components/Modal';
 import { AccountEditor, envDot, groupCode } from './AccountEditor';
 
 const ACCENTS = ['#2563eb', '#7c3aed', '#0d9488', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#9333ea'];

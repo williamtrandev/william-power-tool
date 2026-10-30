@@ -46,3 +46,13 @@ export function fmtDuration(ms: number): string {
 export const shortName = (n: string) => n.replace(/\.(log|txt)$/i, '');
 
 export const FILE_COLORS = ['#14b8a6', '#f97316', '#3b82f6', '#ec4899', '#84cc16', '#eab308', '#06b6d4', '#a855f7'];
+
+/** "5 phút trước", "3 ngày trước", then the date */
+export function relTime(iso: string): string {
+  const d = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (d < 60) return 'vừa xong';
+  if (d < 3600) return `${Math.floor(d / 60)} phút trước`;
+  if (d < 86400) return `${Math.floor(d / 3600)} giờ trước`;
+  if (d < 86400 * 30) return `${Math.floor(d / 86400)} ngày trước`;
+  return new Date(iso).toLocaleDateString('vi-VN');
+}
