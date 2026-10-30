@@ -82,9 +82,10 @@ export function OtTool({ active, backend, me, onToast }: Props) {
   // your roster row is the one carrying your sign-in email
   const myRow = roster.find((p) => p.email === me.email);
   const mineId = myRow?.id;
-  // the sheet: only people who did OT this month (by name, as exported); others are logged via "Ghi OT"
+  // the grid: everyone on the roster, plus anyone hidden who still has OT this month (by name); the
+  // export drops people without OT on its own
   const sheet = useMemo(
-    () => roster.filter((p) => entries.some((e) => e.person_id === p.id)).sort((a, b) => a.name.localeCompare(b.name, 'vi')),
+    () => roster.filter((p) => p.active || entries.some((e) => e.person_id === p.id)).sort((a, b) => a.name.localeCompare(b.name, 'vi')),
     [roster, entries],
   );
   // on screen, you come first
@@ -286,7 +287,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                   Thêm người
                 </button>
               </div>
-            ) : !people.length || !days.length ? (
+            ) : !days.length ? (
               <div className="px-4 py-10 text-center text-[13px] text-muted">
                 Tháng này chưa có ai ghi OT.{' '}
                 <button type="button" className="text-accent hover:underline" onClick={startAdd}>
@@ -398,7 +399,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
               </div>
             )}
             <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line px-4 py-2 text-[11.5px] text-faint">
-              <span>Chỉ hiện người có OT trong tháng — người khác ghi qua nút “Ghi OT”. Ai trong team cũng ghi / sửa được: bấm vào ô để ghi giờ, bấm tiêu đề cột để đặt tên cho ngày.</span>
+              <span>Ai trong team cũng ghi / sửa được: bấm vào ô để ghi giờ, bấm tiêu đề cột để đặt tên cho ngày. File Excel chỉ gồm người có OT trong tháng.</span>
               <span className="flex items-center gap-1.5">
                 <span className="size-2.5 rounded-sm bg-emerald-500/25" /> Cuối tuần / ngày lễ
               </span>
