@@ -3,7 +3,8 @@ import { Loader2, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Dropdown } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
-import { fmtHours, fullName, holidayName, parseHours, weekdayLong, type OtEntry, type OtPerson } from '../../lib/ot';
+import { dayMonth, fmtHours, fullName, holidayName, parseHours, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
+import { relTime } from '../commands/CommandCard';
 import { Modal } from '../commands/Modal';
 
 const field =
@@ -26,9 +27,10 @@ export function OtEditor({
   people,
   avatars,
   mine,
-  admin,
   labels,
   find,
+  history,
+  actorName,
   onClose,
   onSaved,
   onToast,
@@ -36,15 +38,17 @@ export function OtEditor({
   backend: Backend;
   /** an existing entry, or the person + day to start from */
   initial: OtEntry | { person_id: string; work_date: string };
-  /** who can be picked: the whole roster for admins, just yourself for members */
+  /** who can be picked: the active roster */
   people: OtPerson[];
   avatars: Map<string, string | null | undefined>;
-  /** your own roster row */
+  /** your own roster row, marked in the picker */
   mine: string | undefined;
-  admin: boolean;
   labels: Map<string, string>;
   /** the entry already logged for this person + day, if it is in the loaded month */
   find: (personId: string, date: string) => OtEntry | undefined;
+  /** the month's change log; the editor shows the part about this person + day */
+  history: OtChange[];
+  actorName: (email: string | null) => string;
   onClose: () => void;
   onSaved: (date: string) => void;
   onToast: (m: string) => void;
@@ -79,7 +83,6 @@ export function OtEditor({
 
   const h = parseHours(hours);
   const valid = h > 0 && h <= 24 && !!date;
-  const canEdit = admin || personId === mine;
 
   const save = async () => {
     if (!valid || busy) return;
@@ -119,14 +122,14 @@ export function OtEditor({
       onClose={onClose}
       footer={
         <>
-          {entry && canEdit && (
+          {entry && (
             <Button variant={confirmDel ? 'danger' : 'ghost'} className="mr-auto" disabled={busy} onClick={() => (confirmDel ? remove() : setConfirmDel(true))}>
               <Trash2 size={15} />
               {confirmDel ? 'Bấm lần nữa để xoá' : 'Xoá'}
             </Button>
           )}
           <Button onClick={onClose}>Huỷ</Button>
-          <Button variant="primary" disabled={!valid || busy || !canEdit} onClick={save}>
+          <Button variant="primary" disabled={!valid || busy} onClick={save}>
             {busy && <Loader2 size={15} className="animate-spin" />}
             {entry ? 'Lưu' : 'Ghi OT'}
           </Button>
@@ -146,21 +149,18 @@ export function OtEditor({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label>Người làm</Label>
-            {admin ? (
-              <Dropdown
-                label="Người làm"
-                align="left"
-                value={personId}
-                onChange={(u) => pick(u, date)}
-                icon={person && face(person, 18)}
-                options={people.map((p) => ({ id: p.id, label: p.name, hint: [p.full_name !== p.name && p.full_name, p.email ?? 'Chưa có tài khoản'].filter(Boolean).join(' · ') }))}
-              />
-            ) : (
-              <div className="flex h-10 items-center gap-2 rounded-lg border border-line bg-surface-2/50 px-3 text-[13.5px]">
-                {person && face(person, 20)}
-                <span className="truncate">{person ? person.name : '—'}</span>
-              </div>
-            )}
+            <Dropdown
+              label="Người làm"
+              align="left"
+              value={personId}
+              onChange={(u) => pick(u, date)}
+              icon={person && face(person, 18)}
+              options={people.map((p) => ({
+                id: p.id,
+                label: p.id === mine ? `${p.name} (bạn)` : p.name,
+                hint: [p.full_name !== p.name && p.full_name, p.email ?? 'Chưa có tài khoản'].filter(Boolean).join(' · '),
+              }))}
+            />
           </div>
           <div>
             <Label hint={date ? (special ? `${weekdayLong(date)} · ${special}` : weekdayLong(date)) : undefined}>Ngày</Label>
@@ -209,8 +209,41 @@ export function OtEditor({
           <input className={field} value={label} maxLength={80} placeholder="VD: LIVE gencode, Security, Dựng RL…" onChange={(e) => setLabel(e.target.value)} />
         </div>
 
-        {!canEdit && <p className="rounded-lg bg-warn/10 px-3 py-2 text-[12.5px] text-warn">Bạn chỉ ghi được giờ OT của chính mình.</p>}
         {err && <p className="rounded-lg bg-error/10 px-3 py-2 text-[12.5px] text-error">{err}</p>}
+        {(() => {
+          // changes to this cell, so whoever opens it sees who logged / edited it before
+          const cellLog = history.filter((c) => c.person_id === personId && (c.work_date === date || c.old_work_date === date)).slice(0, 6);
+          if (!cellLog.length) return null;
+          const says = (c: OtChange) =>
+            c.action === 'insert'
+              ? `ghi ${fmtHours(c.hours ?? 0)}h`
+              : c.action === 'delete'
+                ? `xoá ${fmtHours(c.old_hours ?? 0)}h`
+                : [
+                    c.old_work_date && `chuyển ngày ${dayMonth(c.old_work_date)} → ${dayMonth(c.work_date)}`,
+                    c.old_hours !== c.hours && `sửa ${fmtHours(c.old_hours ?? 0)}h → ${fmtHours(c.hours ?? 0)}h`,
+                    (c.old_note ?? '') !== (c.note ?? '') && 'sửa nội dung',
+                  ]
+                    .filter(Boolean)
+                    .join(', ') || 'sửa';
+          return (
+            <div className="rounded-lg border border-line px-3 py-2">
+              <p className="mb-1 text-[11.5px] font-medium text-muted">Lịch sử ô này</p>
+              <ul className="space-y-0.5 text-[12px] text-fg-2">
+                {cellLog.map((c) => (
+                  <li key={c.id} className="flex gap-1.5">
+                    <span className="shrink-0 text-faint tabular-nums" title={new Date(c.at).toLocaleString('vi-VN')}>
+                      {relTime(c.at)}
+                    </span>
+                    <span>
+                      <b className="font-medium text-fg">{actorName(c.actor)}</b> {says(c)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
         <button type="submit" hidden />
       </form>
     </Modal>

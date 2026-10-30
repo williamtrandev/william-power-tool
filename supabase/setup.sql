@@ -564,9 +564,11 @@ grant execute on function public.acct_list(), public.acct_password(uuid), public
 -- ── overtime log ──────────────────────────────────────────────────────────────
 --   * ot_people is the team's OT roster, separate from sign-in accounts: anyone can be listed, even
 --     without an account, under the name the team uses (not the Google profile name).
---   * A person whose email matches a signed-in member is theirs: they log and rename their own row.
---     Admins manage the whole roster and log OT for anyone, including people without an account.
---   * One OT row per person per day: hours + what they did. Every approved member sees the whole team.
+--   * The whole tab is shared by the team: every approved member sees everyone's hours, adds people to the
+--     roster and logs / fixes OT for anyone, including people without an account. Only admins delete
+--     someone from the roster (and only while they have no OT logged).
+--   * One OT row per person per day: hours + what they did.
+--   * Every add / edit / delete of an OT row lands in ot_log (who, when, before → after), visible to all.
 --   * ot_days holds a shared title per day ("LIVE gencode", "Dựng RL"…), shown above the column in the export.
 
 create table if not exists public.ot_people (
@@ -630,11 +632,6 @@ create trigger ot_entries_touch before insert or update on public.ot_entries for
 drop trigger if exists ot_days_touch on public.ot_days;
 create trigger ot_days_touch before insert or update on public.ot_days for each row execute function public.ot_touch();
 
--- the roster row belongs to the signed-in member with the same email
-create or replace function public.ot_is_mine(pid uuid) returns boolean
-  language sql stable security definer set search_path = public
-  as $$ select exists (select 1 from public.ot_people where id = pid and email = public.current_email()) $$;
-
 alter table public.ot_people enable row level security;
 alter table public.ot_entries enable row level security;
 alter table public.ot_days enable row level security;
@@ -644,12 +641,8 @@ drop policy if exists ot_people_insert on public.ot_people;
 drop policy if exists ot_people_update on public.ot_people;
 drop policy if exists ot_people_delete on public.ot_people;
 create policy ot_people_read   on public.ot_people for select to authenticated using (public.is_member());
--- members may add / rename only themselves (and cannot point their row at another email)
-create policy ot_people_insert on public.ot_people for insert to authenticated
-  with check (public.is_app_admin() or (public.is_member() and email = public.current_email()));
-create policy ot_people_update on public.ot_people for update to authenticated
-  using (public.is_app_admin() or (public.is_member() and email = public.current_email()))
-  with check (public.is_app_admin() or (public.is_member() and email = public.current_email()));
+create policy ot_people_insert on public.ot_people for insert to authenticated with check (public.is_member());
+create policy ot_people_update on public.ot_people for update to authenticated using (public.is_member()) with check (public.is_member());
 create policy ot_people_delete on public.ot_people for delete to authenticated using (public.is_app_admin());
 
 drop policy if exists ot_read on public.ot_entries;
@@ -657,20 +650,74 @@ drop policy if exists ot_insert on public.ot_entries;
 drop policy if exists ot_update on public.ot_entries;
 drop policy if exists ot_delete on public.ot_entries;
 create policy ot_read   on public.ot_entries for select to authenticated using (public.is_member());
-create policy ot_insert on public.ot_entries for insert to authenticated
-  with check (public.is_member() and (public.is_app_admin() or public.ot_is_mine(person_id)));
-create policy ot_update on public.ot_entries for update to authenticated
-  using (public.is_member() and (public.is_app_admin() or public.ot_is_mine(person_id)))
-  with check (public.is_member() and (public.is_app_admin() or public.ot_is_mine(person_id)));
-create policy ot_delete on public.ot_entries for delete to authenticated
-  using (public.is_member() and (public.is_app_admin() or public.ot_is_mine(person_id)));
+create policy ot_insert on public.ot_entries for insert to authenticated with check (public.is_member());
+create policy ot_update on public.ot_entries for update to authenticated using (public.is_member()) with check (public.is_member());
+create policy ot_delete on public.ot_entries for delete to authenticated using (public.is_member());
+-- earlier versions limited members to their own rows through this helper
+drop function if exists public.ot_is_mine(uuid);
 
 drop policy if exists ot_days_read on public.ot_days;
 drop policy if exists ot_days_write on public.ot_days;
 create policy ot_days_read  on public.ot_days for select to authenticated using (public.is_member());
 create policy ot_days_write on public.ot_days for all to authenticated using (public.is_member()) with check (public.is_member());
 
+-- change history: every add / edit / delete of an OT row, written by a trigger so nobody can skip or
+-- forge it, readable by every member. Names and old values are copied in, so a row stays readable after
+-- the entry or the person is gone.
+create table if not exists public.ot_log (
+  id              bigint generated always as identity primary key,
+  at              timestamptz not null default now(),
+  actor           text,
+  action          text not null check (action in ('insert', 'update', 'delete')),
+  person_id       uuid,
+  person_name     text,
+  work_date       date,
+  hours           numeric(4, 2),
+  note            text,
+  old_person_name text,
+  old_work_date   date,
+  old_hours       numeric(4, 2),
+  old_note        text
+);
+create index if not exists ot_log_at_idx on public.ot_log (at desc);
+create index if not exists ot_log_date_idx on public.ot_log (work_date);
+
+create or replace function public.ot_audit() returns trigger
+  language plpgsql security definer set search_path = public
+  as $$
+declare
+  who text := public.current_email();
+  name_new text;
+  name_old text;
+begin
+  if tg_op <> 'INSERT' then select name into name_old from public.ot_people where id = old.person_id; end if;
+  if tg_op <> 'DELETE' then select name into name_new from public.ot_people where id = new.person_id; end if;
+  if tg_op = 'INSERT' then
+    insert into public.ot_log (actor, action, person_id, person_name, work_date, hours, note)
+    values (who, 'insert', new.person_id, name_new, new.work_date, new.hours, new.note);
+  elsif tg_op = 'DELETE' then
+    insert into public.ot_log (actor, action, person_id, person_name, work_date, old_hours, old_note)
+    values (who, 'delete', old.person_id, name_old, old.work_date, old.hours, old.note);
+  elsif (new.person_id, new.work_date, new.hours, new.note) is distinct from (old.person_id, old.work_date, old.hours, old.note) then
+    insert into public.ot_log (actor, action, person_id, person_name, work_date, hours, note, old_person_name, old_work_date, old_hours, old_note)
+    values (who, 'update', new.person_id, name_new, new.work_date, new.hours, new.note,
+            case when new.person_id is distinct from old.person_id then name_old end,
+            case when new.work_date is distinct from old.work_date then old.work_date end,
+            old.hours, old.note);
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists ot_entries_audit on public.ot_entries;
+create trigger ot_entries_audit after insert or update or delete on public.ot_entries for each row execute function public.ot_audit();
+
+alter table public.ot_log enable row level security;
+drop policy if exists ot_log_read on public.ot_log;
+create policy ot_log_read on public.ot_log for select to authenticated using (public.is_member());
+-- no write policies: only the trigger writes, and nobody edits or deletes history
+
 revoke all on public.ot_people, public.ot_entries, public.ot_days from anon;
-revoke execute on function public.ot_is_mine(uuid) from anon, public;
-grant execute on function public.ot_is_mine(uuid) to authenticated;
+revoke all on public.ot_log from anon, authenticated;
+grant select on public.ot_log to authenticated;
+revoke execute on function public.ot_audit() from anon, public, authenticated;
 grant select, insert, update, delete on public.ot_people, public.ot_entries, public.ot_days to authenticated;

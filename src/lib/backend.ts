@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SAMPLE_COMMANDS, type Command, type CommandInput, type HistoryRow } from './commands';
-import type { OtDay, OtEntry, OtInput, OtMonth, OtPerson, OtPersonInput } from './ot';
+import type { OtChange, OtDay, OtEntry, OtInput, OtMonth, OtPerson, OtPersonInput } from './ot';
 import { cleanSecret, secondsLeft, totp, type AccountActivity, type AccountCode, type AccountInput, type OtpCode, type TeamAccount } from './otp';
 
 /**
@@ -73,10 +73,10 @@ export interface Backend {
   acctActivity(): Promise<AccountActivity[]>;
   /** approved members, for sharing an account with selected people */
   directory(): Promise<DirectoryEntry[]>;
-  // overtime — everyone reads the team's hours; members write their own, admins anyone's
+  // overtime — shared by the team: any member reads and writes anyone's hours
   /** the OT roster, people without an account included */
   otPeople(): Promise<OtPerson[]>;
-  /** id null adds someone; members may only add / rename themselves */
+  /** id null adds someone */
   otPersonSave(id: string | null, input: OtPersonInput): Promise<OtPerson>;
   /** admin; refused while the person still has OT logged */
   otPersonDelete(id: string): Promise<void>;
@@ -86,6 +86,8 @@ export interface Backend {
   otDelete(id: string): Promise<void>;
   /** shared title of a day; empty clears it */
   otSetDay(date: string, label: string): Promise<void>;
+  /** changes to OT rows of days in [from, to], newest first — written by the database, readable by all */
+  otHistory(from: string, to: string): Promise<OtChange[]>;
 }
 
 const env = import.meta.env as Record<string, string | undefined>;
@@ -298,7 +300,7 @@ function supabaseBackend(url: string, anonKey: string): Backend {
       const q = id ? sb.from('ot_people').update(input).eq('id', id) : sb.from('ot_people').insert(input);
       const { data, error } = await q.select('id, name, full_name, email, active').maybeSingle();
       if (error) throw friendly(error);
-      if (!data) throw new Error('Bạn chỉ sửa được tên của chính mình');
+      if (!data) throw new Error('Không lưu được — tải lại trang rồi thử lại');
       return data as OtPerson;
     },
     async otPersonDelete(id) {
@@ -320,13 +322,21 @@ function supabaseBackend(url: string, anonKey: string): Backend {
       const q = id ? sb.from('ot_entries').update(input).eq('id', id) : sb.from('ot_entries').insert(input);
       const { data, error } = await q.select().maybeSingle();
       if (error) throw friendly(error);
-      if (!data) throw new Error('Bạn chỉ sửa được giờ OT của mình');
+      if (!data) throw new Error('Không lưu được giờ OT — tải lại trang rồi thử lại');
       return { ...data, hours: Number(data.hours) } as OtEntry;
     },
     async otDelete(id) {
       const { data, error } = await sb.from('ot_entries').delete().eq('id', id).select('id');
       if (error) throw friendly(error);
-      if (!data?.length) throw new Error('Bạn chỉ xoá được giờ OT của mình');
+      if (!data?.length) throw new Error('Không xoá được giờ OT — tải lại trang rồi thử lại');
+    },
+    async otHistory(from, to) {
+      // a row moved between days belongs to both the old and the new day
+      const range = `and(work_date.gte.${from},work_date.lte.${to}),and(old_work_date.gte.${from},old_work_date.lte.${to})`;
+      const { data, error } = await sb.from('ot_log').select('*').or(range).order('at', { ascending: false }).limit(500);
+      if (error) throw friendly(error);
+      const num = (v: unknown) => (v == null ? null : Number(v));
+      return (data ?? []).map((r) => ({ ...r, hours: num(r.hours), old_hours: num(r.old_hours) })) as OtChange[];
     },
     async otSetDay(date, label) {
       const { error } = label.trim()
@@ -343,7 +353,7 @@ function demoBackend(): Backend {
   const KEY = 'wpt-demo-db';
   const SESSION = 'wpt-demo-session';
   type DemoAccount = Omit<TeamAccount, 'has_password' | 'has_otp' | 'can_manage'> & { password: string | null; otp_secret: string | null; otp_algorithm: AccountInput['otp_algorithm']; members: string[] };
-  type Store = { members: Member[]; commands: Command[]; history: HistoryRow[]; accounts?: DemoAccount[]; accountLog?: AccountActivity[]; ot?: OtEntry[]; otDays?: OtDay[]; otPeople?: OtPerson[] };
+  type Store = { members: Member[]; commands: Command[]; history: HistoryRow[]; accounts?: DemoAccount[]; accountLog?: AccountActivity[]; ot?: OtEntry[]; otDays?: OtDay[]; otPeople?: OtPerson[]; otLog?: OtChange[] };
   const now = () => new Date().toISOString();
   const id = () => crypto.randomUUID();
   const read = (): Store => {
@@ -401,6 +411,27 @@ function demoBackend(): Backend {
   const logAcct = (s: Store, a: DemoAccount, action: AccountActivity['action']) => {
     (s.accountLog ??= []).unshift({ id: Date.now() + Math.random(), account_id: a.id, account: [a.system, a.env, a.username].filter(Boolean).join(' · '), action, user_email: sessionEmail(), at: now() });
     write(s);
+  };
+  // stands in for the ot_audit trigger
+  const logOt = (s: Store, before: OtEntry | undefined, after: OtEntry | undefined) => {
+    const name = (pid: string) => s.otPeople?.find((p) => p.id === pid)?.name ?? null;
+    const row = after ?? before!;
+    if (before && after && before.person_id === after.person_id && before.work_date === after.work_date && before.hours === after.hours && before.note === after.note) return;
+    (s.otLog ??= []).unshift({
+      id: Date.now() + Math.random(),
+      at: now(),
+      actor: sessionEmail(),
+      action: !before ? 'insert' : !after ? 'delete' : 'update',
+      person_id: row.person_id,
+      person_name: name(row.person_id),
+      work_date: row.work_date,
+      hours: after?.hours ?? null,
+      note: after?.note ?? null,
+      old_person_name: before && after && before.person_id !== after.person_id ? name(before.person_id) : null,
+      old_work_date: before && after && before.work_date !== after.work_date ? before.work_date : null,
+      old_hours: before?.hours ?? null,
+      old_note: before?.note ?? null,
+    });
   };
   const own = (s: Store, c: Command) => member(s) && (c.owner_id === sessionEmail() || (admin(s) && !c.is_private));
 
@@ -583,8 +614,7 @@ function demoBackend(): Backend {
       seedOt(s);
       const list = s.otPeople!;
       const p = pid ? list.find((x) => x.id === pid) : undefined;
-      const self = (e: string | null) => !!e && e === sessionEmail();
-      if (!member(s) || (!admin(s) && (!self(input.email) || (p && !self(p.email))))) throw new Error('Bạn chỉ sửa được tên của chính mình');
+      if (!member(s)) throw deny();
       if (input.email && list.some((x) => x.id !== pid && x.email === input.email)) throw new Error('Email này đã gắn với một người khác trong danh sách OT');
       const out = p ? Object.assign(p, input) : { ...input, id: id() };
       if (!p) list.push(out);
@@ -609,14 +639,15 @@ function demoBackend(): Backend {
     async otSave(oid, input) {
       const s = read();
       seedOt(s);
-      const mine = (pid: string) => admin(s) || s.otPeople!.find((p) => p.id === pid)?.email === sessionEmail();
-      if (!member(s) || !mine(input.person_id)) throw new Error('Bạn chỉ sửa được giờ OT của mình');
+      if (!member(s)) throw deny();
       const list = s.ot!;
       if (list.some((e) => e.id !== oid && e.person_id === input.person_id && e.work_date === input.work_date)) throw new Error('Người này đã có OT ngày đó — mở ô đó để sửa');
       let e = oid ? list.find((x) => x.id === oid) : undefined;
-      if (oid && (!e || !mine(e.person_id))) throw new Error('Bạn chỉ sửa được giờ OT của mình');
+      if (oid && !e) throw new Error('Không tìm thấy giờ OT này — tải lại trang');
+      const before = e && { ...e };
       if (e) Object.assign(e, input, { updated_by: sessionEmail(), updated_at: now() });
       else list.push((e = { ...input, id: id(), updated_by: sessionEmail(), updated_at: now() }));
+      logOt(s, before, e);
       write(s);
       return e;
     },
@@ -624,10 +655,16 @@ function demoBackend(): Backend {
       const s = read();
       seedOt(s);
       const e = s.ot!.find((x) => x.id === oid);
-      const mine = e && (admin(s) || s.otPeople!.find((p) => p.id === e.person_id)?.email === sessionEmail());
-      if (!e || !member(s) || !mine) throw new Error('Bạn chỉ xoá được giờ OT của mình');
+      if (!e || !member(s)) throw deny();
       s.ot = s.ot!.filter((x) => x.id !== oid);
+      logOt(s, e, undefined);
       write(s);
+    },
+    async otHistory(from, to) {
+      const s = read();
+      if (!member(s)) throw deny();
+      const inRange = (d: string | null) => !!d && d >= from && d <= to;
+      return (s.otLog ?? []).filter((c) => inRange(c.work_date) || inRange(c.old_work_date)).slice(0, 500);
     },
     async otSetDay(date, label) {
       const s = read();

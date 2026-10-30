@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, ListChecks, Loader2, Pencil, Plus, RefreshCw, Table2, UserPlus, Users } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, History, ListChecks, Loader2, Pencil, Plus, RefreshCw, Table2, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Segmented, Switch } from '../../components/ui';
 import type { Backend, DirectoryEntry, Member } from '../../lib/backend';
@@ -9,7 +9,6 @@ import {
   fmtHours,
   fullDate,
   fullName,
-  givenName,
   holidayName,
   monthDays,
   monthLabel,
@@ -19,11 +18,13 @@ import {
   today,
   weekday,
   weekdayLong,
+  type OtChange,
   type OtEntry,
   type OtMonth,
   type OtPerson,
 } from '../../lib/ot';
 import { DayLabelEditor, OtEditor } from './OtEditor';
+import { OtHistory } from './OtHistory';
 import { PeopleManager } from './PeopleManager';
 
 interface Props {
@@ -33,16 +34,16 @@ interface Props {
   onToast: (m: string) => void;
 }
 
-type View = 'table' | 'log';
+type View = 'table' | 'log' | 'history';
 type Editing = OtEntry | { person_id: string; work_date: string };
 
 /** Team overtime by month: a person × day table like the team's sheet, a day-by-day log, and an Excel export. */
 export function OtTool({ active, backend, me, onToast }: Props) {
-  const admin = me.role === 'admin';
   const [month, setMonth] = useState(() => monthOf(today()));
   const [data, setData] = useState<OtMonth | null>(null);
   const [roster, setRoster] = useState<OtPerson[]>([]);
   const [dir, setDir] = useState<DirectoryEntry[]>([]);
+  const [history, setHistory] = useState<OtChange[] | null>(null);
   const [managing, setManaging] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -57,8 +58,9 @@ export function OtTool({ active, backend, me, onToast }: Props) {
     setLoading(true);
     try {
       const { from, to } = monthRange(month);
-      const [d, people, members] = await Promise.all([backend.otList(from, to), backend.otPeople(), backend.directory()]);
+      const [d, people, members, changes] = await Promise.all([backend.otList(from, to), backend.otPeople(), backend.directory(), backend.otHistory(from, to)]);
       setData(d);
+      setHistory(changes);
       setRoster(people);
       setDir(members);
       setErr(null);
@@ -91,6 +93,11 @@ export function OtTool({ active, backend, me, onToast }: Props) {
     const byEmail = new Map(dir.map((m) => [m.email, m.avatar_url]));
     return new Map(roster.map((p) => [p.id, p.email ? byEmail.get(p.email) : null]));
   }, [roster, dir]);
+  // who made a change, by sign-in email: their name on the roster, else their Google name, else the email
+  const actorName = useCallback(
+    (email: string | null) => (email ? (roster.find((p) => p.email === email)?.name ?? dir.find((m) => m.email === email)?.full_name ?? email) : 'Không rõ'),
+    [roster, dir],
+  );
   const face = (p: OtPerson, size: number) => <Avatar src={avatars.get(p.id)} name={fullName(p)} email={p.email ?? p.id} size={size} />;
 
   const days = useMemo(() => {
@@ -142,19 +149,10 @@ export function OtTool({ active, backend, me, onToast }: Props) {
     }
   };
 
-  const canEdit = (personId: string) => admin || personId === mineId;
-  const addMe = async () => {
-    try {
-      await backend.otPersonSave(null, { name: givenName(me.full_name ?? '') || me.email.split('@')[0], full_name: me.full_name ?? '', email: me.email, active: true });
-      onToast('Đã thêm bạn vào bảng OT — đổi tên hiển thị trong “Danh sách người”');
-      load();
-    } catch (e) {
-      onToast((e as Error).message);
-    }
-  };
+  // the whole tab is shared: anyone logs OT for anyone; the form starts on you if you are on the roster
   const startAdd = () => {
-    const pid = mineId ?? (admin ? people[0]?.id : undefined);
-    if (!pid) return admin ? setManaging(true) : addMe();
+    const pid = mineId ?? roster.find((p) => p.active)?.id;
+    if (!pid) return setManaging(true);
     setEditing({ person_id: pid, work_date: monthOf(today()) === month ? today() : `${month}-01` });
   };
   const isToday = (d: string) => d === today();
@@ -216,24 +214,12 @@ export function OtTool({ active, backend, me, onToast }: Props) {
               items={[
                 { id: 'table', label: 'Bảng', icon: <Table2 size={14} /> },
                 { id: 'log', label: 'Nhật ký', icon: <ListChecks size={14} /> },
+                { id: 'history', label: 'Lịch sử', icon: <History size={14} /> },
               ]}
             />
           </div>
         </div>
 
-        {data && !myRow && !admin && (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-accent/25 bg-accent-soft px-4 py-3">
-            <UserPlus size={18} className="shrink-0 text-accent" />
-            <p className="min-w-0 flex-1 basis-[220px] text-[13px]">
-              <b>Bạn chưa có trong bảng OT.</b> <span className="text-muted">
-                Thêm mình vào để tự ghi giờ — tên hiển thị đổi được sau. Nếu admin đã thêm bạn từ trước, nhờ admin điền email {me.email} vào dòng đó thay vì thêm mới.
-              </span>
-            </p>
-            <Button variant="primary" size="sm" onClick={addMe}>
-              Thêm tôi vào bảng
-            </Button>
-          </div>
-        )}
 
         {/* summary */}
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -352,11 +338,10 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                   <tbody>
                     {people.map((p) => {
                       const sum = totalOf((e) => e.person_id === p.id);
-                      const editable = canEdit(p.id);
                       return (
                         <tr key={p.id} className="group/r">
                           <th className={clsx('sticky left-0 z-10 max-w-[120px] border-b border-line px-2 py-1.5 text-left font-medium sm:max-w-none sm:px-3 group-hover/r:bg-surface-2', p.id === mineId ? 'bg-[color-mix(in_srgb,var(--accent)_9%,var(--surface))]' : 'bg-surface')}>
-                            <span className={clsx('flex min-w-0 items-center gap-2', !p.active && 'opacity-60')} title={[fullName(p), p.email ?? 'Chưa có tài khoản — admin ghi hộ', !p.active && 'Đã ẩn'].filter(Boolean).join('\n')}>
+                            <span className={clsx('flex min-w-0 items-center gap-2', !p.active && 'opacity-60')} title={[fullName(p), p.email ?? 'Chưa có tài khoản', !p.active && 'Đã ẩn'].filter(Boolean).join('\n')}>
                               {face(p, 22)}
                               <span className="truncate">{p.name}</span>
                               {p.id === mineId && <span className="hidden text-[10.5px] font-normal text-faint sm:inline">bạn</span>}
@@ -369,12 +354,11 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                               <td key={d} className={clsx('border-b border-l border-line p-0 group-hover/r:bg-surface-2/60', isToday(d) ? 'bg-accent-soft/60' : weekend && 'bg-emerald-500/[0.04]')}>
                                 <button
                                   type="button"
-                                  disabled={!editable && !e}
-                                  onClick={() => (editable ? setEditing(e ?? { person_id: p.id, work_date: d }) : undefined)}
-                                  title={e ? `${fmtHours(e.hours)} giờ${e.note ? `\n${e.note}` : ''}` : editable ? `Ghi OT ${dayMonth(d)} cho ${p.name}` : undefined}
+                                  onClick={() => setEditing(e ?? { person_id: p.id, work_date: d })}
+                                  title={e ? `${fmtHours(e.hours)} giờ${e.note ? `\n${e.note}` : ''}\n— sửa lần cuối: ${actorName(e.updated_by)}` : `Ghi OT ${dayMonth(d)} cho ${p.name}`}
                                   className={clsx(
                                     'focus-ring group/c relative flex h-9 w-full items-center justify-center font-mono tabular-nums',
-                                    editable ? 'cursor-pointer hover:bg-accent-soft' : 'cursor-default',
+                                    'cursor-pointer hover:bg-accent-soft',
                                   )}
                                 >
                                   {e ? (
@@ -382,7 +366,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                                       {fmtHours(e.hours)}
                                     </span>
                                   ) : (
-                                    editable && <Plus size={12} className="text-faint opacity-0 group-hover/c:opacity-100" />
+                                    <Plus size={12} className="text-faint opacity-0 group-hover/c:opacity-100" />
                                   )}
                                   {e?.note && <span className="absolute top-1 right-1 size-1 rounded-full bg-accent/70" />}
                                 </button>
@@ -414,7 +398,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
               </div>
             )}
             <p className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-line px-4 py-2 text-[11.5px] text-faint">
-              <span>Chỉ hiện người có OT trong tháng — người khác ghi qua nút “Ghi OT”. Bấm vào ô để ghi / sửa giờ{admin ? '' : ' của bạn'}; bấm tiêu đề cột để đặt tên cho ngày.</span>
+              <span>Chỉ hiện người có OT trong tháng — người khác ghi qua nút “Ghi OT”. Ai trong team cũng ghi / sửa được: bấm vào ô để ghi giờ, bấm tiêu đề cột để đặt tên cho ngày.</span>
               <span className="flex items-center gap-1.5">
                 <span className="size-2.5 rounded-sm bg-emerald-500/25" /> Cuối tuần / ngày lễ
               </span>
@@ -425,7 +409,8 @@ export function OtTool({ active, backend, me, onToast }: Props) {
           </div>
         )}
 
-        {data && view === 'log' && <OtLog entries={entries} labels={labels} people={roster} face={face} mineId={mineId} canEdit={canEdit} onEdit={setEditing} onDay={setDayEdit} />}
+        {data && view === 'history' && <OtHistory changes={history} people={roster} actorName={actorName} />}
+        {data && view === 'log' && <OtLog entries={entries} labels={labels} people={roster} face={face} mineId={mineId} onEdit={setEditing} onDay={setDayEdit} />}
       </div>
 
       {editing && (
@@ -433,12 +418,13 @@ export function OtTool({ active, backend, me, onToast }: Props) {
           key={'id' in editing ? editing.id : `${editing.person_id}|${editing.work_date}`}
           backend={backend}
           initial={editing}
-          people={admin ? roster.filter((p) => p.active || p.id === editing.person_id) : roster.filter((p) => p.id === mineId)}
+          people={roster.filter((p) => p.active || p.id === editing.person_id)}
           avatars={avatars}
           mine={mineId}
-          admin={admin}
           labels={labels}
           find={find}
+          history={history ?? []}
+          actorName={actorName}
           onClose={() => setEditing(null)}
           onToast={onToast}
           onSaved={(d) => {
@@ -473,7 +459,6 @@ function OtLog({
   people,
   face,
   mineId,
-  canEdit,
   onEdit,
   onDay,
 }: {
@@ -482,7 +467,6 @@ function OtLog({
   people: OtPerson[];
   face: (p: OtPerson, size: number) => ReactNode;
   mineId: string | undefined;
-  canEdit: (userId: string) => boolean;
   onEdit: (e: OtEntry) => void;
   onDay: (d: string) => void;
 }) {
@@ -524,11 +508,9 @@ function OtLog({
                     <span className={clsx('shrink-0 rounded-md px-2 py-0.5 font-mono text-[12.5px] font-semibold tabular-nums', weekend ? 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300' : 'bg-accent-soft text-accent')}>
                       {fmtHours(e.hours)}h
                     </span>
-                    {canEdit(e.person_id) && (
-                      <Button variant="ghost" size="icon-sm" aria-label="Sửa" title="Sửa" className="opacity-60 group-hover/l:opacity-100" onClick={() => onEdit(e)}>
-                        <Pencil size={14} />
-                      </Button>
-                    )}
+                    <Button variant="ghost" size="icon-sm" aria-label="Sửa" title="Sửa" className="opacity-60 group-hover/l:opacity-100" onClick={() => onEdit(e)}>
+                      <Pencil size={14} />
+                    </Button>
                   </li>
                 );
               })}

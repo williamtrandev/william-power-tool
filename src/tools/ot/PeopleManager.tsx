@@ -21,8 +21,8 @@ type Draft = { id: string | null; name: string; full_name: string; email: string
 const blank: Draft = { id: null, name: '', full_name: '', email: '', active: true };
 
 /**
- * The OT roster: who appears on the sheet and under which name. People without an account are added by
- * an admin and logged for by them; giving someone an email lets that member log their own OT later.
+ * The OT roster: who appears on the sheet and under which name. Shared by the team: anyone adds, renames
+ * or hides people, including people without an account. Only admins delete someone outright.
  */
 export function PeopleManager({
   backend,
@@ -42,9 +42,7 @@ export function PeopleManager({
   onToast: (m: string) => void;
 }) {
   const admin = me.role === 'admin';
-  const mine = people.find((p) => p.email === me.email);
-  // members only ever edit their own row
-  const [d, setD] = useState<Draft>(() => (admin || !mine ? (admin ? blank : { ...blank, name: givenName(me.full_name ?? ''), full_name: me.full_name ?? '', email: me.email }) : toDraft(mine)));
+  const [d, setD] = useState<Draft>(blank);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<string | null>(null);
@@ -61,9 +59,8 @@ export function PeopleManager({
     try {
       await backend.otPersonSave(draft.id, { name: draft.name.trim(), full_name: draft.full_name.trim(), email: cleanEmail(draft.email), active: draft.active });
       onToast(draft.id ? 'Đã cập nhật' : `Đã thêm ${draft.name.trim()}`);
-      if (admin) setD(blank);
+      setD(blank);
       onChanged();
-      if (!admin) onClose();
     } catch (e) {
       setErr((e as Error).message);
     } finally {
@@ -100,10 +97,10 @@ export function PeopleManager({
 
   const status = (p: OtPerson) =>
     !p.email
-      ? { icon: <UserRoundX size={11} />, label: 'Chưa có tài khoản', hint: 'Admin ghi OT hộ người này', cls: 'bg-surface-3 text-muted' }
+      ? { icon: <UserRoundX size={11} />, label: 'Chưa có tài khoản', hint: 'Không cần tài khoản — ai trong team cũng ghi OT hộ được', cls: 'bg-surface-3 text-muted' }
       : accounts.has(p.email)
-        ? { icon: <Link2 size={11} />, label: 'Đã liên kết', hint: 'Tự ghi OT được khi đăng nhập bằng email này', cls: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300' }
-        : { icon: <Link2 size={11} />, label: 'Chờ đăng nhập', hint: 'Khi người này đăng nhập bằng email này và được duyệt, họ sẽ tự ghi OT được', cls: 'bg-amber-500/14 text-amber-700 dark:text-amber-300' };
+        ? { icon: <Link2 size={11} />, label: 'Đã liên kết', hint: 'Người này đã đăng nhập bằng email này', cls: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300' }
+        : { icon: <Link2 size={11} />, label: 'Chờ đăng nhập', hint: 'Email này chưa đăng nhập vào William Tool', cls: 'bg-amber-500/14 text-amber-700 dark:text-amber-300' };
 
   const form = (
     <form
@@ -113,7 +110,7 @@ export function PeopleManager({
         if (valid) save();
       }}
     >
-      <p className="text-[12.5px] font-semibold">{d.id ? `Sửa ${people.find((p) => p.id === d.id)?.name ?? ''}` : admin ? 'Thêm người' : 'Thêm bạn vào bảng OT'}</p>
+      <p className="text-[12.5px] font-semibold">{d.id ? `Sửa ${people.find((p) => p.id === d.id)?.name ?? ''}` : 'Thêm người'}</p>
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label hint="hiện trên bảng và file Excel">Tên hiển thị</Label>
@@ -132,12 +129,11 @@ export function PeopleManager({
         </div>
       </div>
       <div>
-        <Label hint={admin ? 'tuỳ chọn — để người đó tự ghi OT khi đăng nhập bằng email này' : 'email bạn đăng nhập'}>Email</Label>
+        <Label hint="tuỳ chọn — để nhận ra người đó khi đăng nhập">Email</Label>
         <input
           className={field}
           type="email"
           value={d.email}
-          disabled={!admin}
           placeholder="Bỏ trống nếu người này chưa có tài khoản"
           onChange={(e) => setD({ ...d, email: e.target.value })}
           aria-invalid={!!email && !isEmail(email)}
@@ -146,7 +142,7 @@ export function PeopleManager({
       </div>
       {err && <p className="rounded-lg bg-error/10 px-3 py-2 text-[12px] text-error">{err}</p>}
       <div className="flex justify-end gap-2">
-        {d.id && admin && (
+        {d.id && (
           <Button size="sm" variant="ghost" onClick={() => setD(blank)}>
             Huỷ sửa
           </Button>
@@ -164,12 +160,12 @@ export function PeopleManager({
       <div className="space-y-4">
         <p className="text-[12.5px] text-muted">
           Tên trên bảng OT do team đặt, không phụ thuộc tên tài khoản Google.
-          {admin ? ' Người chưa có tài khoản vẫn thêm được — admin ghi OT hộ họ.' : ' Bạn đổi được tên hiển thị của mình; admin quản lý cả danh sách.'}
+ Ai trong team cũng thêm, sửa, ẩn được — kể cả người chưa có tài khoản.
         </p>
 
-        {(admin || !mine || d.id) && form}
+        {form}
 
-        {admin && notListed.length > 0 && !d.id && (
+        {notListed.length > 0 && !d.id && (
           <div>
             <p className="mb-1.5 text-[12px] font-medium text-fg-2">Thêm nhanh từ thành viên đã đăng nhập</p>
             <div className="flex flex-wrap gap-1.5">
@@ -195,7 +191,6 @@ export function PeopleManager({
           {people.length === 0 && <li className="px-4 py-6 text-center text-[12.5px] text-muted">Chưa có ai trong danh sách.</li>}
           {people.map((p) => {
             const st = status(p);
-            const canEdit = admin || p.email === me.email;
             const avatar = dir.find((m) => m.email === p.email)?.avatar_url;
             return (
               <li key={p.id} className={clsx('flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3.5 py-2.5', !p.active && 'opacity-55', d.id === p.id && 'bg-accent-soft')}>
@@ -216,16 +211,13 @@ export function PeopleManager({
                   </p>
                 </div>
                 <div className="ml-auto flex items-center gap-1">
-                  {admin && (
-                    <Button size="sm" variant="ghost" disabled={busy === p.id} onClick={() => toggle(p)} title={p.active ? 'Ẩn khỏi bảng OT và file Excel (giữ giờ đã ghi)' : 'Hiện lại trên bảng OT'}>
-                      {p.active ? 'Ẩn' : 'Hiện lại'}
-                    </Button>
-                  )}
-                  {canEdit && (
-                    <Button size="icon-sm" variant="ghost" aria-label={`Sửa ${p.name}`} title="Sửa tên / email" onClick={() => setD(toDraft(p))}>
-                      <Pencil size={14} />
-                    </Button>
-                  )}
+                  <Button size="sm" variant="ghost" disabled={busy === p.id} onClick={() => toggle(p)} title={p.active ? 'Ẩn khỏi bảng OT và file Excel (giữ giờ đã ghi)' : 'Hiện lại trên bảng OT'}>
+                    {p.active ? 'Ẩn' : 'Hiện lại'}
+                  </Button>
+                  <Button size="icon-sm" variant="ghost" aria-label={`Sửa ${p.name}`} title="Sửa tên / email" onClick={() => setD(toDraft(p))}>
+                    <Pencil size={14} />
+                  </Button>
+                  {/* deleting outright stays with admins; anyone can hide */}
                   {admin && (
                     <Button
                       size={confirmDel === p.id ? 'sm' : 'icon-sm'}

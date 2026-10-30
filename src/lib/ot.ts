@@ -30,6 +30,26 @@ export interface OtEntry {
 
 export type OtInput = Pick<OtEntry, 'person_id' | 'work_date' | 'hours' | 'note'>;
 
+/** one change to an OT row, written by the database (ot_log) — never edited */
+export interface OtChange {
+  id: number;
+  at: string;
+  /** email of whoever made the change */
+  actor: string | null;
+  action: 'insert' | 'update' | 'delete';
+  person_id: string | null;
+  person_name: string | null;
+  work_date: string;
+  /** after the change (null for a delete) */
+  hours: number | null;
+  note: string | null;
+  /** before the change (null for an insert); person / date only when they changed */
+  old_person_name: string | null;
+  old_work_date: string | null;
+  old_hours: number | null;
+  old_note: string | null;
+}
+
 export interface OtDay {
   work_date: string;
   label: string;

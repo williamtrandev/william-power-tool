@@ -421,7 +421,7 @@ export const ACCOUNT_STEPS: TourStep[] = [
 export const OT_STEPS: TourStep[] = [
   {
     title: 'Giờ OT',
-    body: <>Mỗi người tự ghi giờ làm thêm của mình theo ngày, kèm nội dung công việc. Cả team cùng xem được bảng tổng; admin ghi / sửa được giờ của mọi người, kể cả người chưa có tài khoản.</>,
+    body: <>Ghi giờ làm thêm của team theo ngày, kèm nội dung công việc. Bảng dùng chung: ai trong team cũng xem, ghi và sửa được giờ của mọi người, kể cả người chưa có tài khoản.</>,
   },
   {
     target: 'ot-people',
@@ -429,8 +429,7 @@ export const OT_STEPS: TourStep[] = [
     placement: 'bottom',
     body: (
       <>
-        Ai có trên bảng OT và tên hiển thị do team đặt — không lấy theo tên Google. Người <b>chưa có tài khoản</b> vẫn thêm được, admin ghi OT hộ. Điền email để
-        sau này người đó tự ghi khi đăng nhập.
+        Ai có trên bảng OT và tên hiển thị do team đặt — không lấy theo tên Google. Ai trong team cũng thêm, đổi tên hay ẩn người được, kể cả người <b>chưa có tài khoản</b>.
       </>
     ),
   },
