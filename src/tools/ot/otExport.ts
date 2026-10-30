@@ -25,9 +25,9 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
 
   // sheet names cannot contain "/"
   const ws = wb.addWorksheet(`OT T${Number(month.slice(5))}-${month.slice(0, 4)}`, {
-    // no gridlines (the table draws its own) and only the header frozen: a frozen first column
-    // draws a split line straight through the merged title and name cells
-    views: [{ state: 'frozen', ySplit: HEAD, showGridLines: false }],
+    // no gridlines (the table draws its own) and nothing frozen: Excel draws a freeze split as a grey
+    // line across the whole sheet, right through the table
+    views: [{ showGridLines: false }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 },
   });
   // exceljs cannot autofit, so size every column from what it holds: wide enough for the day title
