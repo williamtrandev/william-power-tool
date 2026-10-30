@@ -25,7 +25,9 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
 
   // sheet names cannot contain "/"
   const ws = wb.addWorksheet(`OT T${Number(month.slice(5))}-${month.slice(0, 4)}`, {
-    views: [{ state: 'frozen', xSplit: 1, ySplit: HEAD }],
+    // no gridlines (the table draws its own) and only the header frozen: a frozen first column
+    // draws a split line straight through the merged title and name cells
+    views: [{ state: 'frozen', ySplit: HEAD, showGridLines: false }],
     pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 },
   });
   // exceljs cannot autofit, so size every column from what it holds: wide enough for the day title
@@ -66,7 +68,8 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
     const mine = entries.filter((e) => e.person_id === p.id);
 
     ws.mergeCells(r, 1, r + 1, 1);
-    put(ws.getCell(r, 1), p.name, { fill: BLUE, font: WHITE_BOLD, align: { horizontal: 'left', vertical: 'middle', wrapText: true } });
+    put(ws.getCell(r, 1), p.name, { fill: BLUE, font: WHITE_BOLD, align: { horizontal: 'left', vertical: 'middle', wrapText: true, indent: 1 } });
+    cover(ws.getCell(r + 1, 1), BLUE);
 
     let lines = 1;
     dates.forEach((d, j) => {
@@ -82,7 +85,8 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
     ws.mergeCells(r, lastCol, r + 1, lastCol);
     const total = ws.getCell(r, lastCol);
     total.value = dates.length ? { formula: `SUM(${col(2)}${r}:${col(lastCol - 1)}${r})`, result: sum(mine) } : 0;
-    put(total, total.value, { fill: YELLOW, font: { ...FONT, bold: true, size: 13, color: { argb: 'FFFF0000' } }, align: { horizontal: 'right', vertical: 'middle' } });
+    put(total, total.value, { fill: YELLOW, font: { ...FONT, bold: true, size: 13, color: { argb: 'FFFF0000' } }, align: { horizontal: 'center', vertical: 'middle' } });
+    cover(ws.getCell(r + 1, lastCol), YELLOW);
   });
 
   // team total per day
@@ -96,7 +100,7 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
     const cell = foot.getCell(c);
     // only the hour rows: the note rows in between are text
     cell.value = hourRows.length ? { formula: `SUM(${hourRows.map((r) => `${col(c)}${r}`).join(',')})`, result } : 0;
-    put(cell, cell.value, { fill: c === lastCol ? YELLOW : BAND_STRONG, font: { ...FONT, bold: true, color: { argb: c === lastCol ? 'FFFF0000' : 'FF000000' } }, align: RIGHT });
+    put(cell, cell.value, { fill: c === lastCol ? YELLOW : BAND_STRONG, font: { ...FONT, bold: true, color: { argb: c === lastCol ? 'FFFF0000' : 'FF000000' } }, align: c === lastCol ? CENTER : RIGHT });
   }
 
   const legend = ws.getCell(foot.number + 2, 1);
@@ -138,6 +142,15 @@ function put(cell: Cell, value: Cell['value'], o: { fill: Fill; font: Partial<Fo
   if (o.edge === 'top') b.bottom = HAIR;
   if (o.edge === 'bottom') b.top = HAIR;
   cell.border = b;
+}
+
+/**
+ * Excel draws a merged range's outline from every cell in it, not just the first: give the hidden
+ * cells the same fill and full border, or the merge shows the neighbouring rows' lines through it.
+ */
+function cover(cell: Cell, fill: Fill) {
+  cell.fill = fill;
+  cell.border = { top: LINE, left: LINE, bottom: LINE, right: LINE };
 }
 
 const sum = (list: OtEntry[]) => list.reduce((a, e) => a + e.hours, 0);
