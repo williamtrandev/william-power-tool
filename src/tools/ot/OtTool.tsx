@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, ListChecks, Loader2, Pencil, Plus, RefreshCw, Table2, UserPlus, Users } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Segmented, Switch } from '../../components/ui';
 import type { Backend, DirectoryEntry, Member } from '../../lib/backend';
 import {
@@ -102,6 +102,32 @@ export function OtTool({ active, backend, me, onToast }: Props) {
   const mine = totalOf((e) => e.person_id === mineId);
   const otPeople = new Set(entries.map((e) => e.person_id)).size;
   const otDays = new Set(entries.map((e) => e.work_date)).size;
+
+  // late in the month the first days are the least interesting: open the table on today
+  // (or, for another month, its last OT day), sitting just right of the name column
+  const scroller = useRef<HTMLDivElement>(null);
+  const focusDay = monthOf(today()) === month ? today() : entries.reduce<string | undefined>((m, e) => (!m || e.work_date > m ? e.work_date : m), undefined);
+  const scrollToDay = useCallback((d: string, smooth = false) => {
+    const box = scroller.current;
+    const th = box?.querySelector<HTMLElement>(`th[data-day="${d}"]`);
+    if (!box || !th) return;
+    const name = box.querySelector<HTMLElement>('thead th')?.offsetWidth ?? 0;
+    const total = box.querySelector<HTMLElement>('thead th:last-child')?.offsetWidth ?? 0;
+    // centre the day in the space between the sticky name and total columns
+    const free = box.clientWidth - name - total;
+    box.scrollTo({ left: Math.max(0, th.offsetLeft - name - (free - th.offsetWidth) / 2), behavior: smooth ? 'smooth' : 'auto' });
+  }, []);
+  const strip = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!active || view !== 'table' || !focusDay) return;
+    scrollToDay(focusDay);
+    // the titles strip too: end it on the latest title up to that day, earlier ones to its left
+    const box = strip.current;
+    const chip = [...(box?.querySelectorAll<HTMLElement>('[data-day]') ?? [])].filter((c) => c.dataset.day! <= focusDay).at(-1);
+    if (box && chip) box.scrollLeft = Math.max(0, chip.offsetLeft + chip.offsetWidth - box.clientWidth + 12);
+  }, [active, view, focusDay, month, onlyOt, data, scrollToDay]);
+  // titled days of the month, readable in full above the table
+  const titled = useMemo(() => [...labels].filter(([d]) => monthOf(d) === month).sort(([a], [b]) => a.localeCompare(b)), [labels, month]);
 
   const doExport = async () => {
     setExporting(true);
@@ -237,6 +263,36 @@ export function OtTool({ active, backend, me, onToast }: Props) {
 
         {data && view === 'table' && (
           <div data-tour="ot-table" className="overflow-hidden rounded-xl border border-line bg-surface">
+            {titled.length > 0 && (
+              <div className="flex items-center gap-2 border-b border-line py-2 pl-3">
+                <span className="shrink-0 text-[11.5px] font-medium text-muted">
+                  Việc trong tháng <span className="text-faint">{titled.length}</span>
+                </span>
+                {/* one row however many titles there are: it scrolls sideways instead of pushing the table down */}
+                <div ref={strip} className="relative flex min-w-0 flex-1 gap-1.5 overflow-x-auto pr-3 [scrollbar-width:thin] [&>*]:shrink-0">
+                  {titled.map(([d, label]) => (
+                    <button
+                      key={d}
+                      data-day={d}
+                      type="button"
+                      onClick={() => {
+                        if (!days.includes(d)) setOnlyOt(false);
+                        scrollToDay(d, true);
+                      }}
+                      onDoubleClick={() => setDayEdit(d)}
+                      title={`${weekdayLong(d)} ${fullDate(d)}: ${label}\nBấm để tới cột này, bấm đúp để sửa tiêu đề`}
+                      className={clsx(
+                        'focus-ring inline-flex max-w-[260px] items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-left text-[12px] whitespace-nowrap transition-colors hover:border-accent/50',
+                        isToday(d) ? 'border-accent/50 bg-accent-soft' : 'border-line bg-surface-2/60',
+                      )}
+                    >
+                      <span className={clsx('shrink-0 font-semibold tabular-nums', dayKind(d) !== 'weekday' ? 'text-emerald-700 dark:text-emerald-400' : 'text-fg')}>{dayMonth(d)}</span>
+                      <span className="truncate text-fg-2">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             {!people.length ? (
               <div className="px-4 py-10 text-center text-[13px] text-muted">
                 Chưa có ai trong bảng OT.{' '}
@@ -247,7 +303,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
             ) : !days.length ? (
               <p className="px-4 py-10 text-center text-[13px] text-muted">Tháng này chưa có ai ghi OT. Bấm “Ghi OT” hoặc tắt “Chỉ ngày có OT” rồi bấm vào một ô.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <div ref={scroller} className="overflow-x-auto">
                 <table className="w-full border-separate border-spacing-0 text-[12.5px]">
                   <thead>
                     <tr>
@@ -258,7 +314,13 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                         return (
                           <th
                             key={d}
-                            className={clsx('border-b border-l border-line p-0 align-top font-normal', kind !== 'weekday' ? 'bg-emerald-500/10' : 'bg-surface-2', onlyOt ? 'min-w-[76px]' : 'min-w-[46px]')}
+                            data-day={d}
+                            // every day the same width, titled or not, so the month reads as an even grid
+                            className={clsx(
+                              'border-b border-l border-line p-0 align-top font-normal',
+                              isToday(d) ? 'bg-accent-soft' : kind !== 'weekday' ? 'bg-emerald-500/10' : 'bg-surface-2',
+                              'w-[76px] min-w-[76px] max-w-[76px]',
+                            )}
                           >
                             <button
                               type="button"
@@ -271,7 +333,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                                 {onlyOt ? dayMonth(d) : Number(d.slice(8))}
                               </span>
                               {label ? (
-                                <span className={clsx('truncate rounded px-1 text-[10px] font-medium text-accent', onlyOt ? 'max-w-[90px]' : 'max-w-[44px]')}>{label}</span>
+                                <span className="line-clamp-2 w-full rounded bg-accent-soft px-1 py-0.5 text-center text-[10px] leading-tight font-medium break-words text-accent">{label}</span>
                               ) : (
                                 <Pencil size={9} className="text-faint opacity-0 group-hover/h:opacity-100" />
                               )}
@@ -279,7 +341,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                           </th>
                         );
                       })}
-                      <th className="sticky right-0 z-20 min-w-[56px] border-b border-l border-line bg-amber-100 px-2 py-2 sm:min-w-[78px] sm:px-3 text-right text-[11.5px] font-semibold text-fg dark:bg-[#3a3214]">Tổng<span className="hidden sm:inline"> (giờ)</span></th>
+                      <th className="sticky right-0 z-20 w-[64px] min-w-[64px] border-b border-l border-line bg-amber-100 px-2 py-2 sm:w-[88px] sm:min-w-[88px] sm:px-3 text-right text-[11.5px] font-semibold text-fg dark:bg-[#3a3214]">Tổng<span className="hidden sm:inline"> (giờ)</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -299,7 +361,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
                             const e = find(p.id, d);
                             const weekend = dayKind(d) !== 'weekday';
                             return (
-                              <td key={d} className={clsx('border-b border-l border-line p-0 group-hover/r:bg-surface-2/60', weekend && 'bg-emerald-500/[0.04]')}>
+                              <td key={d} className={clsx('border-b border-l border-line p-0 group-hover/r:bg-surface-2/60', isToday(d) ? 'bg-accent-soft/60' : weekend && 'bg-emerald-500/[0.04]')}>
                                 <button
                                   type="button"
                                   disabled={!editable && !e}
