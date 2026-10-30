@@ -1,5 +1,6 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { SAMPLE_COMMANDS, type Command, type CommandInput, type HistoryRow } from './commands';
+import type { OtDay, OtEntry, OtInput, OtMonth, OtPerson, OtPersonInput } from './ot';
 import { cleanSecret, secondsLeft, totp, type AccountActivity, type AccountCode, type AccountInput, type OtpCode, type TeamAccount } from './otp';
 
 /**
@@ -72,6 +73,19 @@ export interface Backend {
   acctActivity(): Promise<AccountActivity[]>;
   /** approved members, for sharing an account with selected people */
   directory(): Promise<DirectoryEntry[]>;
+  // overtime — everyone reads the team's hours; members write their own, admins anyone's
+  /** the OT roster, people without an account included */
+  otPeople(): Promise<OtPerson[]>;
+  /** id null adds someone; members may only add / rename themselves */
+  otPersonSave(id: string | null, input: OtPersonInput): Promise<OtPerson>;
+  /** admin; refused while the person still has OT logged */
+  otPersonDelete(id: string): Promise<void>;
+  otList(from: string, to: string): Promise<OtMonth>;
+  /** id null adds a new day */
+  otSave(id: string | null, input: OtInput): Promise<OtEntry>;
+  otDelete(id: string): Promise<void>;
+  /** shared title of a day; empty clears it */
+  otSetDay(date: string, label: string): Promise<void>;
 }
 
 const env = import.meta.env as Record<string, string | undefined>;
@@ -99,6 +113,10 @@ function friendly(e: { message?: string; code?: string } | null | undefined): Er
   if (/only the owner can make an account private/i.test(m)) return new Error('Chỉ người tạo mới đặt tài khoản thành riêng tư được');
   if (/no otp stored/i.test(m)) return new Error('Tài khoản này chưa có OTP');
   if (/acct_|team_account/i.test(m) && /not find|does not exist/i.test(m)) return new Error('Database chưa có phần Tài khoản — admin cần chạy lại supabase/setup.sql');
+  if (/ot_entries_person_day_key/i.test(m)) return new Error('Người này đã có OT ngày đó — mở ô đó để sửa');
+  if (/ot_people_email_key/i.test(m)) return new Error('Email này đã gắn với một người khác trong danh sách OT');
+  if (/ot_entries_person_id_fkey/i.test(m)) return new Error('Người này còn giờ OT đã ghi — tắt “Đang làm” để ẩn thay vì xoá');
+  if (/ot_entries|ot_days|ot_people/i.test(m) && /not find|does not exist/i.test(m)) return new Error('Database chưa có phần OT — admin cần chạy lại supabase/setup.sql');
   if (/rate limit/i.test(m)) return new Error('Thao tác quá nhiều lần, thử lại sau ít phút');
   if (/is_private|could not find the .* column/i.test(m)) return new Error('Database chưa cập nhật — admin cần chạy lại supabase/setup.sql');
   if (/only the owner can make a command private/i.test(m)) return new Error('Chỉ người tạo mới đặt lệnh thành riêng tư được');
@@ -271,6 +289,51 @@ function supabaseBackend(url: string, anonKey: string): Backend {
       if (error) throw friendly(error);
       return (data ?? []) as DirectoryEntry[];
     },
+    async otPeople() {
+      const { data, error } = await sb.from('ot_people').select('id, name, full_name, email, active').order('name');
+      if (error) throw friendly(error);
+      return (data ?? []) as OtPerson[];
+    },
+    async otPersonSave(id, input) {
+      const q = id ? sb.from('ot_people').update(input).eq('id', id) : sb.from('ot_people').insert(input);
+      const { data, error } = await q.select('id, name, full_name, email, active').maybeSingle();
+      if (error) throw friendly(error);
+      if (!data) throw new Error('Bạn chỉ sửa được tên của chính mình');
+      return data as OtPerson;
+    },
+    async otPersonDelete(id) {
+      const { data, error } = await sb.from('ot_people').delete().eq('id', id).select('id');
+      if (error) throw friendly(error);
+      if (!data?.length) throw new Error('Chỉ admin xoá được người khỏi danh sách');
+    },
+    async otList(from, to) {
+      const [e, d] = await Promise.all([
+        sb.from('ot_entries').select('*').gte('work_date', from).lte('work_date', to).order('work_date'),
+        sb.from('ot_days').select('work_date, label').gte('work_date', from).lte('work_date', to),
+      ]);
+      if (e.error) throw friendly(e.error);
+      if (d.error) throw friendly(d.error);
+      // numeric comes back as a string
+      return { entries: (e.data ?? []).map((r) => ({ ...r, hours: Number(r.hours) })) as OtEntry[], days: (d.data ?? []) as OtDay[] };
+    },
+    async otSave(id, input) {
+      const q = id ? sb.from('ot_entries').update(input).eq('id', id) : sb.from('ot_entries').insert(input);
+      const { data, error } = await q.select().maybeSingle();
+      if (error) throw friendly(error);
+      if (!data) throw new Error('Bạn chỉ sửa được giờ OT của mình');
+      return { ...data, hours: Number(data.hours) } as OtEntry;
+    },
+    async otDelete(id) {
+      const { data, error } = await sb.from('ot_entries').delete().eq('id', id).select('id');
+      if (error) throw friendly(error);
+      if (!data?.length) throw new Error('Bạn chỉ xoá được giờ OT của mình');
+    },
+    async otSetDay(date, label) {
+      const { error } = label.trim()
+        ? await sb.from('ot_days').upsert({ work_date: date, label: label.trim() })
+        : await sb.from('ot_days').delete().eq('work_date', date);
+      if (error) throw friendly(error);
+    },
   };
 }
 
@@ -280,7 +343,7 @@ function demoBackend(): Backend {
   const KEY = 'wpt-demo-db';
   const SESSION = 'wpt-demo-session';
   type DemoAccount = Omit<TeamAccount, 'has_password' | 'has_otp' | 'can_manage'> & { password: string | null; otp_secret: string | null; otp_algorithm: AccountInput['otp_algorithm']; members: string[] };
-  type Store = { members: Member[]; commands: Command[]; history: HistoryRow[]; accounts?: DemoAccount[]; accountLog?: AccountActivity[] };
+  type Store = { members: Member[]; commands: Command[]; history: HistoryRow[]; accounts?: DemoAccount[]; accountLog?: AccountActivity[]; ot?: OtEntry[]; otDays?: OtDay[]; otPeople?: OtPerson[] };
   const now = () => new Date().toISOString();
   const id = () => crypto.randomUUID();
   const read = (): Store => {
@@ -509,5 +572,90 @@ function demoBackend(): Backend {
       const s = read();
       return member(s) ? s.members.filter((m) => m.status === 'approved') : [];
     },
+    async otPeople() {
+      const s = read();
+      if (!member(s)) throw deny();
+      seedOt(s);
+      return [...s.otPeople!].sort((a, b) => a.name.localeCompare(b.name, 'vi'));
+    },
+    async otPersonSave(pid, input) {
+      const s = read();
+      seedOt(s);
+      const list = s.otPeople!;
+      const p = pid ? list.find((x) => x.id === pid) : undefined;
+      const self = (e: string | null) => !!e && e === sessionEmail();
+      if (!member(s) || (!admin(s) && (!self(input.email) || (p && !self(p.email))))) throw new Error('Bạn chỉ sửa được tên của chính mình');
+      if (input.email && list.some((x) => x.id !== pid && x.email === input.email)) throw new Error('Email này đã gắn với một người khác trong danh sách OT');
+      const out = p ? Object.assign(p, input) : { ...input, id: id() };
+      if (!p) list.push(out);
+      write(s);
+      return out;
+    },
+    async otPersonDelete(pid) {
+      const s = read();
+      if (!admin(s)) throw new Error('Chỉ admin xoá được người khỏi danh sách');
+      seedOt(s);
+      if (s.ot!.some((e) => e.person_id === pid)) throw new Error('Người này còn giờ OT đã ghi — tắt “Đang làm” để ẩn thay vì xoá');
+      s.otPeople = s.otPeople!.filter((x) => x.id !== pid);
+      write(s);
+    },
+    async otList(from, to) {
+      const s = read();
+      if (!member(s)) throw deny();
+      seedOt(s);
+      const inRange = (d: string) => d >= from && d <= to;
+      return { entries: s.ot!.filter((e) => inRange(e.work_date)), days: (s.otDays ?? []).filter((d) => inRange(d.work_date)) };
+    },
+    async otSave(oid, input) {
+      const s = read();
+      seedOt(s);
+      const mine = (pid: string) => admin(s) || s.otPeople!.find((p) => p.id === pid)?.email === sessionEmail();
+      if (!member(s) || !mine(input.person_id)) throw new Error('Bạn chỉ sửa được giờ OT của mình');
+      const list = s.ot!;
+      if (list.some((e) => e.id !== oid && e.person_id === input.person_id && e.work_date === input.work_date)) throw new Error('Người này đã có OT ngày đó — mở ô đó để sửa');
+      let e = oid ? list.find((x) => x.id === oid) : undefined;
+      if (oid && (!e || !mine(e.person_id))) throw new Error('Bạn chỉ sửa được giờ OT của mình');
+      if (e) Object.assign(e, input, { updated_by: sessionEmail(), updated_at: now() });
+      else list.push((e = { ...input, id: id(), updated_by: sessionEmail(), updated_at: now() }));
+      write(s);
+      return e;
+    },
+    async otDelete(oid) {
+      const s = read();
+      seedOt(s);
+      const e = s.ot!.find((x) => x.id === oid);
+      const mine = e && (admin(s) || s.otPeople!.find((p) => p.id === e.person_id)?.email === sessionEmail());
+      if (!e || !member(s) || !mine) throw new Error('Bạn chỉ xoá được giờ OT của mình');
+      s.ot = s.ot!.filter((x) => x.id !== oid);
+      write(s);
+    },
+    async otSetDay(date, label) {
+      const s = read();
+      if (!member(s)) throw deny();
+      s.otDays = (s.otDays ?? []).filter((d) => d.work_date !== date);
+      if (label.trim()) s.otDays.push({ work_date: date, label: label.trim() });
+      write(s);
+    },
   };
+}
+
+/** a roster (one person without an account) and a few OT days this month, so the demo table is not empty */
+function seedOt(s: { members: Member[]; ot?: OtEntry[]; otPeople?: OtPerson[] }) {
+  if (s.otPeople && s.ot) return;
+  // OT rows from before the roster existed point at nobody
+  if (!s.otPeople) s.ot = undefined;
+  const p = (name: string, full_name: string, email: string | null): OtPerson => ({ id: crypto.randomUUID(), name, full_name, email, active: true });
+  const people = (s.otPeople ??= [p('Demo', 'Admin Demo', 'admin@demo'), p('Lan', 'Lan QC', 'qc@demo'), p('Thông', 'Trần Văn Thông', null)]);
+  const d = new Date();
+  const day = (n: number) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
+  const rows: [number, number, number, string][] = [
+    [0, 3, 4, 'Fix lỗi đối soát cuối ngày'],
+    [0, 7, 3, 'LIVE gencode'],
+    [1, 7, 2.5, 'Test gencode trên Live'],
+    [0, 10, 8, 'Dựng môi trường RL'],
+    [2, 10, 8, 'Dựng môi trường RL'],
+    [1, 11, 6, 'Rà soát security'],
+  ];
+  s.ot ??= rows.map(([i, n, hours, note]) => ({ id: crypto.randomUUID(), person_id: people[i].id, work_date: day(n), hours, note, updated_by: 'admin@demo', updated_at: new Date().toISOString() }));
+  localStorage.setItem('wpt-demo-db', JSON.stringify(s));
 }

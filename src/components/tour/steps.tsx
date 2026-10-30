@@ -34,7 +34,7 @@ export const LOG_STEPS: TourStep[] = [
     title: 'Các công cụ',
     body: (
       <>
-        <b>Log</b> để đọc và tìm log. <b>Giải mã Watane</b> để giải mã / mã hoá code bằng secret key. <b>Kho lệnh</b> lưu lệnh server / SQL dùng chung của team. <b>Tài khoản</b> gom link, mật khẩu và mã OTP của tài khoản dùng chung. Mỗi tab có hướng dẫn riêng.
+        <b>Log</b> để đọc và tìm log. <b>Giải mã Watane</b> để giải mã / mã hoá code bằng secret key. <b>Kho lệnh</b> lưu lệnh server / SQL dùng chung của team. <b>Tài khoản</b> gom link, mật khẩu và mã OTP của tài khoản dùng chung. <b>Giờ OT</b> ghi giờ làm thêm của team và xuất Excel cuối tháng. Mỗi tab có hướng dẫn riêng.
       </>
     ),
   },
@@ -415,5 +415,46 @@ export const ACCOUNT_STEPS: TourStep[] = [
     target: 'help',
     title: 'Xem lại hướng dẫn',
     body: <>Bấm nút này bất cứ khi nào cần xem lại.</>,
+  },
+];
+
+export const OT_STEPS: TourStep[] = [
+  {
+    title: 'Giờ OT',
+    body: <>Mỗi người tự ghi giờ làm thêm của mình theo ngày, kèm nội dung công việc. Cả team cùng xem được bảng tổng; admin ghi / sửa được giờ của mọi người, kể cả người chưa có tài khoản.</>,
+  },
+  {
+    target: 'ot-people',
+    title: 'Danh sách người',
+    placement: 'bottom',
+    body: (
+      <>
+        Ai có trên bảng OT và tên hiển thị do team đặt — không lấy theo tên Google. Người <b>chưa có tài khoản</b> vẫn thêm được, admin ghi OT hộ. Điền email để
+        sau này người đó tự ghi khi đăng nhập.
+      </>
+    ),
+  },
+  {
+    target: 'ot-add',
+    title: 'Ghi OT',
+    placement: 'left',
+    body: <>Chọn ngày, số giờ (gõ 11,5 cũng được) và làm gì hôm đó. Ngày nào cả team cùng làm một việc thì đặt <b>tiêu đề ngày</b> — nó hiện trên đầu cột ở file Excel.</>,
+  },
+  {
+    target: 'ot-table',
+    title: 'Bảng theo tháng',
+    placement: 'top',
+    show: () => has('ot-table'),
+    body: <>Mỗi dòng một người, mỗi cột một ngày. Bấm vào ô để ghi / sửa nhanh, bấm đầu cột để đặt tiêu đề ngày. Cột xanh là cuối tuần / ngày lễ.</>,
+  },
+  {
+    target: 'ot-export',
+    title: 'Xuất Excel',
+    placement: 'left',
+    body: (
+      <>
+        File có 3 sheet: <b>Tổng hợp</b> (giống bảng team đang dùng), <b>Chi tiết</b> (từng ngày, từng người, làm gì) và <b>Theo người</b> (giờ ngày thường / cuối tuần / ngày lễ để tính lương OT).
+      </>
+    ),
   },
 ];

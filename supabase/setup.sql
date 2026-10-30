@@ -560,3 +560,117 @@ grant execute on function public.acct_list(), public.acct_password(uuid), public
   public.acct_save(uuid, text, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
   public.acct_codes(uuid[]), public.acct_copied(uuid),
   public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.member_directory() to authenticated;
+
+-- ── overtime log ──────────────────────────────────────────────────────────────
+--   * ot_people is the team's OT roster, separate from sign-in accounts: anyone can be listed, even
+--     without an account, under the name the team uses (not the Google profile name).
+--   * A person whose email matches a signed-in member is theirs: they log and rename their own row.
+--     Admins manage the whole roster and log OT for anyone, including people without an account.
+--   * One OT row per person per day: hours + what they did. Every approved member sees the whole team.
+--   * ot_days holds a shared title per day ("LIVE gencode", "Dựng RL"…), shown above the column in the export.
+
+create table if not exists public.ot_people (
+  id         uuid primary key default gen_random_uuid(),
+  name       text not null check (char_length(btrim(name)) between 1 and 60),
+  full_name  text not null default '' check (char_length(full_name) <= 120),
+  email      text check (email is null or email = lower(btrim(email))),
+  active     boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists ot_people_email_key on public.ot_people (email) where email is not null;
+
+create table if not exists public.ot_entries (
+  id         uuid primary key default gen_random_uuid(),
+  person_id  uuid references public.ot_people (id) on delete restrict,
+  work_date  date not null,
+  hours      numeric(4, 2) not null check (hours > 0 and hours <= 24),
+  note       text not null default '' check (char_length(note) <= 2000),
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+
+-- earlier versions keyed OT by sign-in account: move those rows onto roster people
+do $$
+begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'ot_entries' and column_name = 'user_id') then
+    insert into public.ot_people (name, full_name, email)
+      select distinct on (m.email) coalesce(substring(btrim(m.full_name) from '(\S+)$'), split_part(m.email, '@', 1)), coalesce(m.full_name, ''), m.email
+        from public.ot_entries e join public.app_members m on m.user_id = e.user_id
+      on conflict do nothing;
+    alter table public.ot_entries add column if not exists person_id uuid references public.ot_people (id) on delete restrict;
+    update public.ot_entries e set person_id = p.id
+      from public.app_members m join public.ot_people p on p.email = m.email
+     where m.user_id = e.user_id and e.person_id is null;
+    alter table public.ot_entries drop column user_id;
+  end if;
+end $$;
+alter table public.ot_entries alter column person_id set not null;
+alter table public.ot_entries drop constraint if exists ot_entries_person_day_key;
+alter table public.ot_entries add constraint ot_entries_person_day_key unique (person_id, work_date);
+create index if not exists ot_entries_date_idx on public.ot_entries (work_date);
+
+create table if not exists public.ot_days (
+  work_date  date primary key,
+  label      text not null check (char_length(label) between 1 and 80),
+  updated_by text,
+  updated_at timestamptz not null default now()
+);
+
+create or replace function public.ot_touch() returns trigger
+  language plpgsql
+  as $$
+begin
+  new.updated_by := public.current_email();
+  new.updated_at := now();
+  return new;
+end $$;
+
+drop trigger if exists ot_entries_touch on public.ot_entries;
+create trigger ot_entries_touch before insert or update on public.ot_entries for each row execute function public.ot_touch();
+drop trigger if exists ot_days_touch on public.ot_days;
+create trigger ot_days_touch before insert or update on public.ot_days for each row execute function public.ot_touch();
+
+-- the roster row belongs to the signed-in member with the same email
+create or replace function public.ot_is_mine(pid uuid) returns boolean
+  language sql stable security definer set search_path = public
+  as $$ select exists (select 1 from public.ot_people where id = pid and email = public.current_email()) $$;
+
+alter table public.ot_people enable row level security;
+alter table public.ot_entries enable row level security;
+alter table public.ot_days enable row level security;
+
+drop policy if exists ot_people_read on public.ot_people;
+drop policy if exists ot_people_insert on public.ot_people;
+drop policy if exists ot_people_update on public.ot_people;
+drop policy if exists ot_people_delete on public.ot_people;
+create policy ot_people_read   on public.ot_people for select to authenticated using (public.is_member());
+-- members may add / rename only themselves (and cannot point their row at another email)
+create policy ot_people_insert on public.ot_people for insert to authenticated
+  with check (public.is_app_admin() or (public.is_member() and email = public.current_email()));
+create policy ot_people_update on public.ot_people for update to authenticated
+  using (public.is_app_admin() or (public.is_member() and email = public.current_email()))
+  with check (public.is_app_admin() or (public.is_member() and email = public.current_email()));
+create policy ot_people_delete on public.ot_people for delete to authenticated using (public.is_app_admin());
+
+drop policy if exists ot_read on public.ot_entries;
+drop policy if exists ot_insert on public.ot_entries;
+drop policy if exists ot_update on public.ot_entries;
+drop policy if exists ot_delete on public.ot_entries;
+create policy ot_read   on public.ot_entries for select to authenticated using (public.is_member());
+create policy ot_insert on public.ot_entries for insert to authenticated
+  with check (public.is_member() and (public.is_app_admin() or public.ot_is_mine(person_id)));
+create policy ot_update on public.ot_entries for update to authenticated
+  using (public.is_member() and (public.is_app_admin() or public.ot_is_mine(person_id)))
+  with check (public.is_member() and (public.is_app_admin() or public.ot_is_mine(person_id)));
+create policy ot_delete on public.ot_entries for delete to authenticated
+  using (public.is_member() and (public.is_app_admin() or public.ot_is_mine(person_id)));
+
+drop policy if exists ot_days_read on public.ot_days;
+drop policy if exists ot_days_write on public.ot_days;
+create policy ot_days_read  on public.ot_days for select to authenticated using (public.is_member());
+create policy ot_days_write on public.ot_days for all to authenticated using (public.is_member()) with check (public.is_member());
+
+revoke all on public.ot_people, public.ot_entries, public.ot_days from anon;
+revoke execute on function public.ot_is_mine(uuid) from anon, public;
+grant execute on function public.ot_is_mine(uuid) to authenticated;
+grant select, insert, update, delete on public.ot_people, public.ot_entries, public.ot_days to authenticated;
