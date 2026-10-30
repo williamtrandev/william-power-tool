@@ -22,6 +22,7 @@ import {
   Trash2,
   TriangleAlert,
   UserCheck,
+  Users,
   X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
@@ -326,6 +327,14 @@ function OtpCell({ acc, live, failed, now, onCopy }: { acc: TeamAccount; live?: 
   );
 }
 
+/** who can use an account: one colour each, so the three kinds tell apart at a glance */
+const shareOf = (a: TeamAccount) =>
+  a.is_private
+    ? { icon: <Lock size={11} />, label: 'Chỉ mình tôi', hint: 'Chỉ bạn thấy — kể cả admin cũng không', cls: 'bg-violet-500/12 text-violet-700 dark:text-violet-300' }
+    : !a.everyone
+      ? { icon: <UserCheck size={11} />, label: 'Người được chọn', hint: 'Chỉ những thành viên được chọn', cls: 'bg-amber-500/14 text-amber-700 dark:text-amber-300' }
+      : { icon: <Users size={11} />, label: 'Cả team', hint: 'Mọi thành viên đã duyệt', cls: 'bg-emerald-500/12 text-emerald-700 dark:text-emerald-300' };
+
 function AccountRow({
   acc,
   envLink,
@@ -352,7 +361,7 @@ function AccountRow({
   onDelete: () => void;
 }) {
   const [confirm, setConfirm] = useState(false);
-  const share = acc.is_private ? { icon: <Lock size={12} />, label: 'Chỉ mình tôi' } : !acc.everyone ? { icon: <UserCheck size={12} />, label: 'Chỉ người được chọn' } : null;
+  const share = shareOf(acc);
   const ownLink = acc.url && acc.url !== envLink;
   return (
     <div data-acc className="group/row flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 hover:bg-surface-3/30 md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(12.5rem,auto)_5.5rem]">
@@ -362,14 +371,12 @@ function AccountRow({
             {acc.username}
           </span>
           <CopyBtn label="Copy tên đăng nhập" text={acc.username} onCopied={() => onToast('Đã copy tên đăng nhập')} />
-          {share && (
-            <span className="ml-0.5 flex shrink-0 items-center gap-1 rounded bg-surface-3 px-1.5 py-0.5 text-[10.5px] text-muted" title={share.label}>
-              {share.icon}
-              <span className="hidden lg:inline">{share.label}</span>
-            </span>
-          )}
         </div>
         <div className="flex min-w-0 items-center gap-2 text-[12px] text-muted" title={[acc.note, acc.created_by && `Thêm bởi ${acc.created_by}`].filter(Boolean).join('\n')}>
+          <span className={clsx('flex shrink-0 items-center gap-1 rounded-full px-1.5 py-px text-[10.5px] font-medium', share.cls)} title={share.hint}>
+            {share.icon}
+            {share.label}
+          </span>
           {acc.note && <span className="truncate">{acc.note.split('\n')[0]}</span>}
           {ownLink && (
             <a href={acc.url} target="_blank" rel="noreferrer noopener" className="flex min-w-0 shrink items-center gap-1 text-accent hover:underline">
@@ -377,7 +384,6 @@ function AccountRow({
               <ExternalLink size={11} className="shrink-0" />
             </a>
           )}
-          {!acc.note && !ownLink && <span className="text-faint">—</span>}
         </div>
       </div>
       <PasswordCell acc={acc} backend={backend} onToast={onToast} />

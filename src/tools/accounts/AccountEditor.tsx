@@ -671,9 +671,9 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
                 value={access}
                 onChange={setAccess}
                 items={[
-                  { id: 'team', label: 'Cả team', icon: <Users size={15} /> },
-                  { id: 'some', label: 'Người được chọn', icon: <UserCheck size={15} /> },
-                  ...(canPrivate ? [{ id: 'private' as const, label: 'Chỉ mình tôi', icon: <Lock size={15} /> }] : []),
+                  { id: 'team', label: 'Cả team', icon: <Users size={15} className="text-emerald-600 dark:text-emerald-400" /> },
+                  { id: 'some', label: 'Người được chọn', icon: <UserCheck size={15} className="text-amber-600 dark:text-amber-400" /> },
+                  ...(canPrivate ? [{ id: 'private' as const, label: 'Chỉ mình tôi', icon: <Lock size={15} className="text-violet-600 dark:text-violet-400" /> }] : []),
                 ]}
               />
               <span className="text-[12px] text-muted">
