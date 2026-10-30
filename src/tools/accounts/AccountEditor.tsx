@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Camera, Check, ChevronDown, UserCheck, ClipboardPaste, Eye, EyeOff, ImageUp, Keyboard, KeySquare, MonitorUp, Loader2, Lock, Plus, RefreshCw, ScanLine, Trash2, TriangleAlert, Users } from 'lucide-react';
+import { Camera, Check, ChevronDown, CopyPlus, UserCheck, ClipboardPaste, Eye, EyeOff, ImageUp, Keyboard, KeySquare, MonitorUp, Loader2, Lock, Plus, RefreshCw, ScanLine, Trash2, TriangleAlert, Users } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Avatar, Button, Segmented } from '../../components/ui';
 import type { Backend, DirectoryEntry } from '../../lib/backend';
@@ -206,6 +206,10 @@ interface Props {
   /** open with the OTP part already on: read from a pasted / dropped QR, or ready to scan */
   startOtp?: boolean;
   initialDrafts?: OtpDraft[];
+  /** accounts this user can see, offered as a starting point ("Nhân bản từ") */
+  accounts?: TeamAccount[];
+  /** open as a copy of this account */
+  cloneFrom?: TeamAccount;
   onSaved: (msg: string) => void;
   onClose: () => void;
 }
@@ -213,7 +217,7 @@ interface Props {
 /** what happens to a stored secret value when saving an existing account */
 type Keep = 'keep' | 'set' | 'remove';
 
-export function AccountEditor({ backend, initial, members, meId, admin, systems, defaultSystem, defaultEnv, startOtp, initialDrafts, onSaved, onClose }: Props) {
+export function AccountEditor({ backend, initial, members, meId, admin, systems, defaultSystem, defaultEnv, startOtp, initialDrafts, accounts = [], cloneFrom, onSaved, onClose }: Props) {
   const editing = !!initial;
   const [system, setSystem] = useState(initial?.system ?? defaultSystem ?? '');
   const [env, setEnv] = useState(initial?.env ?? defaultEnv ?? '');
@@ -268,6 +272,41 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
     if (initialDrafts) takeDrafts(initialDrafts);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, with the QR the editor was opened from
   }, []);
+
+  // clone: copy everything but the OTP (a QR belongs to one login) — the password is read like a reveal, so it is logged
+  const [source, setSource] = useState<TeamAccount | null>(null);
+  const [pwNote, setPwNote] = useState<string | null>(null);
+  const fillFrom = (a: TeamAccount) => {
+    setSource(a);
+    setSystem(a.system);
+    setEnv(a.env);
+    setUsername(a.username);
+    setUrl(a.url);
+    setNote(a.note);
+    setPassword('');
+    setPwMode('set');
+    setPwNote(null);
+    setAccess(a.is_private ? 'private' : a.everyone ? 'team' : 'some');
+    setChosen(new Set());
+    if (!a.everyone && !a.is_private) backend.acctMembers(a.id).then((ids) => setChosen(new Set(ids)), () => {});
+    if (a.has_password)
+      backend.acctPassword(a.id).then(
+        (pw) => {
+          setPassword(pw);
+          setPwNote('Đã chép mật khẩu từ tài khoản gốc');
+        },
+        () => setPwNote('Không chép được mật khẩu — nhập lại'),
+      );
+  };
+  useEffect(() => {
+    if (cloneFrom) fillFrom(cloneFrom);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, with the account it was opened from
+  }, []);
+  const cloneOptions = [...accounts].sort(
+    (a, b) => a.system.localeCompare(b.system, 'vi') || a.env.localeCompare(b.env, 'vi') || a.username.localeCompare(b.username, 'vi'),
+  );
+  const optLabel = (a: TeamAccount) => [a.system, a.env, a.username].filter(Boolean).join(' · ');
+
   const multi = otpMode === 'set' && !!drafts && drafts.length > 1;
   const single = otpMode === 'set' && drafts?.length === 1 ? drafts[0] : null;
 
@@ -339,7 +378,13 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
   return (
     <Modal
       wide
-      title={editing ? `Sửa tài khoản · ${[initial.system, initial.username].filter(Boolean).join(' · ')}` : 'Thêm tài khoản dùng chung'}
+      title={
+        editing
+          ? `Sửa tài khoản · ${[initial.system, initial.username].filter(Boolean).join(' · ')}`
+          : source
+            ? `Nhân bản · ${optLabel(source)}`
+            : 'Thêm tài khoản dùng chung'
+      }
       onClose={onClose}
       footer={
         <>
@@ -359,6 +404,30 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
       }
     >
       <div className="space-y-4">
+        {!editing && !multi && cloneOptions.length > 0 && (
+          <label className="flex flex-wrap items-center gap-2 rounded-xl border border-dashed border-line-strong px-4 py-2.5 text-[12.5px] text-muted">
+            <CopyPlus size={15} className="shrink-0" />
+            <span className="font-medium text-fg-2">Nhân bản từ</span>
+            <select
+              value={source?.id ?? ''}
+              onChange={(e) => {
+                const a = cloneOptions.find((x) => x.id === e.target.value);
+                if (a) fillFrom(a);
+              }}
+              className="focus-ring h-8 min-w-0 flex-1 basis-56 rounded-lg border border-line bg-surface px-2 text-[13px] text-fg"
+            >
+              <option value="" disabled>
+                Chọn tài khoản có sẵn để chép link, tên, mật khẩu…
+              </option>
+              {cloneOptions.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {optLabel(a)}
+                </option>
+              ))}
+            </select>
+            {source?.has_otp && <span className="basis-full text-[11.5px] text-faint">Mã OTP không được chép — mỗi QR gắn với một tài khoản, quét QR mới nếu cần.</span>}
+          </label>
+        )}
         {!multi &&
           section(
             'Thông tin đăng nhập',
@@ -451,6 +520,7 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
                     </button>
                   </div>
                 )}
+                {pwNote && <p className="mt-1 text-[11.5px] text-muted">{pwNote}</p>}
               </div>
               <div className="sm:col-span-2">
                 <Label hint="không bắt buộc">Ghi chú</Label>

@@ -12,6 +12,7 @@ import {
   Loader2,
   Lock,
   MonitorUp,
+  CopyPlus,
   Pencil,
   Plus,
   QrCode,
@@ -335,6 +336,7 @@ function AccountRow({
   onToast,
   onCopyCode,
   onEdit,
+  onClone,
   onDelete,
 }: {
   acc: TeamAccount;
@@ -346,13 +348,14 @@ function AccountRow({
   onToast: (m: string) => void;
   onCopyCode: (code: string) => void;
   onEdit: () => void;
+  onClone: () => void;
   onDelete: () => void;
 }) {
   const [confirm, setConfirm] = useState(false);
   const share = acc.is_private ? { icon: <Lock size={12} />, label: 'Chỉ mình tôi' } : !acc.everyone ? { icon: <UserCheck size={12} />, label: 'Chỉ người được chọn' } : null;
   const ownLink = acc.url && acc.url !== envLink;
   return (
-    <div data-acc className="group/row flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 hover:bg-surface-3/30 md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(12.5rem,auto)_3.75rem]">
+    <div data-acc className="group/row flex flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2.5 hover:bg-surface-3/30 md:grid md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)_minmax(12.5rem,auto)_5.5rem]">
       <div className="min-w-0 basis-full md:basis-auto">
         <div className="flex min-w-0 items-center gap-0.5">
           <span className="truncate font-mono text-[13.5px] font-semibold text-fg" title={acc.username}>
@@ -380,6 +383,11 @@ function AccountRow({
       <PasswordCell acc={acc} backend={backend} onToast={onToast} />
       <OtpCell acc={acc} live={live} failed={failed} now={now} onCopy={onCopyCode} />
       <div className="ml-auto flex items-center justify-end opacity-60 transition-opacity group-hover/row:opacity-100 md:ml-0">
+        {!confirm && (
+          <IconBtn label="Nhân bản" onClick={onClone}>
+            <CopyPlus size={14} />
+          </IconBtn>
+        )}
         {acc.can_manage &&
           (confirm ? (
             <Button variant="danger" size="sm" onClick={onDelete} onBlur={() => setConfirm(false)} autoFocus>
@@ -503,7 +511,7 @@ interface Props {
   onToast: (m: string) => void;
 }
 
-type NewIn = { system: string; env: string; startOtp?: boolean; drafts?: OtpDraft[] };
+type NewIn = { system: string; env: string; startOtp?: boolean; drafts?: OtpDraft[]; from?: TeamAccount };
 type Editing = { acc: TeamAccount } | NewIn;
 
 /** Shared accounts by system and environment: find one fast, codes shown live, add straight into the open system. */
@@ -839,6 +847,7 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
                           onToast={onToast}
                           onCopyCode={(c) => copyCode(a, c)}
                           onEdit={() => setEditing({ acc: a })}
+                          onClone={() => setEditing({ system: a.system, env: a.env, from: a })}
                           onDelete={() => remove(a)}
                         />
                       ))}
@@ -890,6 +899,8 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           defaultEnv={'acc' in editing ? undefined : editing.env}
           startOtp={'acc' in editing ? undefined : editing.startOtp}
           initialDrafts={'acc' in editing ? undefined : editing.drafts}
+          cloneFrom={'acc' in editing ? undefined : editing.from}
+          accounts={list ?? []}
           onSaved={(m) => {
             onToast(m);
             load();
