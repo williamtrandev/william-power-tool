@@ -1,7 +1,7 @@
 {
   "name": "William Tool",
   "short_name": "William Tool",
-  "description": "Đọc log, giải mã Watane, kho lệnh, tài khoản dùng chung và giờ OT của team.",
+  "description": "Đọc log, đọc / tạo mã QR, giải mã Watane, kho lệnh, tài khoản dùng chung và giờ OT của team.",
   "lang": "vi",
   "id": "./",
   "start_url": "./",
@@ -16,7 +16,7 @@
   ],
   "shortcuts": [
     { "name": "Log", "url": "./#log", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Giải mã Watane", "url": "./#watane", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Tiện ích", "url": "./#utils", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Kho lệnh", "url": "./#commands", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Tài khoản", "url": "./#accounts", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Giờ OT", "url": "./#ot", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }

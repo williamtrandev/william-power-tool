@@ -2,9 +2,9 @@ import clsx from 'clsx';
 import { AlertCircle, Download, FileSpreadsheet, Loader2, RefreshCw } from 'lucide-react';
 import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { type CodecResult } from './lib/aesCodec';
-import { fmtBytes, nf } from '../../lib/format';
+import { fmtBytes, nf } from '../../../lib/format';
 import { ACCEPT, B64ISH, exportTable, readSheet, readTable, type Table } from './lib/sheetFile';
-import { Button } from '../../components/ui';
+import { Button } from '../../../components/ui';
 
 const DEFAULT_COL = 'EncryptedCode';
 const PREVIEW = 300;

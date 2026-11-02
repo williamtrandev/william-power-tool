@@ -81,7 +81,7 @@ function Card({ children, className, d = 0 }: { children: ReactNode; className?:
 
 const FEATURES = [
   { icon: ScrollText, title: 'Đọc log siêu nhanh', text: 'File hàng trăm MB, lọc lỗi, ghép request theo trace id giữa các hệ thống.' },
-  { icon: KeyRound, title: 'Giải mã Watane', text: 'AES ngay trên trình duyệt, cả file Excel / CSV — key không rời máy bạn.' },
+  { icon: KeyRound, title: 'Mã QR và Watane', text: 'Đọc, tạo VietQR, giải mã Watane cả file Excel / CSV — dữ liệu không rời máy bạn.' },
   { icon: SquareTerminal, title: 'Kho lệnh dùng chung', text: 'Lệnh server và SQL của team, điền biến rồi copy là chạy.' },
 ];
 

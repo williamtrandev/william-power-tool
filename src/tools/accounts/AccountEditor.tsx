@@ -6,7 +6,7 @@ import type { Backend, DirectoryEntry } from '../../lib/backend';
 import { cleanSecret, parseOtpText, readQrFile, ENVS, envKey, isProd, secondsLeft, systemKey, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
 import { Modal } from '../../components/Modal';
 import { field, Label } from '../../components/form';
-import { QrScanner, ScreenQrScanner } from './QrScanner';
+import { QrScanner, ScreenQrScanner } from '../../components/QrScanner';
 
 
 /** current code for a secret being added, so the admin can compare it with their phone */

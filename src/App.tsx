@@ -2,7 +2,7 @@ import { WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppHeader, MobileNav, TOOLS, type ToolId } from './components/AppHeader';
 import { LoadingScreen, LoginScreen, UnconfiguredScreen, WaitingScreen } from './components/auth/AuthScreens';
-import { ACCOUNT_STEPS, COMMAND_STEPS, LOG_STEPS, OT_STEPS, WATANE_STEPS } from './components/tour/steps';
+import { ACCOUNT_STEPS, COMMAND_STEPS, LOG_STEPS, OT_STEPS, UTILS_STEPS } from './components/tour/steps';
 import { Tour } from './components/tour/Tour';
 import { createBackend } from './lib/backend';
 import { useAuth } from './lib/useAuth';
@@ -12,12 +12,14 @@ import { LogTool } from './tools/log/LogTool';
 import { MembersTool } from './tools/members/MembersTool';
 import { AccountsTool } from './tools/accounts/AccountsTool';
 import { OtTool } from './tools/ot/OtTool';
-import { WataneTool } from './tools/watane/WataneTool';
+import { UtilsTool } from './tools/utils/UtilsTool';
 
 const backend = createBackend();
 
+// #utils/qr-make picks a section inside the tool; #watane is the tab's old name
 const fromHash = (): ToolId => {
-  const h = location.hash.slice(1);
+  const h = location.hash.slice(1).split('/')[0];
+  if (h === 'watane') return 'utils';
   return TOOLS.some((t) => t.id === h) ? (h as ToolId) : 'log';
 };
 
@@ -110,13 +112,13 @@ export default function App() {
       )}
       {/* tools stay mounted so switching tabs keeps loaded logs / pasted codes */}
       <LogTool active={current === 'log'} onToast={showToast} />
-      <WataneTool active={current === 'watane'} onToast={showToast} />
+      <UtilsTool active={current === 'utils'} onToast={showToast} />
       <CommandsTool active={current === 'commands'} backend={backend!} me={auth.member} onToast={showToast} />
       <AccountsTool active={current === 'accounts'} backend={backend!} me={auth.member} onToast={showToast} />
       <OtTool active={current === 'ot'} backend={backend!} me={auth.member} onToast={showToast} />
       {admin && <MembersTool active={current === 'members'} backend={backend!} me={auth.member} onToast={showToast} onPending={setPending} />}
       <MobileNav tool={current} admin={admin} pending={pending} onTool={pickTool} />
-      {tour && <Tour key={tour} steps={{ log: LOG_STEPS, watane: WATANE_STEPS, commands: COMMAND_STEPS, accounts: ACCOUNT_STEPS, ot: OT_STEPS, members: [] }[tour]} onClose={closeTour} />}
+      {tour && <Tour key={tour} steps={{ log: LOG_STEPS, utils: UTILS_STEPS, commands: COMMAND_STEPS, accounts: ACCOUNT_STEPS, ot: OT_STEPS, members: [] }[tour]} onClose={closeTour} />}
       <div
         role="status"
         aria-live="polite"

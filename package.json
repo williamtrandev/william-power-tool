@@ -19,6 +19,7 @@
     "jsqr": "^1.4.0",
     "lucide-react": "^1.53.0",
     "papaparse": "^5.7.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
@@ -28,6 +29,7 @@
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^24.13.3",
     "@types/papaparse": "^5.5.2",
+    "@types/qrcode": "^1.5.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",

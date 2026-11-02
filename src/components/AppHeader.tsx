@@ -1,14 +1,14 @@
 import clsx from 'clsx';
-import { CircleHelp, Clock, KeyRound, KeySquare, LogOut, Moon, ScrollText, ShieldCheck, SquareTerminal, Sun, Users } from 'lucide-react';
+import { CircleHelp, Clock, KeySquare, LogOut, Moon, ScrollText, ShieldCheck, SquareTerminal, Sun, Users, Wrench } from 'lucide-react';
 import type { User } from '../lib/backend';
 import { Avatar, Button } from './ui';
 
-export type ToolId = 'log' | 'watane' | 'commands' | 'accounts' | 'ot' | 'members';
+export type ToolId = 'log' | 'utils' | 'commands' | 'accounts' | 'ot' | 'members';
 
 /** short: the label under the icon in the phone tab bar */
 export const TOOLS: { id: ToolId; label: string; short: string; icon: typeof ScrollText; adminOnly?: boolean }[] = [
   { id: 'log', label: 'Log', short: 'Log', icon: ScrollText },
-  { id: 'watane', label: 'Giải mã Watane', short: 'Watane', icon: KeyRound },
+  { id: 'utils', label: 'Tiện ích', short: 'Tiện ích', icon: Wrench },
   { id: 'commands', label: 'Kho lệnh', short: 'Lệnh', icon: SquareTerminal },
   { id: 'accounts', label: 'Tài khoản', short: 'Tài khoản', icon: KeySquare },
   { id: 'ot', label: 'Giờ OT', short: 'OT', icon: Clock },

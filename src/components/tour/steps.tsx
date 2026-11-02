@@ -34,7 +34,7 @@ export const LOG_STEPS: TourStep[] = [
     title: 'Các công cụ',
     body: (
       <>
-        <b>Log</b> để đọc và tìm log. <b>Giải mã Watane</b> để giải mã / mã hoá code bằng secret key. <b>Kho lệnh</b> lưu lệnh server / SQL dùng chung của team. <b>Tài khoản</b> gom link, mật khẩu và mã OTP của tài khoản dùng chung. <b>Giờ OT</b> ghi giờ làm thêm của team và xuất Excel cuối tháng. Mỗi tab có hướng dẫn riêng.
+        <b>Log</b> để đọc và tìm log. <b>Tiện ích</b> để đọc / tạo mã QR và giải mã / mã hoá code Watane. <b>Kho lệnh</b> lưu lệnh server / SQL dùng chung của team. <b>Tài khoản</b> gom link, mật khẩu và mã OTP của tài khoản dùng chung. <b>Giờ OT</b> ghi giờ làm thêm của team và xuất Excel cuối tháng. Mỗi tab có hướng dẫn riêng.
       </>
     ),
   },
@@ -223,10 +223,42 @@ export const LOG_STEPS: TourStep[] = [
   },
 ];
 
-export const WATANE_STEPS: TourStep[] = [
+// steps of a section that is not on screen are skipped, so one list covers every section
+export const UTILS_STEPS: TourStep[] = [
   {
-    title: 'Giải mã Watane',
-    body: <>Giải mã / mã hoá code Watane bằng AES-ECB với secret key — giống script Python, chạy ngay trên trình duyệt, không gửi key hay dữ liệu đi đâu.</>,
+    title: 'Tiện ích',
+    body: <>Các công cụ nhỏ dùng hằng ngày, gom theo nhóm: mã QR và code Watane. Tất cả chạy ngay trên trình duyệt, không gửi dữ liệu đi đâu.</>,
+  },
+  {
+    target: 'u-nav',
+    title: 'Chọn tiện ích',
+    body: <>Nhóm <b>Mã QR</b>: đọc và tạo mã QR. Nhóm <b>Watane</b>: giải mã / mã hoá code bằng secret key.</>,
+  },
+  {
+    target: 'qr-sources',
+    title: 'Đọc mã QR',
+    body: (
+      <>
+        Chọn ảnh, kéo thả, hoặc chụp màn hình rồi nhấn <kbd>Ctrl</kbd> + <kbd>V</kbd>. Cũng quét được QR đang hiện ở tab / cửa sổ khác, quét bằng camera, hoặc dán
+        thẳng chuỗi QR lấy từ log.
+      </>
+    ),
+  },
+  {
+    target: 'qr-result',
+    title: 'Kết quả',
+    body: <>Mã VietQR được tách ngân hàng, số tài khoản, số tiền, nội dung, và kiểm tra CRC — CRC sai thì app ngân hàng sẽ từ chối mã.</>,
+  },
+  {
+    target: 'qr-form',
+    title: 'Tạo mã QR',
+    body: <>Tạo VietQR chuyển khoản để test: chọn ngân hàng, nhập số tài khoản, số tiền và nội dung. Ngân hàng và tài khoản được nhớ cho lần sau.</>,
+  },
+  {
+    target: 'qr-output',
+    title: 'Lấy mã',
+    placement: 'left',
+    body: <>Tải ảnh PNG, copy ảnh để dán vào chat, hoặc copy chuỗi QR để gọi API.</>,
   },
   {
     target: 'w-keys',

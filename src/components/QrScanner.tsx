@@ -1,8 +1,8 @@
 import clsx from 'clsx';
 import { CameraOff, Loader2, MonitorUp } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Button } from '../../components/ui';
-import { readQr } from '../../lib/otp';
+import { Button } from './ui';
+import { readQr } from '../lib/otp';
 
 /** Live camera preview that calls onText as soon as a QR code is readable. */
 export function QrScanner({ onText }: { onText: (text: string) => void }) {

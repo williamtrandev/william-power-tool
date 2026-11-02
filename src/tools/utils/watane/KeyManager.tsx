@@ -3,7 +3,7 @@ import { Check, Eye, EyeOff, KeyRound, Pencil, Plus, Trash2 } from 'lucide-react
 import { useEffect, useState } from 'react';
 import { keyInfo } from './lib/aesCodec';
 import type { SavedKey } from './lib/useKeyStore';
-import { Button } from '../../components/ui';
+import { Button } from '../../../components/ui';
 
 const mask = (k: string) => (k.length <= 6 ? '•'.repeat(k.length) : k.slice(0, 3) + '•'.repeat(Math.min(12, k.length - 6)) + k.slice(-3));
 

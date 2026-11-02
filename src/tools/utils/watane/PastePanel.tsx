@@ -2,8 +2,8 @@ import clsx from 'clsx';
 import { AlertCircle, Check, ClipboardCopy, Copy } from 'lucide-react';
 import { useDeferredValue, useMemo, useState } from 'react';
 import { type CodecResult } from './lib/aesCodec';
-import { nf } from '../../lib/format';
-import { Button } from '../../components/ui';
+import { nf } from '../../../lib/format';
+import { Button } from '../../../components/ui';
 
 interface Props {
   run: (s: string) => CodecResult;
