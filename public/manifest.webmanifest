@@ -1,0 +1,24 @@
+{
+  "name": "William Tool",
+  "short_name": "William Tool",
+  "description": "Đọc log, giải mã Watane, kho lệnh, tài khoản dùng chung và giờ OT của team.",
+  "lang": "vi",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f7f8",
+  "theme_color": "#2563eb",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Log", "url": "./#log", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Giải mã Watane", "url": "./#watane", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Kho lệnh", "url": "./#commands", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Tài khoản", "url": "./#accounts", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Giờ OT", "url": "./#ot", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+  ]
+}
