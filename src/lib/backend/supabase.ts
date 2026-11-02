@@ -204,6 +204,13 @@ export function supabaseBackend(url: string, anonKey: string): Backend {
       if (!data) throw new Error('Không lưu được giờ OT — tải lại trang rồi thử lại');
       return { ...data, hours: Number(data.hours) } as OtEntry;
     },
+    async otSaveMany(rows, overwrite) {
+      if (!rows.length) return 0;
+      // one request; the audit trigger still logs each row (insert, or update when overwriting)
+      const { data, error } = await sb.from('ot_entries').upsert(rows, { onConflict: 'person_id,work_date', ignoreDuplicates: !overwrite }).select('id');
+      if (error) throw friendly(error);
+      return data?.length ?? 0;
+    },
     async otDelete(id) {
       const { data, error } = await sb.from('ot_entries').delete().eq('id', id).select('id');
       if (error) throw friendly(error);

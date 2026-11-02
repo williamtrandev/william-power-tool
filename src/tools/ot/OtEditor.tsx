@@ -1,15 +1,14 @@
 import clsx from 'clsx';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Dropdown } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
-import { dayMonth, fmtHours, fullName, holidayName, parseHours, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
+import { dayMonth, fmtHours, fullName, holidayName, parseHours, QUICK_HOURS, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
 import { relTime } from '../../lib/format';
 import { Modal } from '../../components/Modal';
 import { field, Label } from '../../components/form';
 
 
-const QUICK = [1, 2, 3, 4, 6, 8];
 
 /** what the editor opens on: an existing entry, or a person + day to log */
 export type Editing = OtEntry | { person_id: string; work_date: string };
@@ -176,7 +175,7 @@ export function OtEditor({
             />
             <span className="text-[13px] text-muted">giờ</span>
             <div className="ml-auto flex flex-wrap gap-1">
-              {QUICK.map((q) => (
+              {QUICK_HOURS.map((q) => (
                 <Button key={q} size="sm" active={h === q} onClick={() => setHours(String(q))}>
                   {q}h
                 </Button>
@@ -245,7 +244,24 @@ export function OtEditor({
 }
 
 /** Edit only the shared title of a day (from the column header). */
-export function DayLabelEditor({ backend, date, label, onClose, onSaved, onToast }: { backend: Backend; date: string; label: string; onClose: () => void; onSaved: () => void; onToast: (m: string) => void }) {
+export function DayLabelEditor({
+  backend,
+  date,
+  label,
+  onClose,
+  onSaved,
+  onBulk,
+  onToast,
+}: {
+  backend: Backend;
+  date: string;
+  label: string;
+  onClose: () => void;
+  onSaved: () => void;
+  /** open the bulk editor on this day */
+  onBulk: () => void;
+  onToast: (m: string) => void;
+}) {
   const [v, setV] = useState(label);
   const [busy, setBusy] = useState(false);
   const save = async () => {
@@ -265,6 +281,10 @@ export function DayLabelEditor({ backend, date, label, onClose, onSaved, onToast
       onClose={onClose}
       footer={
         <>
+          <Button variant="ghost" className="mr-auto" onClick={onBulk} title="Ghi OT ngày này cho nhiều người cùng lúc">
+            <Users size={15} />
+            Ghi cho nhiều người
+          </Button>
           <Button onClick={onClose}>Huỷ</Button>
           <Button variant="primary" disabled={busy || v.trim() === label} onClick={save}>
             {busy && <Loader2 size={15} className="animate-spin" />}

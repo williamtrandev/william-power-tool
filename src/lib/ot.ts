@@ -69,6 +69,12 @@ export const parseYmd = (s: string) => {
   return new Date(y, m - 1, d);
 };
 export const today = () => ymd(new Date());
+/** "2026-11-02" + -1 → "2026-11-01" */
+export const shiftDay = (s: string, by: number) => {
+  const d = parseYmd(s);
+  d.setDate(d.getDate() + by);
+  return ymd(d);
+};
 
 /** "2026-10" */
 export type MonthKey = string;
@@ -107,6 +113,9 @@ export const holidayName = (s: string) => HOLIDAYS[s.slice(5)];
 export const DAY_KIND_LABEL: Record<DayKind, string> = { weekday: 'Ngày thường', weekend: 'Cuối tuần', holiday: 'Ngày lễ' };
 
 // ── numbers ──
+
+/** one-tap hour buttons in the OT editors */
+export const QUICK_HOURS = [1, 2, 3, 4, 6, 8];
 
 /** 11.5 → "11,5" (the team writes hours the Vietnamese way) */
 export const fmtHours = (h: number) => (Math.round(h * 100) / 100).toLocaleString('vi-VN', { maximumFractionDigits: 2 });

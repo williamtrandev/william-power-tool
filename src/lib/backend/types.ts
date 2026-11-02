@@ -76,6 +76,8 @@ export interface Backend {
   otList(from: string, to: string): Promise<OtMonth>;
   /** id null adds a new day */
   otSave(id: string | null, input: OtInput): Promise<OtEntry>;
+  /** several people at once; a person who already has that day is skipped, or overwritten when asked. Returns how many rows were written */
+  otSaveMany(rows: OtInput[], overwrite: boolean): Promise<number>;
   otDelete(id: string): Promise<void>;
   /** shared title of a day; empty clears it */
   otSetDay(date: string, label: string): Promise<void>;

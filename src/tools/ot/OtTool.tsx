@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CalendarDays, ChevronLeft, ChevronRight, FileSpreadsheet, History, ListChecks, Loader2, Plus, RefreshCw, Table2, Users } from 'lucide-react';
+import { CalendarDays, CopyPlus, ChevronLeft, ChevronRight, FileSpreadsheet, History, ListChecks, Loader2, Plus, RefreshCw, Table2, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Avatar, Button, Segmented, Switch } from '../../components/ui';
 import type { Backend, DirectoryEntry, Member } from '../../lib/backend';
@@ -16,6 +16,7 @@ import {
   type OtMonth,
   type OtPerson,
 } from '../../lib/ot';
+import { OtBulkEditor } from './OtBulkEditor';
 import { DayLabelEditor, OtEditor, type Editing } from './OtEditor';
 import { OtGrid } from './OtGrid';
 import { OtHistory } from './OtHistory';
@@ -46,6 +47,8 @@ export function OtTool({ active, backend, me, onToast }: Props) {
   const [onlyOt, setOnlyOt] = useState(() => matchMedia('(max-width: 639px)').matches);
   const [editing, setEditing] = useState<Editing | null>(null);
   const [dayEdit, setDayEdit] = useState<string | null>(null);
+  /** the day the bulk editor opens on */
+  const [bulk, setBulk] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
 
   const load = useCallback(async () => {
@@ -142,6 +145,11 @@ export function OtTool({ active, backend, me, onToast }: Props) {
               <Users size={15} />
               <span className="max-sm:hidden">Danh sách người</span>
               <span className="sm:hidden">Người</span>
+            </Button>
+            <Button data-tour="ot-bulk" onClick={() => setBulk(monthOf(today()) === month ? today() : `${month}-01`)} disabled={!data} title="Ghi cùng một ngày cho nhiều người, hoặc chép từ ngày OT trước">
+              <CopyPlus size={15} />
+              <span className="max-sm:hidden">Ghi hàng loạt</span>
+              <span className="sm:hidden">Hàng loạt</span>
             </Button>
             <Button data-tour="ot-add" variant="primary" onClick={startAdd} disabled={!data}>
               <Plus size={15} />
@@ -258,12 +266,32 @@ export function OtTool({ active, backend, me, onToast }: Props) {
           }}
         />
       )}
+      {bulk && (
+        <OtBulkEditor
+          backend={backend}
+          people={people.filter((p) => p.active)}
+          initialDate={bulk}
+          labels={labels}
+          face={face}
+          onClose={() => setBulk(null)}
+          onToast={onToast}
+          onSaved={(d) => {
+            setBulk(null);
+            if (monthOf(d) !== month) setMonth(monthOf(d));
+            else load();
+          }}
+        />
+      )}
       {managing && <PeopleManager backend={backend} people={roster} dir={dir} me={me} onClose={() => setManaging(false)} onChanged={load} onToast={onToast} />}
       {dayEdit && (
         <DayLabelEditor
           backend={backend}
           date={dayEdit}
           label={labels.get(dayEdit) ?? ''}
+          onBulk={() => {
+            setBulk(dayEdit);
+            setDayEdit(null);
+          }}
           onClose={() => setDayEdit(null)}
           onToast={onToast}
           onSaved={() => {

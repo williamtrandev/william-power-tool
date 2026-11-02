@@ -309,6 +309,23 @@ export function demoBackend(): Backend {
       write(s);
       return e;
     },
+    async otSaveMany(rows, overwrite) {
+      const s = read();
+      seedOt(s);
+      if (!member(s)) throw deny();
+      let n = 0;
+      for (const input of rows) {
+        const e = s.ot!.find((x) => x.person_id === input.person_id && x.work_date === input.work_date);
+        if (e && !overwrite) continue;
+        const before = e && { ...e };
+        const after = e ? Object.assign(e, input, { updated_by: sessionEmail(), updated_at: now() }) : { ...input, id: id(), updated_by: sessionEmail(), updated_at: now() };
+        if (!e) s.ot!.push(after);
+        logOt(s, before, after);
+        n++;
+      }
+      write(s);
+      return n;
+    },
     async otDelete(oid) {
       const s = read();
       seedOt(s);

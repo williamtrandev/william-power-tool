@@ -440,6 +440,12 @@ export const OT_STEPS: TourStep[] = [
     body: <>Chọn ngày, số giờ (gõ 11,5 cũng được) và làm gì hôm đó. Ngày nào cả team cùng làm một việc thì đặt <b>tiêu đề ngày</b> — nó hiện trên đầu cột ở file Excel.</>,
   },
   {
+    target: 'ot-bulk',
+    title: 'Ghi hàng loạt',
+    placement: 'bottom',
+    body: <>Cả nhóm cùng làm một việc (VD: 3 người "Dựng RL" 8 giờ)? Chọn ngày, tick những người làm, nhập số giờ và nội dung một lần. Làm tiếp việc hôm trước thì bấm <b>Chép từ ngày trước</b>.</>,
+  },
+  {
     target: 'ot-table',
     title: 'Bảng theo tháng',
     placement: 'top',
