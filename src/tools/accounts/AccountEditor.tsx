@@ -5,7 +5,7 @@ import { Avatar, Button, Segmented } from '../../components/ui';
 import type { Backend, DirectoryEntry } from '../../lib/backend';
 import { cleanSecret, parseOtpText, readQrFile, ENVS, envKey, isProd, secondsLeft, systemKey, totp, type OtpAlgorithm, type OtpDraft, type TeamAccount } from '../../lib/otp';
 import { Modal } from '../../components/Modal';
-import { field, Label } from '../../components/form';
+import { field, Label, Select } from '../../components/form';
 import { QrScanner, ScreenQrScanner } from '../../components/QrScanner';
 
 
@@ -593,19 +593,19 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
                       <div className="mt-2 grid gap-3 sm:grid-cols-3">
                         <div>
                           <Label>Thuật toán</Label>
-                          <select value={algorithm} onChange={(e) => setAlgorithm(e.target.value as OtpAlgorithm)} className={field}>
+                          <Select value={algorithm} onChange={(e) => setAlgorithm(e.target.value as OtpAlgorithm)}>
                             <option>SHA1</option>
                             <option>SHA256</option>
                             <option>SHA512</option>
-                          </select>
+                          </Select>
                         </div>
                         <div>
                           <Label>Số chữ số</Label>
-                          <select value={digits} onChange={(e) => setDigits(Number(e.target.value))} className={field}>
+                          <Select value={digits} onChange={(e) => setDigits(Number(e.target.value))}>
                             <option value={6}>6</option>
                             <option value={7}>7</option>
                             <option value={8}>8</option>
-                          </select>
+                          </Select>
                         </div>
                         <div>
                           <Label>Chu kỳ (giây)</Label>

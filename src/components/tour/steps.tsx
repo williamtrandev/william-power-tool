@@ -252,7 +252,25 @@ export const UTILS_STEPS: TourStep[] = [
   {
     target: 'qr-form',
     title: 'Tạo mã QR',
-    body: <>Tạo VietQR chuyển khoản để test: chọn ngân hàng, nhập số tài khoản, số tiền và nội dung. Ngân hàng và tài khoản được nhớ cho lần sau.</>,
+    body: (
+      <>
+        <b>VietQR chuyển khoản</b>: chọn ngân hàng, nhập số tài khoản, số tiền và nội dung (tự bỏ dấu). Ngân hàng và tài khoản được nhớ cho lần sau. Mã VietQR luôn dùng
+        mức sửa lỗi M như các mã chuyển khoản khác.
+        <br />
+        <br />
+        <b>Link / văn bản</b>: tạo QR cho nội dung bất kỳ, tự chọn mức sửa lỗi.
+      </>
+    ),
+  },
+  {
+    target: 'qr-ecc',
+    title: 'Mức sửa lỗi',
+    body: (
+      <>
+        Lượng dữ liệu dự phòng trong mã: <b>L</b> 7%, <b>M</b> 15%, <b>Q</b> 25%, <b>H</b> 30% mã bị bẩn, mờ hoặc bị che vẫn quét được. Mức càng cao mã càng nhiều ô.
+        Hiện trên màn hình dùng <b>M</b>; nội dung rất dài dùng <b>L</b>; in ra giấy dùng <b>Q</b>; chèn logo vào giữa mã dùng <b>H</b>.
+      </>
+    ),
   },
   {
     target: 'qr-output',

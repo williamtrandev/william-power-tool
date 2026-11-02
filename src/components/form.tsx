@@ -1,5 +1,6 @@
 import clsx from 'clsx';
-import type { ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import type { ReactNode, SelectHTMLAttributes } from 'react';
 
 /** Class for text inputs, selects and textareas in editor dialogs. */
 export const field =
@@ -13,5 +14,17 @@ export function Label({ children, hint, compact }: { children: ReactNode; hint?:
     <p className={clsx('font-medium text-fg-2', compact ? 'mb-1 text-[12px]' : 'mb-1.5 text-[12.5px]')}>
       {children} {hint && <span className="font-normal text-faint">— {hint}</span>}
     </p>
+  );
+}
+
+/** Native select with the arrow drawn inset like the other field icons; `className` replaces the default `field` look. */
+export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <div className="relative">
+      <select {...rest} className={clsx(className ?? field, 'cursor-pointer appearance-none pr-9')}>
+        {children}
+      </select>
+      <ChevronDown size={15} aria-hidden className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-muted" />
+    </div>
   );
 }

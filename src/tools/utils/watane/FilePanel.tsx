@@ -5,6 +5,7 @@ import { type CodecResult } from './lib/aesCodec';
 import { fmtBytes, nf } from '../../../lib/format';
 import { ACCEPT, B64ISH, exportTable, readSheet, readTable, type Table } from './lib/sheetFile';
 import { Button } from '../../../components/ui';
+import { Select } from '../../../components/form';
 
 const DEFAULT_COL = 'EncryptedCode';
 const PREVIEW = 300;
@@ -159,15 +160,15 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
         {multiSheet && (
           <label className="flex flex-col gap-1 text-[11.5px] font-medium text-muted">
             Sheet
-            <select
+            <Select
               value={table.sheetName}
               onChange={(e) => table.wb && openTable(readSheet({ fileName: table.fileName, size: table.size, wb: table.wb }, e.target.value))}
-              className="focus-ring h-8 min-w-[130px] rounded-md border border-line bg-surface px-2 text-[12.5px] text-fg"
+              className="focus-ring h-8 min-w-[130px] rounded-md border border-line bg-surface pl-2 text-[12.5px] text-fg"
             >
               {table.sheetNames!.map((s) => (
                 <option key={s}>{s}</option>
               ))}
-            </select>
+            </Select>
           </label>
         )}
         {table.kind === 'excel' && table.wb && (
