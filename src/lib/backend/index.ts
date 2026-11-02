@@ -9,6 +9,7 @@ import type { Backend } from './types';
  */
 
 export type * from './types';
+export { isNetworkError, OfflineError } from './errors';
 
 const env = import.meta.env as Record<string, string | undefined>;
 

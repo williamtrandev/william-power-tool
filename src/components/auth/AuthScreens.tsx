@@ -15,6 +15,7 @@ import {
   SquareTerminal,
   Sun,
   TriangleAlert,
+  WifiOff,
 } from 'lucide-react';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { Backend, User } from '../../lib/backend';
@@ -330,7 +331,7 @@ function PendingSteps() {
 }
 
 interface WaitingProps extends ShellProps {
-  kind: 'pending' | 'blocked' | 'error';
+  kind: 'pending' | 'blocked' | 'error' | 'offline';
   user?: User;
   message?: string;
   onSignOut: () => void;
@@ -393,18 +394,56 @@ export function WaitingScreen({ kind, user, message, onSignOut, onRefresh, ...p 
             <p className="mt-1.5 text-[13.5px] text-muted">{message}</p>
           </>
         )}
+        {kind === 'offline' && <OfflineBody checked={checked} cycle={cycle} />}
         <div className="mt-6 flex gap-2">
           {kind !== 'blocked' && (
             <Button className="h-10 flex-1" disabled={busy} onClick={check}>
-              <RefreshCw size={15} className={clsx(busy && 'animate-spin')} /> Kiểm tra ngay
+              <RefreshCw size={15} className={clsx(busy && 'animate-spin')} /> {kind === 'offline' ? 'Thử lại' : 'Kiểm tra ngay'}
             </Button>
           )}
           <Button variant="ghost" className="h-10 flex-1" onClick={onSignOut}>
-            <LogOut size={15} /> {kind === 'error' ? 'Đăng xuất' : 'Dùng tài khoản khác'}
+            <LogOut size={15} /> {kind === 'error' || kind === 'offline' ? 'Đăng xuất' : 'Dùng tài khoản khác'}
           </Button>
         </div>
       </Card>
     </Frame>
+  );
+}
+
+/** The server cannot be reached: say whether the machine has no network at all, or has one that cannot reach us (VPN). */
+function OfflineBody({ checked, cycle }: { checked: boolean; cycle: number }) {
+  const [online, setOnline] = useState(() => navigator.onLine);
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    addEventListener('online', on);
+    addEventListener('offline', off);
+    return () => {
+      removeEventListener('online', on);
+      removeEventListener('offline', off);
+    };
+  }, []);
+  return (
+    <>
+      <StatusIcon tone="warn">
+        <WifiOff size={26} />
+      </StatusIcon>
+      <h2 className="mt-5 text-[21px] font-semibold tracking-tight">{online ? 'Không kết nối được máy chủ' : 'Máy đang mất mạng'}</h2>
+      <p className="mt-1.5 text-[13.5px] text-muted">
+        {online
+          ? 'Máy có mạng nhưng không tới được máy chủ William Tool — thường do đang bật VPN hoặc mạng công ty chặn. Tắt VPN (hoặc đổi mạng) rồi thử lại.'
+          : 'Kiểm tra Wi-Fi / dây mạng. Có mạng lại là trang tự vào, không cần tải lại.'}
+      </p>
+      <ul className="mt-4 space-y-1.5 rounded-xl border border-line bg-surface-2/50 px-4 py-3 text-left text-[12.5px] text-fg-2">
+        <li>• Đây không phải lỗi tài khoản — quyền truy cập của bạn không thay đổi.</li>
+        {online && <li>• Đang bật VPN công ty? Tắt đi, hoặc nhờ IT cho phép kết nối tới máy chủ Supabase.</li>}
+        <li>• Trang tự thử lại mỗi 15 giây và ngay khi có mạng lại.</li>
+      </ul>
+      <div className="mt-5 overflow-hidden rounded-full bg-surface-3">
+        <div key={cycle} className="auth-progress h-1 rounded-full bg-warn/70" style={{ '--t': '15s' } as CSSProperties} />
+      </div>
+      <p className="mt-1.5 text-[11.5px] text-faint">{checked ? 'Vẫn chưa kết nối được — sẽ tiếp tục tự thử' : 'Tự thử lại mỗi 15 giây'}</p>
+    </>
   );
 }
 

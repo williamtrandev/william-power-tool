@@ -1,3 +1,4 @@
+import { WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppHeader, MobileNav, TOOLS, type ToolId } from './components/AppHeader';
 import { LoadingScreen, LoginScreen, UnconfiguredScreen, WaitingScreen } from './components/auth/AuthScreens';
@@ -22,7 +23,7 @@ const fromHash = (): ToolId => {
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
-  const { state: auth, refresh } = useAuth(backend);
+  const { state: auth, refresh, offline } = useAuth(backend);
   const ready = auth.kind === 'ready' ? auth : null;
   const admin = ready?.member.role === 'admin';
   const [pending, setPending] = useState(0);
@@ -96,6 +97,17 @@ export default function App() {
   return (
     <div className="flex h-dvh flex-col">
       <AppHeader tool={current} user={auth.user} admin={admin} pending={pending} onSignOut={signOut} onTool={pickTool} theme={theme} onToggleTheme={toggleTheme} onHelp={() => setTour(tool)} />
+      {offline && (
+        <div role="alert" className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-[12.5px] text-fg-2">
+          <WifiOff size={14} className="shrink-0 text-warn" />
+          <span className="min-w-0 flex-1">
+            <b className="font-semibold text-fg">Mất kết nối tới máy chủ</b> — dữ liệu có thể chưa cập nhật, lưu thay đổi sẽ không được. Có thể do mất mạng hoặc VPN đang chặn; trang tự thử lại.
+          </span>
+          <button type="button" onClick={refresh} className="focus-ring rounded px-1.5 font-medium text-accent hover:underline">
+            Thử lại
+          </button>
+        </div>
+      )}
       {/* tools stay mounted so switching tabs keeps loaded logs / pasted codes */}
       <LogTool active={current === 'log'} onToast={showToast} />
       <WataneTool active={current === 'watane'} onToast={showToast} />

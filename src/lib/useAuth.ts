@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { Backend, Member, User } from './backend';
+import { isNetworkError, type Backend, type Member, type User } from './backend';
 
 export type AuthState =
   | { kind: 'unconfigured' }
   | { kind: 'loading' }
   | { kind: 'signed-out' }
   | { kind: 'error'; message: string }
+  /** the server cannot be reached (offline, VPN…) and we do not know the access status yet */
+  | { kind: 'offline' }
   | { kind: 'pending' | 'blocked' | 'ready'; user: User; member: Member };
 
 /** A sign-in lasts this long; after that Google is asked again. */
@@ -18,6 +20,8 @@ export function useAuth(backend: Backend | null) {
   const [user, setUser] = useState<User | null | undefined>(undefined);
   const [member, setMember] = useState<Member | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  // the last check could not reach the server; once the account is known the app keeps running
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     if (!backend) return;
@@ -37,8 +41,10 @@ export function useAuth(backend: Backend | null) {
     try {
       setMember(await backend.me());
       setError(null);
+      setOffline(false);
     } catch (e) {
-      setError((e as Error).message);
+      if (isNetworkError(e)) setOffline(true);
+      else setError((e as Error).message);
     }
   }, [backend, userId, signedInAt]);
 
@@ -46,29 +52,34 @@ export function useAuth(backend: Backend | null) {
   useEffect(() => {
     setMember(undefined);
     setError(null);
+    setOffline(false);
     refresh();
   }, [refresh]);
 
   // pick up approval / blocking without a reload: on focus, and every 20 s while waiting
+  // and retry on its own when the network comes back (event) or every 15 s while unreachable (VPN off)
   const status = member?.status;
   useEffect(() => {
     if (!userId) return;
     const onFocus = () => refresh();
     addEventListener('focus', onFocus);
-    const t = status === 'pending' ? setInterval(refresh, 20000) : undefined;
+    addEventListener('online', onFocus);
+    const t = offline ? setInterval(refresh, 15000) : status === 'pending' ? setInterval(refresh, 20000) : undefined;
     return () => {
       removeEventListener('focus', onFocus);
+      removeEventListener('online', onFocus);
       clearInterval(t);
     };
-  }, [userId, status, refresh]);
+  }, [userId, status, offline, refresh]);
 
   let state: AuthState;
   if (!backend) state = { kind: 'unconfigured' };
   else if (user === undefined) state = { kind: 'loading' };
   else if (!user) state = { kind: 'signed-out' };
   else if (error) state = { kind: 'error', message: error };
-  else if (member === undefined) state = { kind: 'loading' };
+  else if (member === undefined) state = offline ? { kind: 'offline' } : { kind: 'loading' };
   else if (!member) state = { kind: 'error', message: 'Không tìm thấy thông tin tài khoản — nhờ admin kiểm tra' };
   else state = { kind: member.status === 'approved' ? 'ready' : member.status, user, member };
-  return { state, refresh };
+  // offline while already in the app: keep the app, the shell shows a banner instead
+  return { state, refresh, offline: offline && !!member };
 }

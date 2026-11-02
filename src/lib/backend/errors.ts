@@ -1,5 +1,22 @@
+/** The server could not be reached at all (offline, VPN or firewall blocking it) — not a server-side refusal. */
+export class OfflineError extends Error {
+  constructor() {
+    super('Không kết nối được máy chủ — kiểm tra mạng hoặc VPN');
+    this.name = 'OfflineError';
+  }
+}
+
+/** fetch() failing outright, as each browser and supabase-js word it */
+export function isNetworkError(e: unknown): boolean {
+  if (e instanceof OfflineError) return true;
+  const err = e as { name?: string; message?: string; status?: number } | null;
+  if (!err) return false;
+  if (err.name === 'AuthRetryableFetchError' || err.name === 'AbortError' || err.name === 'TimeoutError') return true;
+  return /failed to fetch|fetch failed|networkerror|network request failed|load failed|err_internet_disconnected|err_network/i.test(err.message ?? '');
+}
+
 /** Turn Supabase / PostgREST errors into something a support agent can act on. */
-export function friendly(e: { message?: string; code?: string } | null | undefined): Error {
+export function friendly(e: { message?: string; code?: string; name?: string } | null | undefined): Error {
   const m = e?.message ?? 'Lỗi không xác định';
   if (/signups? not allowed|signup is disabled/i.test(m)) return new Error('Supabase đang tắt đăng ký người dùng mới — admin cần bật “Allow new users to sign up”');
   if (/provider is not enabled|unsupported provider/i.test(m)) return new Error('Đăng nhập Google chưa được bật — admin cần cấu hình Google trong Supabase');
@@ -18,6 +35,6 @@ export function friendly(e: { message?: string; code?: string } | null | undefin
   if (/relation .* does not exist|could not find the (table|function)|schema cache/i.test(m)) return new Error('Database chưa được cài — admin cần chạy supabase/setup.sql');
   if (/row-level security|permission denied|not allowed/i.test(m) || e?.code === '42501') return new Error('Bạn không có quyền thực hiện thao tác này');
   if (/cannot change your own account/i.test(m)) return new Error('Không thể tự đổi quyền của chính mình');
-  if (/failed to fetch|networkerror|load failed/i.test(m)) return new Error('Không kết nối được máy chủ — kiểm tra mạng');
+  if (isNetworkError(e)) return new OfflineError();
   return new Error(m);
 }

@@ -1,6 +1,7 @@
 import { SAMPLE_COMMANDS, type Command, type HistoryRow } from '../commands';
 import type { OtChange, OtDay, OtEntry, OtPerson } from '../ot';
 import { cleanSecret, secondsLeft, totp, type AccountActivity, type AccountCode, type AccountInput, type TeamAccount } from '../otp';
+import { OfflineError } from './errors';
 import type { Backend, Member, MemberRole, MemberStatus, User } from './types';
 
 /** In-memory stand-in kept in localStorage, for `npm run dev` with VITE_SUPABASE_URL=demo. Never in production builds. */
@@ -119,6 +120,8 @@ export function demoBackend(): Backend {
       emit();
     },
     async me() {
+      // rehearse the offline screens: localStorage.setItem('wpt-demo-offline', '1')
+      if (localStorage.getItem('wpt-demo-offline')) throw new OfflineError();
       return meRow(read()) ?? null;
     },
     async members() {

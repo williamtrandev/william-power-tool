@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { Command, HistoryRow } from '../commands';
 import type { OtChange, OtDay, OtEntry, OtPerson } from '../ot';
 import type { AccountActivity, AccountCode, OtpCode, TeamAccount } from '../otp';
-import { friendly } from './errors';
+import { friendly, isNetworkError, OfflineError } from './errors';
 import type { Backend, DirectoryEntry, Member, User } from './types';
 
 /** The real backend: Supabase auth + tables / RPCs (schema and access rules: supabase/setup.sql). */
@@ -45,7 +45,9 @@ export function supabaseBackend(url: string, anonKey: string): Backend {
       await sb.auth.signOut();
     },
     async me() {
-      const { data: u } = await sb.auth.getUser();
+      const { data: u, error: ue } = await sb.auth.getUser().catch((e: unknown) => ({ data: { user: null }, error: e as Error }));
+      // unreachable server ≠ no account: say so instead of "account not found"
+      if (ue && isNetworkError(ue)) throw new OfflineError();
       if (!u.user) return null;
       const get = () => sb.from('app_members').select('*').eq('user_id', u.user!.id).maybeSingle();
       let { data, error } = await get();
