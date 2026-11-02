@@ -1,6 +1,6 @@
 # William Tool
 
-Bộ công cụ nội bộ cho team dev/QC: đọc log, giải mã Watane, kho lệnh dùng chung, tài khoản test dùng chung và chấm giờ OT.
+Bộ công cụ nội bộ cho team dev/QC: đọc log, đọc / tạo mã QR, giải mã Watane, kho lệnh dùng chung, tài khoản test dùng chung và chấm giờ OT.
 Là một trang web đơn (React + Supabase), build ra đúng một file `dist/index.html`, cài được như app trên máy tính và điện thoại.
 
 ![Demo William Tool](docs/media/demo.gif)
@@ -12,7 +12,7 @@ Bản video rõ hơn: [docs/media/demo.mp4](docs/media/demo.mp4). Mọi ảnh v�
 | Tab | Dùng để | Dữ liệu nằm ở đâu |
 |---|---|---|
 | Log | Mở file / thư mục log, tìm kiếm, gom lỗi, lần theo trace id | Chỉ trong trình duyệt, không gửi đi đâu |
-| Giải mã Watane | Giải mã / mã hoá code Watane (AES-ECB, giống script Python), dán tay hoặc chạy cả file CSV / Excel | Key lưu trong trình duyệt |
+| Tiện ích | Đọc và tạo mã QR (tách VietQR, kiểm tra CRC); giải mã / mã hoá code Watane, dán tay hoặc chạy cả file CSV / Excel | Chỉ trong trình duyệt |
 | Kho lệnh | Lệnh shell / SQL hay dùng, có tham số `{{tên:mặc định}}` điền trước khi copy | Supabase |
 | Tài khoản | Tài khoản test dùng chung theo hệ thống và môi trường, hiện mã OTP trực tiếp, phân quyền từng tài khoản | Supabase |
 | Giờ OT | Ghi giờ OT theo người và ngày, ghi hộ, ghi hàng loạt, lịch sử thay đổi, xuất Excel | Supabase |
@@ -49,11 +49,21 @@ Cú pháp tìm kiếm:
 
 Phím tắt: `/` tìm, `j` / `k` lên xuống, `Esc` xoá lọc.
 
-### Giải mã Watane
+### Tiện ích
 
-Dán nhiều mã cùng lúc (mỗi dòng một mã) hoặc mở file CSV / Excel để giải mã cả cột rồi tải file về với cột kết quả. Lưu được nhiều secret key, tự nhận AES-128 / 192 / 256 theo độ dài key. Key và dữ liệu không rời trình duyệt.
+Các công cụ nhỏ gom theo nhóm, tất cả chạy trên trình duyệt, không gửi dữ liệu đi đâu.
 
-![Tab Giải mã Watane](docs/media/watane.png)
+**Đọc mã QR.** Đọc từ ảnh (chọn, kéo thả, hoặc chụp màn hình rồi `Ctrl + V`), từ tab / cửa sổ đang hiện QR, từ camera, hoặc dán thẳng chuỗi QR lấy từ log. Mã VietQR / EMVCo được tách ngân hàng, số tài khoản, số tiền, nội dung, kiểu QR tĩnh / động, kèm bảng mọi trường và kiểm tra CRC (CRC sai thì app ngân hàng sẽ từ chối mã). Link, Wi-Fi và mã cài 2FA cũng được nhận ra.
+
+![Đọc mã QR](docs/media/qr-read.png)
+
+**Tạo mã QR.** Tạo VietQR chuyển khoản để test: chọn ngân hàng (hoặc nhập BIN), số tài khoản hay số thẻ, số tiền, nội dung (tự bỏ dấu). Ngân hàng và tài khoản được nhớ cho lần sau. Hoặc tạo QR cho link / văn bản bất kỳ với mức sửa lỗi tuỳ chọn. Tải PNG, copy ảnh, hoặc copy chuỗi.
+
+![Tạo mã QR](docs/media/qr-make.png)
+
+**Giải mã / mã hoá Watane.** Dán nhiều mã cùng lúc (mỗi dòng một mã) hoặc mở file CSV / Excel để giải mã cả cột rồi tải file về với cột kết quả. Lưu được nhiều secret key, tự nhận AES-128 / 192 / 256 theo độ dài key.
+
+![Giải mã Watane](docs/media/watane.png)
 
 ### Kho lệnh
 
@@ -159,7 +169,7 @@ src/
   lib/
     backend/           truy cập dữ liệu: interface Backend, bản Supabase và bản demo
     commands.ts, ot.ts, otp.ts, format.ts
-  tools/<tab>/         mỗi tab một thư mục: log, watane, commands, accounts, ot, members
+  tools/<tab>/         mỗi tab một thư mục: log, utils (QR, Watane), commands, accounts, ot, members
 supabase/setup.sql     schema, RLS, trigger
 ```
 
