@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build && npm run build:extension",
-    "build:extension": "vite build -c extension/vite.config.ts && node scripts/zip-extension.mjs",
+    "build:extension": "vite build -c extension/vite.config.ts && vite build -c extension/vite.content.config.ts && node scripts/zip-extension.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },

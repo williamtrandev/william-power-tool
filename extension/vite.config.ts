@@ -25,7 +25,7 @@ export default defineConfig({
     outDir: here('../dist-extension'),
     emptyOutDir: true,
     rolldownOptions: {
-      input: { popup: here('popup.html'), background: here('src/background.ts') },
+      input: { popup: here('popup.html'), inline: here('inline.html'), background: here('src/background.ts') },
       // the manifest points at background.js by name
       output: { entryFileNames: (c) => (c.name === 'background' ? 'background.js' : 'assets/[name]-[hash].js') },
     },

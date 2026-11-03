@@ -162,13 +162,17 @@ Cần deploy qua https thì trình duyệt mới cho cài. Chuột phải icon a
 
 ## Extension điền tài khoản
 
-Extension cho Chrome / Edge, dùng giống Bitwarden: đang ở trang đăng nhập thì bấm icon extension (hoặc `Alt+Shift+W`) rồi chọn tài khoản. Extension điền tên đăng nhập, mật khẩu và cả mã OTP nếu trang có ô OTP. Nếu chưa thấy ô OTP thì mã được copy sẵn để dán ở bước sau.
+Extension cho Chrome / Edge, dùng giống Bitwarden: bấm vào ô tên đăng nhập hoặc mật khẩu là menu chọn tài khoản hiện ngay bên dưới, chọn một tài khoản là tên đăng nhập, mật khẩu và mã OTP được điền sẵn. Cũng có thể bấm icon extension (hoặc `Alt+Shift+W`) để mở danh sách đầy đủ, có nút copy từng giá trị.
+
+![Extension điền tài khoản](docs/media/extension.gif)
 
 - Danh sách lấy từ tab Tài khoản, cùng phân quyền: ai không được chia sẻ tài khoản thì cũng không thấy trong extension. Mỗi lần điền vẫn được ghi nhật ký như khi bấm xem mật khẩu.
-- Tài khoản có "Link đăng nhập" trùng tên miền với trang đang mở được xếp lên đầu. Chọn tài khoản của trang khác thì extension hỏi lại trước khi điền, tránh điền vào trang giả mạo.
-- Chỉ điền khi bấm, không tự điền lúc trang vừa tải. Phiên đăng nhập của extension mất khi đóng trình duyệt.
+- Tài khoản có "Link đăng nhập" trùng tên miền với trang đang mở đứng riêng ở đầu, các tài khoản khác gập lại bên dưới. Chọn tài khoản của trang khác thì extension hỏi lại trước khi điền, tránh điền vào trang giả mạo.
+- Mã OTP được điền vào ô OTP (một ô, hoặc mỗi ô một số). Nếu trang chưa có ô OTP thì mã được copy sẵn để dán ở bước sau.
+- Menu trong trang là một khung của extension, trang web không đọc được danh sách tài khoản. Có thể đặt menu hiện ở mọi trang, chỉ ở trang có tài khoản, hoặc tắt (icon extension → cài đặt).
+- Có giao diện sáng / tối. Chỉ điền khi bấm, không tự điền lúc trang vừa tải. Phiên đăng nhập của extension mất khi đóng trình duyệt.
 
-Cài: ở tab Tài khoản bấm **Extension → Tải extension**, giải nén, mở `chrome://extensions`, bật Developer mode, bấm Load unpacked và chọn thư mục `william-tool-extension`.
+Cài: ở tab Tài khoản bấm **Extension → Tải extension**, giải nén, mở `chrome://extensions`, bật Developer mode, bấm Load unpacked và chọn thư mục `william-tool-extension`. Chrome sẽ báo extension được "đọc và thay đổi dữ liệu trên các trang web": quyền này cần để hiện menu trong ô đăng nhập và điền vào.
 
 `npm run build` build luôn extension (cùng cấu hình Supabase với web) và nén thành `dist/william-tool-extension.zip`, nên deploy lên Vercel là nút tải có file mới. Chỉ build riêng extension: `npm run build:extension` (thư mục `dist-extension/`).
 

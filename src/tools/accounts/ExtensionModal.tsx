@@ -5,6 +5,7 @@ import { Kbd } from '../../components/ui';
 
 /** built next to index.html by `npm run build` (scripts/zip-extension.mjs) */
 const ZIP = './william-tool-extension.zip';
+const GUIDE = './extension-guide.gif';
 
 /** download + install steps for the browser extension that fills these accounts into login pages */
 export function ExtensionModal({ onClose }: { onClose: () => void }) {
@@ -23,9 +24,10 @@ export function ExtensionModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Extension điền tài khoản" onClose={onClose}>
       <div className="space-y-4 px-5 pb-5 text-[13px] text-fg-2">
+        <img src={GUIDE} alt="Bấm vào ô tên đăng nhập, chọn tài khoản trong menu hiện ra, tên đăng nhập và mật khẩu được điền sẵn" className="w-full rounded-lg border border-line" />
         <p>
-          Đang ở trang đăng nhập, bấm icon extension hoặc nhấn <Kbd>Alt+Shift+W</Kbd>, chọn tài khoản: tên đăng nhập, mật khẩu và mã OTP được điền sẵn. Danh sách và quyền xem giống hệt tab này, mọi lần
-          điền đều được ghi nhật ký.
+          Bấm vào ô đăng nhập là menu chọn tài khoản hiện ngay bên dưới; hoặc bấm icon extension (<Kbd>Alt+Shift+W</Kbd>). Tên đăng nhập, mật khẩu và mã OTP được điền sẵn. Danh sách và quyền xem giống hệt
+          tab này, mọi lần điền đều được ghi nhật ký.
         </p>
 
         {ready === false ? (
@@ -54,8 +56,13 @@ export function ExtensionModal({ onClose }: { onClose: () => void }) {
             Bấm <b className="text-fg">Load unpacked</b>, chọn thư mục <code className="rounded bg-surface-2 px-1 font-mono text-[12px]">william-tool-extension</code>. Ghim icon lên thanh công cụ cho dễ bấm.
           </Step>
           <Step n={4}>Bấm icon, đăng nhập Google như vào William Tool. Phiên đăng nhập mất khi đóng trình duyệt.</Step>
+          <Step n={5}>Mở lại các trang đăng nhập đang mở sẵn (F5) để menu hiện trong ô.</Step>
         </ol>
 
+        <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] text-muted">
+          Chrome sẽ báo extension “đọc và thay đổi dữ liệu trên các trang web”: cần quyền này để hiện menu ngay dưới ô đăng nhập và điền vào. Extension chỉ tìm ô đăng nhập trên trang, không đọc hay gửi
+          nội dung trang đi đâu. Muốn tắt menu trong trang: icon extension → nút cài đặt.
+        </p>
         <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] text-muted">
           Có bản mới: tải lại file, giải nén đè lên thư mục cũ, rồi bấm nút tải lại của extension trong trang chrome://extensions. Để tài khoản hiện đúng trang, điền “Link đăng nhập” cho từng tài
           khoản.
