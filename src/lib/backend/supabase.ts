@@ -1,4 +1,4 @@
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient, type SupportedStorage } from '@supabase/supabase-js';
 import type { Command, HistoryRow } from '../commands';
 import type { OtChange, OtDay, OtEntry, OtPerson } from '../ot';
 import type { AccountActivity, AccountCode, OtpCode, TeamAccount } from '../otp';
@@ -6,9 +6,10 @@ import { friendly, isNetworkError, OfflineError } from './errors';
 import type { Backend, DirectoryEntry, Member, User } from './types';
 
 /** The real backend: Supabase auth + tables / RPCs (schema and access rules: supabase/setup.sql). */
-export function supabaseBackend(url: string, anonKey: string): Backend {
-  // PKCE: the provider sends back ?code=…, which does not collide with the #tool hash routing
-  const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, storageKey: 'wpt-auth', flowType: 'pkce' } });
+export function supabaseBackend(url: string, anonKey: string, storage?: SupportedStorage): Backend {
+  // PKCE: the provider sends back ?code=…, which does not collide with the #tool hash routing.
+  // `storage`: where the session lives when not in localStorage (the browser extension)
+  const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, storageKey: 'wpt-auth', flowType: 'pkce', storage } });
   type AuthUser = { id: string; email?: string; last_sign_in_at?: string; user_metadata?: Record<string, unknown> };
   const toUser = (u: AuthUser | undefined | null): User | null => {
     if (!u) return null;

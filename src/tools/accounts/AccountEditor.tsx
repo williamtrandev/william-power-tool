@@ -469,7 +469,7 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
                 <input autoFocus={!!defaultSystem} value={username} onChange={(e) => setUsername(e.target.value)} className={field} placeholder="vd: qc_test" autoComplete="off" />
               </div>
               <div>
-                <Label hint="không bắt buộc">Link đăng nhập</Label>
+                <Label hint="extension dựa vào đây để gợi ý đúng trang">Link đăng nhập</Label>
                 <input value={url} onChange={(e) => setUrl(e.target.value)} className={field} placeholder="https://…" autoComplete="off" />
               </div>
               <div className="sm:col-span-2">

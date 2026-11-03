@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build && npm run build:extension",
+    "build:extension": "vite build -c extension/vite.config.ts && node scripts/zip-extension.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },
@@ -26,6 +27,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.3",
+    "@types/chrome": "^0.1.43",
     "@types/crypto-js": "^4.2.2",
     "@types/node": "^24.13.3",
     "@types/papaparse": "^5.5.2",

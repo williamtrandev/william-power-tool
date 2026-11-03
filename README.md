@@ -160,6 +160,22 @@ Trang web cài được như ứng dụng riêng (PWA), có icon trên Dock / ta
 
 Cần deploy qua https thì trình duyệt mới cho cài. Chuột phải icon app sẽ có lối tắt mở thẳng từng tab.
 
+## Extension điền tài khoản
+
+Extension cho Chrome / Edge, dùng giống Bitwarden: đang ở trang đăng nhập thì bấm icon extension (hoặc `Alt+Shift+W`) rồi chọn tài khoản. Extension điền tên đăng nhập, mật khẩu và cả mã OTP nếu trang có ô OTP. Nếu chưa thấy ô OTP thì mã được copy sẵn để dán ở bước sau.
+
+- Danh sách lấy từ tab Tài khoản, cùng phân quyền: ai không được chia sẻ tài khoản thì cũng không thấy trong extension. Mỗi lần điền vẫn được ghi nhật ký như khi bấm xem mật khẩu.
+- Tài khoản có "Link đăng nhập" trùng tên miền với trang đang mở được xếp lên đầu. Chọn tài khoản của trang khác thì extension hỏi lại trước khi điền, tránh điền vào trang giả mạo.
+- Chỉ điền khi bấm, không tự điền lúc trang vừa tải. Phiên đăng nhập của extension mất khi đóng trình duyệt.
+
+Cài: ở tab Tài khoản bấm **Extension → Tải extension**, giải nén, mở `chrome://extensions`, bật Developer mode, bấm Load unpacked và chọn thư mục `william-tool-extension`.
+
+`npm run build` build luôn extension (cùng cấu hình Supabase với web) và nén thành `dist/william-tool-extension.zip`, nên deploy lên Vercel là nút tải có file mới. Chỉ build riêng extension: `npm run build:extension` (thư mục `dist-extension/`).
+
+Lần đầu dùng với Supabase thật, vào Authentication → URL Configuration, thêm `https://pmngjijejidappjlfnlmacmbfmgopchl.chromiumapp.org/` vào Redirect URLs. ID extension cố định nhờ `key` trong manifest, nên cả team dùng chung một địa chỉ này.
+
+Muốn thử không cần Supabase: `VITE_SUPABASE_URL=demo npm run build:extension`, extension dùng các tài khoản demo.
+
 ## Cấu trúc mã nguồn
 
 ```
@@ -171,6 +187,7 @@ src/
     commands.ts, ot.ts, otp.ts, format.ts
   tools/<tab>/         mỗi tab một thư mục: log, utils (QR, Watane), commands, accounts, ot, members
 supabase/setup.sql     schema, RLS, trigger
+extension/             extension điền tài khoản (popup, background, hàm điền ô đăng nhập), dùng lại lib/ của app
 ```
 
 Quy ước chính:

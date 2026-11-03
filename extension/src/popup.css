@@ -1,0 +1,12 @@
+@import '../../src/index.css';
+@source '.';
+@source '../../src/components';
+
+html,
+body,
+#root {
+  height: auto;
+}
+body {
+  width: 380px;
+}

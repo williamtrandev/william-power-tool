@@ -15,6 +15,7 @@ import {
   CopyPlus,
   Pencil,
   Plus,
+  Puzzle,
   QrCode,
   RefreshCw,
   Search,
@@ -31,6 +32,7 @@ import type { Backend, DirectoryEntry, Member } from '../../lib/backend';
 import { envKey, envRank, isProd, parseOtpText, readQrFile, systemKey, type AccountActivity, type OtpDraft, type TeamAccount } from '../../lib/otp';
 import { Modal } from '../../components/Modal';
 import { AccountEditor, envDot, groupCode } from './AccountEditor';
+import { ExtensionModal } from './ExtensionModal';
 
 const ACCENTS = ['#2563eb', '#7c3aed', '#0d9488', '#db2777', '#ea580c', '#16a34a', '#0891b2', '#9333ea'];
 const tint = (s: string) => {
@@ -533,6 +535,7 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [members, setMembers] = useState<DirectoryEntry[]>([]);
   const [showLog, setShowLog] = useState(false);
+  const [showExt, setShowExt] = useState(false);
   const [drag, setDrag] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -685,6 +688,9 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           <div className="flex items-center gap-1.5">
             <Button variant="ghost" size="icon" aria-label="Tải lại" title="Tải lại" onClick={load} disabled={loading}>
               <RefreshCw size={16} className={clsx(loading && 'animate-spin')} />
+            </Button>
+            <Button className="max-md:hidden" onClick={() => setShowExt(true)} title="Điền tài khoản vào trang đăng nhập ngay trên trình duyệt">
+              <Puzzle size={15} /> Extension
             </Button>
             <Button onClick={() => setShowLog(true)} title={admin ? 'Ai xem mật khẩu / mã của tài khoản nào' : 'Ai đã dùng các tài khoản bạn tạo'}>
               <History size={15} /> Nhật ký
@@ -914,6 +920,7 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
           onClose={() => setEditing(null)}
         />
       )}
+      {showExt && <ExtensionModal onClose={() => setShowExt(false)} />}
       {showLog && <ActivityDialog backend={backend} admin={admin} onClose={() => setShowLog(false)} />}
     </div>
   );
