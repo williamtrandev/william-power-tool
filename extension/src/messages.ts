@@ -1,8 +1,9 @@
 import type { FillResult } from './fill';
 
-/** content script → background: may this login box get the menu? */
+/** content script → background: may this login box get the menu? `auto`: an OTP box appeared after a fill */
 export interface OpenAsk {
   type: 'inline-open';
+  auto?: boolean;
 }
 export interface OpenReply {
   token?: string;
@@ -14,6 +15,8 @@ export interface InfoAsk {
 }
 export interface InfoReply {
   host?: string | null;
+  /** opened by itself to put in the OTP of the account just filled */
+  auto?: PendingOtp;
 }
 /** inline menu → background → content script of the frame that opened it */
 export interface FillAsk {
@@ -22,6 +25,10 @@ export interface FillAsk {
   username: string;
   password: string | null;
   otp: string | null;
+  /** fill the OTP box only */
+  otpOnly?: boolean;
+  /** the account has an OTP: if the page has no OTP box yet, remember it for the next step */
+  otpFor?: { accountId: string; username: string; host: string | null };
 }
 /** background → content script */
 export interface ContentFill {
@@ -29,8 +36,33 @@ export interface ContentFill {
   username: string;
   password: string | null;
   otp: string | null;
+  otpOnly?: boolean;
 }
 export type FillReply = FillResult | { error: string };
+
+/** an account was filled but its OTP box was not on the page yet: put the code in when the box shows up */
+export interface PendingOtp {
+  accountId: string;
+  username: string;
+  /** where the fill happened, and the account's own site — the OTP page must be one of them */
+  hosts: string[];
+  until: number;
+}
+/** popup → background, after a fill that left the OTP out (the inline menu says so with its fill instead) */
+export interface RememberOtp {
+  type: 'otp-remember';
+  tabId: number;
+  accountId: string;
+  username: string;
+  hosts: string[];
+}
+/** content script → background, on load and after a fill: is an OTP expected in this tab? */
+export interface WatchAsk {
+  type: 'otp-watch';
+}
+export interface WatchReply {
+  until?: number;
+}
 
 /** iframe ↔ content script over postMessage: only harmless layout signals, never account data */
 export type FrameSignal = { wpt: 'size'; h: number } | { wpt: 'close' } | { wpt: 'focus' };

@@ -7,8 +7,10 @@ import { AccountPicker } from './AccountPicker';
 import { getInlineMode, INLINE_KEY, type InlineMode } from './config';
 import { fillTab } from './fillTab';
 import { Gate } from './Gate';
+import type { RememberOtp } from './messages';
 import { hostOf } from './site';
 import { useTheme } from './theme';
+import { UpdateBanner } from './UpdateBanner';
 import { copyValue, secretsFor, useVault } from './vault';
 
 interface Tab {
@@ -40,8 +42,12 @@ export function Popup() {
     try {
       const { password, otp } = await secretsFor(a);
       const r = await fillTab(tab.id, a.username, password, otp);
-      // the OTP is often asked on the next screen: keep it on the clipboard, like Bitwarden
-      if (otp && !r.otp) await navigator.clipboard.writeText(otp);
+      // the OTP is often asked on the next screen: keep it on the clipboard, and put it in when that box shows up
+      if (otp && !r.otp) {
+        const ask: RememberOtp = { type: 'otp-remember', tabId: tab.id, accountId: a.id, username: a.username, hosts: [tab.host ?? '', hostOf(a.url) ?? ''] };
+        await chrome.runtime.sendMessage(ask);
+        await navigator.clipboard.writeText(otp).catch(() => {});
+      }
       if (!r.user && !r.pass && !r.otp) return say('Không thấy ô đăng nhập trên trang — dùng các nút copy');
       window.close();
     } catch (e) {
@@ -74,6 +80,7 @@ export function Popup() {
         </span>
       </header>
 
+      <UpdateBanner />
       {settings && <SettingsPanel />}
 
       {vault.phase === 'ready' ? (
@@ -119,6 +126,9 @@ function SettingsPanel() {
       <p className="text-[12px] font-medium text-fg-2">Menu gợi ý khi bấm vào ô đăng nhập</p>
       <Segmented label="Menu gợi ý" value={mode ?? 'all'} onChange={pick} items={MODES.map((m) => ({ id: m.id, label: m.label, icon: null }))} />
       <p className="text-[11.5px] text-muted">{MODES.find((m) => m.id === mode)?.hint}</p>
+      <p className="text-[11px] text-faint">
+        Phiên bản {chrome.runtime.getManifest().version} · build {__BUILD__}
+      </p>
     </section>
   );
 }

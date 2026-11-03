@@ -1,4 +1,5 @@
-// Packs dist-extension/ into dist/william-tool-extension.zip, the file the "Tải extension" button serves.
+// Packs dist-extension/ into dist/william-tool-extension.zip, the file the "Tải extension" button serves, and
+// publishes its build id as dist/extension-version.json — installed extensions compare it with their own.
 // A tiny zip writer (deflate + the zip headers) so the build needs no extra dependency.
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -54,4 +55,5 @@ end.writeUInt32LE(offset, 16);
 
 mkdirSync('dist', { recursive: true });
 writeFileSync(OUT, Buffer.concat([...locals, dir, end]));
+writeFileSync('dist/extension-version.json', readFileSync(join(SRC, 'build.json')));
 console.log(`${OUT}: ${centrals.length} files, ${(statSync(OUT).size / 1024).toFixed(0)} kB`);

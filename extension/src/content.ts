@@ -1,5 +1,5 @@
-import { fillLogin, isLoginField } from './fill';
-import type { ContentFill, FrameSignal, OpenReply } from './messages';
+import { emptyOtpBox, fillLogin, fillOtp, isLoginField } from './fill';
+import type { ContentFill, FrameSignal, OpenAsk, OpenReply, WatchReply } from './messages';
 
 /**
  * Runs in every page (and frame). Opens the account menu under a login box when it gets focus, and fills on request.
@@ -23,12 +23,16 @@ interface Menu {
 }
 
 // the popup injects this file again before filling; set up once
-if (!globalThis.__wptFill) {
-  globalThis.__wptFill = (u, p, o) => fillLogin(u, p, o);
-  init();
-}
+if (!globalThis.__wptFill) init();
 
 function init() {
+  globalThis.__wptFill = (u, p, o) => {
+    const r = fillLogin(u, p, o);
+    // a popup fill may leave the OTP for the next step
+    watchOtpSoon();
+    return r;
+  };
+
   let menu: Menu | null = null;
   let opening: HTMLInputElement | null = null;
   // filling focuses the boxes it fills: don't reopen on that
@@ -50,12 +54,14 @@ function init() {
     menu = null;
   };
 
-  const open = async (el: HTMLInputElement) => {
-    if (menu?.anchor === el || opening === el || Date.now() < quietUntil) return;
+  /** `auto`: opened by itself on an OTP box that appeared after a fill */
+  const open = async (el: HTMLInputElement, auto = false) => {
+    if (menu?.anchor === el || opening === el || (!auto && Date.now() < quietUntil)) return;
     opening = el;
-    const r = (await chrome.runtime.sendMessage({ type: 'inline-open' }).catch(() => null)) as OpenReply | null;
+    const ask: OpenAsk = { type: 'inline-open', auto };
+    const r = (await chrome.runtime.sendMessage(ask).catch(() => null)) as OpenReply | null;
     opening = null;
-    if (!r?.token || document.activeElement !== el) return;
+    if (!r?.token || (!auto && document.activeElement !== el)) return;
     close();
 
     const host = document.createElement('div');
@@ -127,7 +133,48 @@ function init() {
   chrome.runtime.onMessage.addListener((msg: ContentFill, _sender, reply) => {
     if (msg?.type !== 'fill') return;
     quietUntil = Date.now() + 1500;
+    if (msg.otpOnly) {
+      // the menu shows "filled" for a moment before it goes
+      const ok = fillOtp(msg.otp ?? '');
+      setTimeout(close, 1400);
+      return reply({ user: false, pass: false, otp: ok });
+    }
     close();
     reply(fillLogin(msg.username, msg.password, msg.otp));
+    watchOtpSoon();
   });
+
+  // ── OTP on the next step ──────────────────────────────────────────────
+  // After a fill that left the OTP out, the background remembers the account for this tab for a short while.
+  // Until then, an empty OTP box showing up (a new page, or the same page changing) gets the code put in.
+  let watcher: MutationObserver | null = null;
+  const watchOtp = async () => {
+    const r = (await chrome.runtime.sendMessage({ type: 'otp-watch' }).catch(() => null)) as WatchReply | null;
+    const until = r?.until;
+    if (!until || until < Date.now() || watcher) return;
+    let pending = 0;
+    const stop = () => {
+      watcher?.disconnect();
+      watcher = null;
+    };
+    const check = () => {
+      pending = 0;
+      if (Date.now() > until) return stop();
+      const box = emptyOtpBox();
+      if (!box) return;
+      stop();
+      open(box, true);
+    };
+    watcher = new MutationObserver(() => {
+      pending ||= window.setTimeout(check, 300);
+    });
+    watcher.observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class', 'hidden'] });
+    setTimeout(stop, until - Date.now());
+    check();
+  };
+  // the background hears about the fill a moment after it lands
+  function watchOtpSoon() {
+    setTimeout(watchOtp, 800);
+  }
+  watchOtp();
 }

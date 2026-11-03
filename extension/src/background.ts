@@ -1,12 +1,15 @@
 import { createClient } from '@supabase/supabase-js';
 import { AUTH_KEY, getInlineMode, SIGN_IN_ERROR, SITES_KEY, SUPABASE_KEY, SUPABASE_URL, sessionStore, type SitesCache } from './config';
-import type { ContentFill, FillAsk, FillReply, InfoAsk, InfoReply, OpenReply } from './messages';
+import type { ContentFill, FillAsk, FillReply, InfoAsk, InfoReply, OpenAsk, OpenReply, PendingOtp, RememberOtp, WatchReply } from './messages';
 import { hostOf } from './site';
+import { checkForUpdate, reloadIfReplaced, setUpUpdates } from './update';
+
+setUpUpdates();
 
 type Msg = { type?: string };
 
 chrome.runtime.onMessage.addListener((msg: Msg, sender, reply) => {
-  const handle = { 'sign-in': onSignIn, 'inline-open': onOpen, 'inline-info': onInfo, 'inline-fill': onFill }[msg?.type ?? ''] as
+  const handle = { 'sign-in': onSignIn, 'inline-open': onOpen, 'inline-info': onInfo, 'inline-fill': onFill, 'otp-remember': onRemember, 'otp-watch': onWatch, 'update-check': onUpdateCheck }[msg?.type ?? ''] as
     | ((m: Msg, s: chrome.runtime.MessageSender) => Promise<unknown>)
     | undefined;
   if (!handle) return;
@@ -56,12 +59,24 @@ interface MenuTicket {
   frameId: number;
   host: string | null;
   at: number;
+  /** opened by itself to put in this account's OTP */
+  auto?: PendingOtp;
 }
 const TICKET = 'wpt-menu:';
 const TICKET_TTL = 30 * 60_000;
 
-async function onOpen(_m: Msg, s: chrome.runtime.MessageSender): Promise<OpenReply> {
+async function onOpen(m: Msg, s: chrome.runtime.MessageSender): Promise<OpenReply> {
   if (s.tab?.id == null || s.frameId == null || !s.url || !/^https?:/.test(s.url)) return {};
+  if ((m as OpenAsk).auto) {
+    // used once: the next OTP box of this tab waits for a click again
+    const auto = await pendingFor(s.tab.id, hostOf(s.url));
+    if (!auto) return {};
+    await chrome.storage.session.remove(OTP + s.tab.id);
+    const token = crypto.randomUUID();
+    const ticket: MenuTicket = { tabId: s.tab.id, frameId: s.frameId, host: hostOf(s.url), at: Date.now(), auto };
+    await chrome.storage.session.set({ [TICKET + token]: ticket });
+    return { token };
+  }
   const mode = await getInlineMode();
   if (mode === 'off') return {};
   const host = hostOf(s.url);
@@ -86,16 +101,51 @@ async function ticketFor(token: string, s: chrome.runtime.MessageSender) {
 
 async function onInfo(m: Msg, s: chrome.runtime.MessageSender): Promise<InfoReply> {
   const t = await ticketFor((m as InfoAsk).token, s);
-  return { host: t.host };
+  return { host: t.host, auto: t.auto };
 }
 
 async function onFill(m: Msg, s: chrome.runtime.MessageSender): Promise<FillReply> {
   const ask = m as FillAsk;
   const t = await ticketFor(ask.token, s);
   await chrome.storage.session.remove(TICKET + ask.token);
-  const msg: ContentFill = { type: 'fill', username: ask.username, password: ask.password, otp: ask.otp };
-  return chrome.tabs.sendMessage(t.tabId, msg, { frameId: t.frameId });
+  const msg: ContentFill = { type: 'fill', username: ask.username, password: ask.password, otp: ask.otp, otpOnly: ask.otpOnly };
+  const r = (await chrome.tabs.sendMessage(t.tabId, msg, { frameId: t.frameId })) as FillReply;
+  if (ask.otpFor && !('error' in r) && !r.otp) await remember(t.tabId, ask.otpFor.accountId, ask.otpFor.username, [t.host, ask.otpFor.host]);
+  return r;
 }
+
+// ── OTP on the next step ─────────────────────────────────────────────────
+// A fill that left the OTP out (no OTP box yet) is remembered per tab for a short while; the content script of that
+// tab puts the code in as soon as an empty OTP box shows up on the same site.
+
+const OTP = 'wpt-otp:';
+const OTP_TTL = 2 * 60_000;
+
+async function remember(tabId: number, accountId: string, username: string, hosts: (string | null)[]) {
+  const p: PendingOtp = { accountId, username, hosts: hosts.filter((h): h is string => !!h), until: Date.now() + OTP_TTL };
+  await chrome.storage.session.set({ [OTP + tabId]: p });
+}
+
+async function onRemember(m: Msg, s: chrome.runtime.MessageSender) {
+  const ask = m as RememberOtp;
+  // only the extension's own pages (the popup) may name a tab; a content script's sender is the web page
+  if (s.url?.startsWith(chrome.runtime.getURL(''))) await remember(ask.tabId, ask.accountId, ask.username, ask.hosts);
+  return {};
+}
+
+async function pendingFor(tabId: number, host: string | null) {
+  const p = (await chrome.storage.session.get(OTP + tabId))[OTP + tabId] as PendingOtp | undefined;
+  if (!p || p.until < Date.now() || !host || !p.hosts.some((h) => host === h || host.endsWith('.' + h))) return null;
+  return p;
+}
+
+async function onWatch(_m: Msg, s: chrome.runtime.MessageSender): Promise<WatchReply> {
+  if (s.tab?.id == null || !s.url) return {};
+  const p = await pendingFor(s.tab.id, hostOf(s.url));
+  return p ? { until: p.until } : {};
+}
+
+chrome.tabs.onRemoved.addListener((tabId) => chrome.storage.session.remove(OTP + tabId));
 
 /** drop tickets of menus long gone */
 async function prune() {
@@ -104,4 +154,10 @@ async function prune() {
     .filter(([k, v]) => k.startsWith(TICKET) && Date.now() - (v as MenuTicket).at > TICKET_TTL)
     .map(([k]) => k);
   if (old.length) await chrome.storage.session.remove(old);
+}
+
+// the popup asks on open: files already replaced → reload now, else look for a newer build
+async function onUpdateCheck() {
+  if (await reloadIfReplaced()) return { reloading: true };
+  return { update: await checkForUpdate() };
 }

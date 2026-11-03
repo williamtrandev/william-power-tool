@@ -55,14 +55,27 @@ export function fillLogin(username: string, password: string | null, otp: string
     set(f.pw, password);
     res.pass = true;
   }
-  if (otp && f.boxes.length === otp.length) {
-    f.boxes.forEach((el, i) => set(el, otp[i]));
-    res.otp = true;
-  } else if (otp && f.otp) {
-    set(f.otp, otp);
-    res.otp = true;
-  }
+  if (otp) res.otp = fillOtp(otp, f);
   return res;
+}
+
+/** the OTP alone: one box, or one box per digit */
+export function fillOtp(otp: string, f: LoginFields = findFields()): boolean {
+  if (f.boxes.length === otp.length) {
+    f.boxes.forEach((el, i) => set(el, otp[i]));
+    return true;
+  }
+  if (f.otp) {
+    set(f.otp, otp);
+    return true;
+  }
+  return false;
+}
+
+/** an empty OTP box waiting for a code (the step after the password, often) */
+export function emptyOtpBox(f: LoginFields = findFields()): HTMLInputElement | undefined {
+  if (f.boxes.length && f.boxes.every((el) => !el.value)) return f.boxes[0];
+  if (f.otp && !f.otp.value) return f.otp;
 }
 
 /** a field the inline menu opens on */
