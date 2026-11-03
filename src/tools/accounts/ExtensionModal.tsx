@@ -1,16 +1,20 @@
-import { Download, TriangleAlert } from 'lucide-react';
+import { Download, MousePointerClick, Settings2, TriangleAlert } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Modal } from '../../components/Modal';
-import { Kbd } from '../../components/ui';
+import { Kbd, Segmented } from '../../components/ui';
 
 /** built next to index.html by `npm run build` (scripts/zip-extension.mjs) */
 const ZIP = './william-tool-extension.zip';
-const GUIDE = './extension-guide.gif';
+const GIFS = {
+  setup: { src: './extension-setup.gif', alt: 'Tải file zip, giải nén, bật Developer mode, Load unpacked, ghim icon và đăng nhập Google' },
+  use: { src: './extension-guide.gif', alt: 'Bấm vào ô tên đăng nhập, chọn tài khoản trong menu hiện ra, tên đăng nhập và mật khẩu được điền sẵn' },
+};
 
 /** download + install steps for the browser extension that fills these accounts into login pages */
 export function ExtensionModal({ onClose }: { onClose: () => void }) {
   // the dev server has no zip; say so instead of downloading an error page
   const [ready, setReady] = useState<boolean | null>(null);
+  const [gif, setGif] = useState<keyof typeof GIFS>('setup');
   useEffect(() => {
     let live = true;
     fetch(ZIP, { method: 'HEAD' })
@@ -24,7 +28,19 @@ export function ExtensionModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Extension điền tài khoản" onClose={onClose}>
       <div className="space-y-4 px-5 pb-5 text-[13px] text-fg-2">
-        <img src={GUIDE} alt="Bấm vào ô tên đăng nhập, chọn tài khoản trong menu hiện ra, tên đăng nhập và mật khẩu được điền sẵn" className="w-full rounded-lg border border-line" />
+        <div className="space-y-2">
+          <Segmented
+            label="Xem hướng dẫn"
+            value={gif}
+            onChange={setGif}
+            items={[
+              { id: 'setup', label: 'Cài đặt', icon: <Settings2 size={14} /> },
+              { id: 'use', label: 'Cách dùng', icon: <MousePointerClick size={14} /> },
+            ]}
+          />
+          {/* key: restart the animation when switching */}
+          <img key={gif} src={GIFS[gif].src} alt={GIFS[gif].alt} className="aspect-[8/5] w-full rounded-lg border border-line bg-surface-2" />
+        </div>
         <p>
           Bấm vào ô đăng nhập là menu chọn tài khoản hiện ngay bên dưới; hoặc bấm icon extension (<Kbd>Alt+Shift+W</Kbd>). Tên đăng nhập, mật khẩu và mã OTP được điền sẵn. Danh sách và quyền xem giống hệt
           tab này, mọi lần điền đều được ghi nhật ký.
@@ -47,16 +63,17 @@ export function ExtensionModal({ onClose }: { onClose: () => void }) {
         )}
 
         <ol className="space-y-2.5">
-          <Step n={1}>Giải nén file vừa tải. Để thư mục ở chỗ cố định, đừng xoá — Chrome chạy extension từ chính thư mục đó.</Step>
-          <Step n={2}>
+          <Step n={1}>Tải file zip bằng nút ở trên.</Step>
+          <Step n={2}>Giải nén. Để thư mục ở chỗ cố định, đừng xoá — Chrome chạy extension từ chính thư mục đó.</Step>
+          <Step n={3}>
             Mở <code className="rounded bg-surface-2 px-1 font-mono text-[12px]">chrome://extensions</code> (Edge: <code className="rounded bg-surface-2 px-1 font-mono text-[12px]">edge://extensions</code>), bật{' '}
             <b className="text-fg">Developer mode</b> ở góc trên.
           </Step>
-          <Step n={3}>
-            Bấm <b className="text-fg">Load unpacked</b>, chọn thư mục <code className="rounded bg-surface-2 px-1 font-mono text-[12px]">william-tool-extension</code>. Ghim icon lên thanh công cụ cho dễ bấm.
+          <Step n={4}>
+            Bấm <b className="text-fg">Load unpacked</b>, chọn thư mục <code className="rounded bg-surface-2 px-1 font-mono text-[12px]">william-tool-extension</code>.
           </Step>
-          <Step n={4}>Bấm icon, đăng nhập Google như vào William Tool. Phiên đăng nhập mất khi đóng trình duyệt.</Step>
-          <Step n={5}>Mở lại các trang đăng nhập đang mở sẵn (F5) để menu hiện trong ô.</Step>
+          <Step n={5}>Bấm icon mảnh ghép trên thanh công cụ, ghim William Tool cho dễ bấm.</Step>
+          <Step n={6}>Bấm icon, đăng nhập Google như vào William Tool. Các trang đăng nhập đang mở sẵn cần F5 để menu hiện trong ô.</Step>
         </ol>
 
         <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] text-muted">

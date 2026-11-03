@@ -172,6 +172,8 @@ Extension cho Chrome / Edge, dùng giống Bitwarden: bấm vào ô tên đăng 
 - Menu trong trang là một khung của extension, trang web không đọc được danh sách tài khoản. Có thể đặt menu hiện ở mọi trang, chỉ ở trang có tài khoản, hoặc tắt (icon extension → cài đặt).
 - Có giao diện sáng / tối. Chỉ điền khi bấm, không tự điền lúc trang vừa tải. Phiên đăng nhập của extension mất khi đóng trình duyệt.
 
+![Cài extension](docs/media/extension-setup.gif)
+
 Cài: ở tab Tài khoản bấm **Extension → Tải extension**, giải nén, mở `chrome://extensions`, bật Developer mode, bấm Load unpacked và chọn thư mục `william-tool-extension`. Chrome sẽ báo extension được "đọc và thay đổi dữ liệu trên các trang web": quyền này cần để hiện menu trong ô đăng nhập và điền vào.
 
 `npm run build` build luôn extension (cùng cấu hình Supabase với web) và nén thành `dist/william-tool-extension.zip`, nên deploy lên Vercel là nút tải có file mới. Chỉ build riêng extension: `npm run build:extension` (thư mục `dist-extension/`).
