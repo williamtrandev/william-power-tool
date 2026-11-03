@@ -7,6 +7,18 @@ Là một trang web đơn (React + Supabase), build ra đúng một file `dist/i
 
 Bản video rõ hơn: [docs/media/demo.mp4](docs/media/demo.mp4). Mọi ảnh và video trong README dùng dữ liệu giả của chế độ demo.
 
+## Vì sao có William Tool
+
+Tool ra đời từ những việc lặp đi lặp lại hằng ngày của team dev/QC tại Payoo, nơi môi trường dev và test không có sẵn công cụ hỗ trợ cho các việc này.
+
+**Xem log.** Môi trường dev không có hệ thống xem log tập trung như Grafana Loki, ELK (Elasticsearch + Kibana), Graylog hay Datadog, những nơi chỉ cần gõ một câu truy vấn là lọc được log của nhiều service, theo thời gian, theo trace id. Team cũng không dựng được một hệ thống như vậy cho riêng phòng ban vì hạn chế về hạ tầng và quyền truy cập. Thực tế mọi người phải tải file log về rồi mở bằng Notepad để đọc và `Ctrl+F` từng chữ: file lớn thì mở chậm, không lọc được theo mức log, không gom được lỗi giống nhau, muốn lần một request qua nhiều service thì phải mở từng file và dò bằng mắt. Tab **Log** làm thay phần đó ngay trong trình duyệt: kéo thả cả thư mục log, tìm kiếm, lọc, gom lỗi, lần theo trace id, file không rời khỏi máy.
+
+**Giải mã Watane.** Muốn xem một code Watane đã mã hoá, trước đây phải chạy script cồng kềnh, cài môi trường, sửa tham số, chạy từng file một. Tab **Tiện ích** cho dán code là thấy kết quả, hoặc thả cả file CSV / Excel để giải mã hàng loạt và tải về đúng định dạng gốc. Key chỉ lưu trên máy người dùng.
+
+**Tài khoản test.** Mỗi hệ thống có nhiều môi trường (SBB, SBA, SBD, RL, Live…), mỗi môi trường nhiều tài khoản với vai trò khác nhau, không ít tài khoản có OTP. Danh sách nằm rải rác trong tin nhắn và file ghi chú, chia sẻ cho nhau khó, mã OTP chỉ nằm trên điện thoại của một người. Tab **Tài khoản** gom tất cả về một chỗ, có phân quyền từng tài khoản, hiện mã OTP trực tiếp, ghi nhật ký mỗi lần xem, kèm extension điền sẵn vào trang đăng nhập.
+
+**Ghi giờ OT.** Giờ OT được ghi tay rồi tổng hợp cuối tháng, dễ sót, khó biết ai đã sửa gì, mất công gom lại để báo cáo. Tab **Giờ OT** cho cả team cùng ghi, ghi hộ, ghi hàng loạt, có lịch sử thay đổi và xuất Excel.
+
 ## Các tab
 
 | Tab | Dùng để | Dữ liệu nằm ở đâu |
