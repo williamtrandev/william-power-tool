@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { AUTH_KEY, getInlineMode, SIGN_IN_ERROR, SITES_KEY, SUPABASE_KEY, SUPABASE_URL, sessionStore, type SitesCache } from './config';
-import type { ContentFill, FillAsk, FillReply, InfoAsk, InfoReply, OpenAsk, OpenReply, PendingOtp, RememberOtp, StatusAsk, WatchReply } from './messages';
+import type { ContentFill, FillAsk, FillReply, ForgetOtp, InfoAsk, InfoReply, OpenAsk, OpenReply, PendingOtp, RememberOtp, StatusAsk, WatchReply } from './messages';
 import { hostOf } from './site';
 import { checkForUpdate, reloadIfReplaced, setUpUpdates } from './update';
 
@@ -9,7 +9,7 @@ setUpUpdates();
 type Msg = { type?: string };
 
 chrome.runtime.onMessage.addListener((msg: Msg, sender, reply) => {
-  const handle = { 'sign-in': onSignIn, 'inline-open': onOpen, 'inline-info': onInfo, 'inline-fill': onFill, 'otp-remember': onRemember, 'otp-watch': onWatch, 'otp-status': onStatus, 'update-check': onUpdateCheck }[msg?.type ?? ''] as
+  const handle = { 'sign-in': onSignIn, 'inline-open': onOpen, 'inline-info': onInfo, 'inline-fill': onFill, 'otp-remember': onRemember, 'otp-watch': onWatch, 'otp-status': onStatus, 'otp-forget': onForget, 'update-check': onUpdateCheck }[msg?.type ?? ''] as
     | ((m: Msg, s: chrome.runtime.MessageSender) => Promise<unknown>)
     | undefined;
   if (!handle) return;
@@ -68,10 +68,12 @@ const TICKET_TTL = 30 * 60_000;
 async function onOpen(m: Msg, s: chrome.runtime.MessageSender): Promise<OpenReply> {
   if (s.tab?.id == null || s.frameId == null || !s.url || !/^https?:/.test(s.url)) return {};
   if ((m as OpenAsk).auto) {
-    // used once: the next OTP box of this tab waits for a click again
     const auto = await pendingFor(s.tab.id, hostOf(s.url));
     if (!auto) return {};
-    await chrome.storage.session.remove(OTP + s.tab.id);
+    // a page that keeps asking on the same address (wrong code, box cleared) gets a few tries, then waits for a click
+    const streak = auto.lastUrl === s.url ? (auto.streak ?? 0) + 1 : 1;
+    if (streak > MAX_STREAK) return {};
+    await chrome.storage.session.set({ [OTP + s.tab.id]: { ...auto, lastUrl: s.url, streak } satisfies PendingOtp });
     const token = crypto.randomUUID();
     const ticket: MenuTicket = { tabId: s.tab.id, frameId: s.frameId, host: hostOf(s.url), at: Date.now(), auto };
     await chrome.storage.session.set({ [TICKET + token]: ticket });
@@ -110,26 +112,50 @@ async function onFill(m: Msg, s: chrome.runtime.MessageSender): Promise<FillRepl
   await chrome.storage.session.remove(TICKET + ask.token);
   const msg: ContentFill = { type: 'fill', username: ask.username, password: ask.password, otp: ask.otp, otpOnly: ask.otpOnly };
   const r = (await chrome.tabs.sendMessage(t.tabId, msg, { frameId: t.frameId })) as FillReply;
-  if (ask.otpFor && !('error' in r) && !r.otp) await remember(t.tabId, ask.otpFor.accountId, ask.otpFor.username, [t.host, ask.otpFor.host]);
+  if ('error' in r) return r;
+  if (t.auto && r.otp && ask.otp) await used(t.tabId, t.auto.accountId, ask.otp);
+  else if (ask.otpFor) await remember(t.tabId, ask.otpFor.accountId, ask.otpFor.username, [t.host, ask.otpFor.host], r.otp ? ask.otp : null);
   return r;
 }
 
-// ── OTP on the next step ─────────────────────────────────────────────────
-// A fill that left the OTP out (no OTP box yet) is remembered per tab for a short while; the content script of that
-// tab puts the code in as soon as an empty OTP box shows up on the same site.
+// ── OTP on the next steps ────────────────────────────────────────────────
+// A fill of an account with an OTP is remembered per tab; the content script of that tab puts the code in as soon as
+// an empty OTP box shows up on the same site. Until the login's OTP is in, for a short while; after that, later steps
+// (a payment an hour later…) get it too, each with the code of that moment, until the tab closes or the day is over.
 
 const OTP = 'wpt-otp:';
 const OTP_TTL = 2 * 60_000;
+const OTP_KEEP = 12 * 60 * 60_000;
+const MAX_STREAK = 3;
 
-async function remember(tabId: number, accountId: string, username: string, hosts: (string | null)[]) {
-  const p: PendingOtp = { accountId, username, hosts: hosts.filter((h): h is string => !!h), until: Date.now() + OTP_TTL };
+/** `code`: the OTP already went in with the login */
+async function remember(tabId: number, accountId: string, username: string, hosts: (string | null)[], code?: string | null) {
+  const p: PendingOtp = {
+    accountId,
+    username,
+    hosts: hosts.filter((h): h is string => !!h),
+    until: Date.now() + (code ? OTP_KEEP : OTP_TTL),
+    lastCode: code ?? undefined,
+  };
   await chrome.storage.session.set({ [OTP + tabId]: p });
+}
+
+/** an OTP box got its code: keep the account for the steps after it */
+async function used(tabId: number, accountId: string, code: string) {
+  const p = (await chrome.storage.session.get(OTP + tabId))[OTP + tabId] as PendingOtp | undefined;
+  if (p?.accountId !== accountId) return;
+  await chrome.storage.session.set({ [OTP + tabId]: { ...p, lastCode: code, until: Date.now() + OTP_KEEP } satisfies PendingOtp });
 }
 
 async function onRemember(m: Msg, s: chrome.runtime.MessageSender) {
   const ask = m as RememberOtp;
   // only the extension's own pages (the popup) may name a tab; a content script's sender is the web page
-  if (s.url?.startsWith(chrome.runtime.getURL(''))) await remember(ask.tabId, ask.accountId, ask.username, ask.hosts);
+  if (s.url?.startsWith(chrome.runtime.getURL(''))) await remember(ask.tabId, ask.accountId, ask.username, ask.hosts, ask.code);
+  return {};
+}
+
+async function onForget(m: Msg, s: chrome.runtime.MessageSender) {
+  if (s.url?.startsWith(chrome.runtime.getURL(''))) await chrome.storage.session.remove(OTP + (m as ForgetOtp).tabId);
   return {};
 }
 
@@ -142,7 +168,7 @@ async function pendingFor(tabId: number, host: string | null) {
 async function onWatch(_m: Msg, s: chrome.runtime.MessageSender): Promise<WatchReply> {
   if (s.tab?.id == null || !s.url) return {};
   const p = await pendingFor(s.tab.id, hostOf(s.url));
-  return p ? { until: p.until } : {};
+  return p ? { until: p.until, strict: !!p.lastCode } : {};
 }
 
 async function onStatus(m: Msg, s: chrome.runtime.MessageSender): Promise<PendingOtp | null> {

@@ -43,11 +43,12 @@ export function Popup() {
     try {
       const { password, otp } = await secretsFor(a);
       const r = await fillTab(tab.id, a.username, password, otp);
-      // the OTP is often asked on the next screen: keep it on the clipboard, and put it in when that box shows up
-      if (otp && !r.otp) {
-        const ask: RememberOtp = { type: 'otp-remember', tabId: tab.id, accountId: a.id, username: a.username, hosts: [tab.host ?? '', hostOf(a.url) ?? ''] };
+      // the OTP is often asked on the next screen, and again on later steps: put it in when such a box shows up
+      if (otp) {
+        const hosts = [tab.host ?? '', hostOf(a.url) ?? ''];
+        const ask: RememberOtp = { type: 'otp-remember', tabId: tab.id, accountId: a.id, username: a.username, hosts, code: r.otp ? otp : undefined };
         await chrome.runtime.sendMessage(ask);
-        await navigator.clipboard.writeText(otp).catch(() => {});
+        if (!r.otp) await navigator.clipboard.writeText(otp).catch(() => {});
       }
       if (!r.user && !r.pass && !r.otp) return say('Không thấy ô đăng nhập trên trang — dùng các nút copy');
       window.close();

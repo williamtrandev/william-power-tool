@@ -40,13 +40,21 @@ export interface ContentFill {
 }
 export type FillReply = FillResult | { error: string };
 
-/** an account was filled but its OTP box was not on the page yet: put the code in when the box shows up */
+/**
+ * The account last filled in a tab, while its OTP may be asked: first the login's OTP step, then — once a code went
+ * in — later steps on the same site (confirming a transfer…). Put the code in when an empty OTP box shows up.
+ */
 export interface PendingOtp {
   accountId: string;
   username: string;
   /** where the fill happened, and the account's own site — the OTP page must be one of them */
   hosts: string[];
   until: number;
+  /** the code that went in last: set once the login's OTP is done, and a site may refuse the same code twice */
+  lastCode?: string;
+  /** a page that keeps asking (a wrong code, a cleared box) gets a few tries only */
+  lastUrl?: string;
+  streak?: number;
 }
 /** popup → background, after a fill that left the OTP out (the inline menu says so with its fill instead) */
 export interface RememberOtp {
@@ -55,6 +63,13 @@ export interface RememberOtp {
   accountId: string;
   username: string;
   hosts: string[];
+  /** the code already put in with the login, if the page had its box */
+  code?: string;
+}
+/** popup → background: stop filling OTPs for this tab */
+export interface ForgetOtp {
+  type: 'otp-forget';
+  tabId: number;
 }
 /** popup → background: the OTP this tab is waiting for, to show it */
 export interface StatusAsk {
@@ -67,6 +82,8 @@ export interface WatchAsk {
 }
 export interface WatchReply {
   until?: number;
+  /** a later step: only boxes that clearly are OTP boxes, never a lone search box */
+  strict?: boolean;
 }
 
 /** iframe ↔ content script over postMessage: only harmless layout signals, never account data */

@@ -41,6 +41,8 @@ function init() {
   let quietUntil = 0;
   // an OTP is expected in this tab until then (learned from the background, see the watcher below)
   let otpUntil = 0;
+  // a later step: only clear OTP boxes count
+  let otpStrict = false;
 
   const place = () => {
     if (!menu) return;
@@ -61,7 +63,7 @@ function init() {
   /** `auto`: opened by itself on an OTP box that appeared after a fill */
   const open = async (el: HTMLInputElement, auto = false): Promise<void> => {
     // the OTP step often focuses its box on load: that must not show the picker while an OTP is on its way
-    if (!auto && otpUntil > Date.now() && emptyOtpBox() === el) return open(el, true);
+    if (!auto && otpUntil > Date.now() && emptyOtpBox(document, otpStrict) === el) return open(el, true);
     // the auto fill replaces a picker already open on the box, never the other way round
     if (menu?.anchor === el && (menu.auto || !auto)) return;
     if (!auto && (opening === el || Date.now() < quietUntil)) return;
@@ -147,6 +149,8 @@ function init() {
       // the box the menu opened on — it may have no name that says "OTP"
       const ok = menu ? fillOtpInto(menu.anchor, msg.otp ?? '') : fillOtp(msg.otp ?? '');
       setTimeout(close, 1400);
+      // the next step may ask again without leaving the page
+      watchOtpSoon();
       return reply({ user: false, pass: false, otp: ok });
     }
     close();
@@ -154,8 +158,8 @@ function init() {
     watchOtpSoon();
   });
 
-  // ── OTP on the next step ──────────────────────────────────────────────
-  // After a fill that left the OTP out, the background remembers the account for this tab for a short while.
+  // ── OTP on the next steps ─────────────────────────────────────────────
+  // After a fill, the background remembers the account for this tab while its OTP may be asked.
   // Until then, an empty OTP box showing up (a new page, or the same page changing) gets the code put in.
   let watcher: MutationObserver | null = null;
   const watchOtp = async () => {
@@ -163,6 +167,7 @@ function init() {
     const until = r?.until;
     if (!until || until < Date.now() || watcher) return;
     otpUntil = until;
+    otpStrict = !!r?.strict;
     let pending = 0;
     const stop = () => {
       watcher?.disconnect();
@@ -171,7 +176,7 @@ function init() {
     const check = () => {
       pending = 0;
       if (Date.now() > until || !otpUntil) return stop();
-      const box = emptyOtpBox();
+      const box = emptyOtpBox(document, otpStrict);
       if (!box) return;
       stop();
       open(box, true);

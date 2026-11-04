@@ -95,13 +95,28 @@ function Menu({ host, onNote }: { host: string | null; onNote: (m: string) => vo
   );
 }
 
-/** opened by itself on the OTP step after a fill: fetches the current code and puts it in */
+/** opened by itself on an OTP step after a fill: fetches the current code and puts it in */
 function AutoOtp({ p, onError }: { p: PendingOtp; onError: (m: string) => void }) {
   const [done, setDone] = useState(false);
+  // a site may refuse the code it took on the step before: wait for the next one
+  const [waitUntil, setWaitUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!waitUntil) return;
+    const t = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(t);
+  }, [waitUntil]);
+
   useEffect(() => {
     (async () => {
       try {
-        const { code } = await backend!.acctCode(p.accountId);
+        let { code, remaining } = await backend!.acctCode(p.accountId);
+        if (code === p.lastCode) {
+          setWaitUntil(Date.now() + remaining * 1000);
+          await new Promise((ok) => setTimeout(ok, remaining * 1000 + 300));
+          ({ code } = await backend!.acctCode(p.accountId));
+          setWaitUntil(0);
+        }
         const r = await send({ type: 'inline-fill', token, username: p.username, password: null, otp: code, otpOnly: true });
         if (!r.otp) throw new Error('Không điền được ô OTP');
         setDone(true);
@@ -117,7 +132,9 @@ function AutoOtp({ p, onError }: { p: PendingOtp; onError: (m: string) => void }
         {done ? <CheckCircle2 size={17} /> : <ShieldCheck size={17} />}
       </span>
       <div className="min-w-0 flex-1">
-        <div className="font-medium text-fg">{done ? 'Đã điền mã OTP' : 'Đang điền mã OTP…'}</div>
+        <div className="font-medium text-fg">
+          {done ? 'Đã điền mã OTP' : waitUntil ? `Chờ mã OTP mới · ${Math.max(0, Math.ceil((waitUntil - now) / 1000))}s` : 'Đang điền mã OTP…'}
+        </div>
         <div className="truncate font-mono text-[11.5px] text-muted">{p.username}</div>
       </div>
       {!done && <Loader2 size={15} className="shrink-0 animate-spin text-accent" />}

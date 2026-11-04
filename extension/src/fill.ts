@@ -95,17 +95,18 @@ export function fillOtpInto(el: HTMLInputElement, otp: string): boolean {
 /**
  * An empty OTP box waiting for a code (the step after the password, often). Only asked while an OTP is expected,
  * so an unnamed box counts too: the only empty short box on the page (4–8 characters, or a numeric keypad), or the
- * page's only box at all.
+ * page's only box at all. `strict` (later steps, long after the login): the box must say it is short — a lone search
+ * or amount box is not an OTP box.
  */
-export function emptyOtpBox(doc: Document = document): HTMLInputElement | undefined {
+export function emptyOtpBox(doc: Document = document, strict = false): HTMLInputElement | undefined {
   const f = findFields(doc);
   if (f.boxes.length && f.boxes.every((el) => !el.value)) return f.boxes[0];
   if (f.otp && !f.otp.value) return f.otp;
   const inputs = visibleInputs(doc).filter((el) => !isCaptcha(el));
   const empty = inputs.filter((el) => !el.value && ['text', 'tel', 'number', 'password'].includes(el.type));
-  const short = empty.filter((el) => (el.maxLength >= 4 && el.maxLength <= 8) || el.inputMode === 'numeric');
+  const short = empty.filter((el) => (el.maxLength >= 4 && el.maxLength <= 8) || (!strict && el.inputMode === 'numeric'));
   if (short.length === 1) return short[0];
-  if (inputs.length === 1 && empty.length === 1) return empty[0];
+  if (!strict && inputs.length === 1 && empty.length === 1) return empty[0];
 }
 
 /** a field the inline menu opens on */
