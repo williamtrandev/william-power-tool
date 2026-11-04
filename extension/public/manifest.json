@@ -47,6 +47,7 @@
       "js": [
         "content.js"
       ],
+      "match_origin_as_fallback": true,
       "all_frames": true,
       "run_at": "document_idle"
     }

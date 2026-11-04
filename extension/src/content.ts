@@ -27,6 +27,16 @@ interface Menu {
 // the popup injects this file again before filling; set up once
 if (!globalThis.__wptFill) init();
 
+/** the element an event happened on, inside open shadow roots too (web components) */
+const target = (e: Event) => e.composedPath()[0] ?? e.target;
+
+/** the focused element, inside open shadow roots too */
+function focused() {
+  let el = document.activeElement;
+  while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+  return el;
+}
+
 function init() {
   globalThis.__wptFill = (u, p, o) => {
     const r = fillLogin(u, p, o);
@@ -72,7 +82,7 @@ function init() {
     const ask: OpenAsk = { type: 'inline-open', auto };
     const r = (await chrome.runtime.sendMessage(ask).catch(() => null)) as OpenReply | null;
     if (opening === el) opening = null;
-    if (!r?.token || (!auto && document.activeElement !== el) || (!auto && menu?.auto)) return;
+    if (!r?.token || (!auto && focused() !== el) || (!auto && menu?.auto)) return;
     close();
 
     const host = document.createElement('div');
@@ -93,10 +103,15 @@ function init() {
   addEventListener(
     'focusin',
     (e) => {
-      const t = e.target;
+      const t = target(e);
       if (menu && t === menu.host) return;
-      if (t instanceof HTMLInputElement && isLoginField(t)) open(t);
-      else close();
+      if (!(t instanceof HTMLInputElement)) return close();
+      // some pages keep the box read-only until their own focus handler runs: look once it had its turn
+      setTimeout(() => {
+        if (focused() !== t) return;
+        if (isLoginField(t)) open(t);
+        else if (menu?.anchor !== t) close();
+      });
     },
     true,
   );
@@ -104,10 +119,10 @@ function init() {
   addEventListener(
     'mousedown',
     (e) => {
-      const t = e.target;
+      const t = target(e);
       if (menu && (t === menu.host || t === menu.anchor)) return;
       close();
-      if (t instanceof HTMLInputElement && document.activeElement === t && isLoginField(t)) open(t);
+      if (t instanceof HTMLInputElement && focused() === t && isLoginField(t)) open(t);
     },
     true,
   );
@@ -153,8 +168,9 @@ function init() {
       watchOtpSoon();
       return reply({ user: false, pass: false, otp: ok });
     }
+    const anchor = menu?.anchor;
     close();
-    reply(fillLogin(msg.username, msg.password, msg.otp));
+    reply(fillLogin(msg.username, msg.password, msg.otp, document, anchor));
     watchOtpSoon();
   });
 

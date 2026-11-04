@@ -26,6 +26,16 @@ const isCaptcha = (el: HTMLInputElement) => /captcha|capcha|ma.?bao.?ve/.test(hi
 const isOtp = (el: HTMLInputElement) =>
   !isCaptcha(el) && (el.autocomplete === 'one-time-code' || /otp|2fa|totp|mfa|one-?time|verif|passcode|token|sms|authen|xac.?thuc|ma.?xac|(^|[\s_-])code/.test(hint(el)));
 const isText = (el: HTMLInputElement) => ['text', 'email', 'tel', 'search'].includes(el.type) && !isOtp(el) && !isCaptcha(el);
+/**
+ * A box asking for a username or an email, wherever it is on the page — not only the one `findFields` picks.
+ * Says so by its type, its autocomplete, or its name; search boxes and bank account numbers ("số tài khoản") do not count.
+ */
+const asksForUser = (el: HTMLInputElement) => {
+  if (!['text', 'email'].includes(el.type) || isCaptcha(el)) return false;
+  if (el.type === 'email' || /username|email/.test(el.autocomplete)) return true;
+  const h = hint(el);
+  return !isOtp(el) && !/search|(^|\s)tim(\s|$)|so.?tai.?khoan|account.?(no|num)/.test(h) && /user|e-?mail|login|account|tai.?khoan|ten.?dang/.test(h);
+};
 
 /** the login boxes of a page: visible, editable inputs only */
 const visibleInputs = (doc: Document) =>
@@ -38,9 +48,12 @@ export function findFields(doc: Document = document): LoginFields {
   // one-box-per-digit OTP inputs are often type=password too — never take them for the password
   const pw = inputs.find((el) => el.type === 'password' && el.maxLength !== 1 && !isOtp(el));
   const texts = inputs.filter(isText);
-  // the username is the last text box before the password (in its form), or the likeliest one on a username-first page
+  // the username is a text box before the password (in its form) — the one saying so, else the last — or the likeliest
+  // one on a username-first page
+  const before = pw ? texts.filter((el) => (!pw.form || el.form === pw.form) && el.compareDocumentPosition(pw) & Node.DOCUMENT_POSITION_FOLLOWING) : [];
   const user =
-    (pw && texts.filter((el) => (!pw.form || el.form === pw.form) && el.compareDocumentPosition(pw) & Node.DOCUMENT_POSITION_FOLLOWING).at(-1)) ||
+    before.findLast(asksForUser) ||
+    before.at(-1) ||
     texts.find((el) => el.autocomplete === 'username' || el.type === 'email' || /user|email|login|account|tai.?khoan|ten.?dang/.test(hint(el)));
   const boxes = inputs.filter((el) => el.maxLength === 1 && !isCaptcha(el));
   const otp = inputs.find((el) => el !== pw && el !== user && el.maxLength !== 1 && isOtp(el));
@@ -55,9 +68,17 @@ function set(el: HTMLInputElement, v: string) {
   el.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-/** fills what the page has: username, password, and the OTP (one box, or one box per digit) */
-export function fillLogin(username: string, password: string | null, otp: string | null, doc: Document = document): FillResult {
+/**
+ * Fills what the page has: username, password, and the OTP (one box, or one box per digit). The username goes in
+ * `anchor` (the box the menu opened on, or the focused one) when that box asks for it, with the password of its form.
+ */
+export function fillLogin(username: string, password: string | null, otp: string | null, doc: Document = document, anchor?: HTMLInputElement): FillResult {
   const f = findFields(doc);
+  const at = anchor ?? (doc.activeElement instanceof HTMLInputElement ? doc.activeElement : undefined);
+  if (at && at !== f.user && asksForUser(at)) {
+    f.user = at;
+    if (f.pw && at.form && f.pw.form !== at.form) f.pw = undefined;
+  }
   const res: FillResult = { user: false, pass: false, otp: false };
   if (f.user) {
     set(f.user, username);
@@ -111,5 +132,6 @@ export function emptyOtpBox(doc: Document = document, strict = false): HTMLInput
 
 /** a field the inline menu opens on */
 export function isLoginField(el: HTMLInputElement, f: LoginFields = findFields(el.ownerDocument)) {
-  return el === f.user || el === f.pw || el === f.otp || f.boxes[0] === el;
+  if (el.disabled || el.readOnly) return false;
+  return el === f.user || el === f.pw || el === f.otp || f.boxes[0] === el || asksForUser(el);
 }

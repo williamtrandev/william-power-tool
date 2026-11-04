@@ -29,6 +29,8 @@ export function AccountRow({ a, mine, selected, confirming, busy, pageHost, comp
     if (selected) ref.current?.scrollIntoView({ block: 'nearest' });
   }, [selected]);
   const host = hostOf(a.url);
+  // the site, when it is not the open page
+  const other = !mine ? host : null;
 
   return (
     <div ref={ref} onMouseEnter={onHover} className={clsx('relative', selected && 'bg-sel')}>
@@ -36,19 +38,21 @@ export function AccountRow({ a, mine, selected, confirming, busy, pageHost, comp
       <div className={clsx('flex items-center gap-2', compact ? 'py-1.5 pr-2 pl-3' : 'py-2 pr-2 pl-3.5')}>
         <button type="button" onClick={() => onFill()} className="focus-ring min-w-0 flex-1 rounded text-left" title="Điền vào trang đang mở">
           <div className="flex min-w-0 items-center gap-1.5">
-            <span className="truncate text-[13px] font-medium text-fg">{a.system || 'Không tên'}</span>
+            <span className="truncate text-[13px] font-medium text-fg" title={a.system}>
+              {a.system || 'Không tên'}
+            </span>
             {a.env && (
               <span className={clsx('shrink-0 rounded px-1.5 text-[10.5px] font-semibold', isProd(a.env) ? 'bg-error/12 text-error' : 'bg-surface-2 text-muted')}>{a.env}</span>
             )}
           </div>
-          <div className="flex min-w-0 items-center gap-1.5 text-[12px]">
-            <span className="truncate font-mono text-fg-2">{a.username}</span>
-            {host && !mine && <span className="truncate text-faint">· {host}</span>}
-          </div>
+          {/* in full, wrapped: long test emails differ only near the end (…voucher01@, …voucher02@) */}
+          <div className="font-mono text-[12px] leading-snug break-all text-fg-2">{a.username}</div>
           {/* the note usually names the role (maker, checker, admin…): what tells same-site accounts apart */}
-          {a.note && (
-            <div className="truncate text-[11.5px] text-muted" title={a.note}>
-              {a.note}
+          {(other || a.note) && (
+            <div className="truncate text-[11.5px]" title={[other, a.note].filter(Boolean).join(' · ')}>
+              {other && <span className="text-faint">{other}</span>}
+              {other && a.note && <span className="text-faint"> · </span>}
+              {a.note && <span className="text-muted">{a.note}</span>}
             </div>
           )}
         </button>
