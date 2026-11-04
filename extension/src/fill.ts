@@ -14,9 +14,37 @@ export interface LoginFields {
 }
 
 const SKIP = ['hidden', 'checkbox', 'radio', 'submit', 'button', 'reset', 'file', 'image', 'range', 'color'];
-// what a box is called: name, id, placeholder, aria-label, title and its <label> — lower case, Vietnamese accents dropped
+/**
+ * The caption shown before a box when it is not a real <label for> — `<label>Email</label><div><input></div>`,
+ * `<span>Email</span><input>`: the nearest text before the box or one of its wrappers, as long as nothing in between
+ * is another field (then the text belongs to that one).
+ */
+function caption(el: HTMLInputElement) {
+  let n: Element | null = el;
+  for (let up = 0; up < 4 && n && n !== el.form; up++, n = n.parentElement) {
+    for (let p = n.previousElementSibling; p; p = p.previousElementSibling) {
+      if (p.matches('input, select, textarea') || p.querySelector('input, select, textarea')) return '';
+      const t = p.textContent?.trim();
+      if (t) return t.length <= 40 ? t : '';
+    }
+  }
+  return '';
+}
+
+// what a box is called: name, id, placeholder, aria-label, title, its <label> or the caption before it — lower case,
+// Vietnamese accents dropped
 const hint = (el: HTMLInputElement) =>
-  [el.name, el.id, el.autocomplete, el.placeholder, el.title, el.getAttribute('aria-label'), ...[...(el.labels ?? [])].map((l) => l.textContent)]
+  [
+    el.name,
+    el.id,
+    el.autocomplete,
+    el.placeholder,
+    el.title,
+    el.getAttribute('aria-label'),
+    ...(el.getAttribute('aria-labelledby') ?? '').split(/\s+/).map((id) => (id && el.ownerDocument.getElementById(id)?.textContent) || ''),
+    ...[...(el.labels ?? [])].map((l) => l.textContent),
+    el.labels?.length ? '' : caption(el),
+  ]
     .join(' ')
     .normalize('NFD')
     .replace(/\p{M}/gu, '')
