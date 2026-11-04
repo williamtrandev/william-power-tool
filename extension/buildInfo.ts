@@ -9,19 +9,6 @@ const INPUTS = ['extension/src', 'extension/public', 'extension/popup.html', 'ex
 
 const walk = (p: string): string[] => (statSync(p).isDirectory() ? readdirSync(p).sort().flatMap((f) => walk(join(p, f))) : [p]);
 
-/** the team's deployment: a build made on a laptop looks for new builds there too */
-const DEPLOYED = 'https://william-power-tool.vercel.app';
-
-/**
- * Where the web app is deployed — the extension looks for new builds there. Vercel provides its production URL;
- * elsewhere `VITE_APP_URL`, else the team's deployment. Demo builds never look.
- */
-export function appUrl(env: Record<string, string | undefined>) {
-  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  const url = env.VITE_APP_URL || (vercel ? 'https://' + vercel : env.VITE_SUPABASE_URL === 'demo' ? '' : DEPLOYED);
-  return url.replace(/\/+$/, '');
-}
-
 /** a fingerprint of the sources and settings the extension is built from: same inputs, same id */
 export function buildId(env: Record<string, string | undefined>) {
   const h = createHash('sha256');
@@ -30,8 +17,6 @@ export function buildId(env: Record<string, string | undefined>) {
     if (!existsSync(p)) continue;
     for (const f of walk(p)) h.update(f.slice(ROOT.length)).update(readFileSync(f));
   }
-  h.update(`${env.VITE_SUPABASE_URL ?? ''}|${env.VITE_SUPABASE_ANON_KEY ?? ''}|${appUrl(env)}`);
+  h.update(`${env.VITE_SUPABASE_URL ?? ''}|${env.VITE_SUPABASE_ANON_KEY ?? ''}`);
   return h.digest('hex').slice(0, 12);
 }
-
-export const manifestVersion = () => (JSON.parse(readFileSync(join(ROOT, 'extension/public/manifest.json'), 'utf8')) as { version: string }).version;

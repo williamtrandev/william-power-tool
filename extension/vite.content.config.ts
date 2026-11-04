@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv } from 'vite';
-import { appUrl, buildId } from './buildInfo';
+import { buildId } from './buildInfo';
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
@@ -12,7 +12,6 @@ export default defineConfig(({ mode }) => {
     envDir: here('..'),
     define: {
       __BUILD__: JSON.stringify(buildId(env)),
-      __APP_URL__: JSON.stringify(appUrl(env)),
     },
     build: {
       outDir: here('../dist-extension'),

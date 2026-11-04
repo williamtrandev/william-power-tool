@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
-import { appUrl, buildId, manifestVersion } from './buildInfo';
+import { buildId } from './buildInfo';
 
 const here = (p: string) => fileURLToPath(new URL(p, import.meta.url));
 
@@ -24,26 +24,14 @@ const icon: Plugin = {
 export default defineConfig(({ mode }) => {
   const env = { ...loadEnv(mode, here('..'), 'VITE_'), ...process.env };
   const build = buildId(env);
-  // build.json: read back from disk to notice that the files were replaced by a newer build
-  const info: Plugin = {
-    name: 'extension-build-info',
-    generateBundle() {
-      this.emitFile({
-        type: 'asset',
-        fileName: 'build.json',
-        source: JSON.stringify({ build, version: manifestVersion() }),
-      });
-    },
-  };
   return {
     root: here('.'),
     envDir: here('..'),
     base: './',
     define: {
       __BUILD__: JSON.stringify(build),
-      __APP_URL__: JSON.stringify(appUrl(env)),
     },
-    plugins: [react(), tailwindcss(), icon, info],
+    plugins: [react(), tailwindcss(), icon],
     build: {
       outDir: here('../dist-extension'),
       emptyOutDir: true,

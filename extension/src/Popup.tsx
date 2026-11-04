@@ -10,7 +10,6 @@ import { Gate } from './Gate';
 import type { RememberOtp } from './messages';
 import { hostOf } from './site';
 import { useTheme } from './theme';
-import { UpdateBanner } from './UpdateBanner';
 import { OtpStatus } from './OtpStatus';
 import { copyValue, secretsFor, useVault } from './vault';
 
@@ -82,7 +81,6 @@ export function Popup() {
         </span>
       </header>
 
-      <UpdateBanner />
       <OtpStatus tabId={tab.id} />
       {settings && <SettingsPanel />}
 

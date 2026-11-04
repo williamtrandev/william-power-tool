@@ -2,14 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 import { AUTH_KEY, getInlineMode, SIGN_IN_ERROR, SITES_KEY, SUPABASE_KEY, SUPABASE_URL, sessionStore, type SitesCache } from './config';
 import type { ContentFill, FillAsk, FillReply, ForgetOtp, InfoAsk, InfoReply, OpenAsk, OpenReply, PendingOtp, RememberOtp, StatusAsk, WatchReply } from './messages';
 import { hostOf } from './site';
-import { checkForUpdate, reloadIfReplaced, setUpUpdates } from './update';
 
-setUpUpdates();
+// older builds checked for new versions: drop what they left behind
+chrome.runtime.onInstalled.addListener(() => chrome.storage.local.remove(['wpt-update', 'wpt-carry', 'wpt-reloaded-for']));
 
 type Msg = { type?: string };
 
 chrome.runtime.onMessage.addListener((msg: Msg, sender, reply) => {
-  const handle = { 'sign-in': onSignIn, 'inline-open': onOpen, 'inline-info': onInfo, 'inline-fill': onFill, 'otp-remember': onRemember, 'otp-watch': onWatch, 'otp-status': onStatus, 'otp-forget': onForget, 'update-check': onUpdateCheck }[msg?.type ?? ''] as
+  const handle = { 'sign-in': onSignIn, 'inline-open': onOpen, 'inline-info': onInfo, 'inline-fill': onFill, 'otp-remember': onRemember, 'otp-watch': onWatch, 'otp-status': onStatus, 'otp-forget': onForget }[msg?.type ?? ''] as
     | ((m: Msg, s: chrome.runtime.MessageSender) => Promise<unknown>)
     | undefined;
   if (!handle) return;
@@ -187,10 +187,4 @@ async function prune() {
     .filter(([k, v]) => k.startsWith(TICKET) && Date.now() - (v as MenuTicket).at > TICKET_TTL)
     .map(([k]) => k);
   if (old.length) await chrome.storage.session.remove(old);
-}
-
-// the popup asks on open: files already replaced → reload now, else look for a newer build
-async function onUpdateCheck() {
-  if (await reloadIfReplaced()) return { reloading: true };
-  return { update: await checkForUpdate() };
 }

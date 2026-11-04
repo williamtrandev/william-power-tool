@@ -184,7 +184,7 @@ Extension cho Chrome / Edge, dùng giống Bitwarden: bấm vào ô tên đăng 
 - Menu trong trang là một khung của extension, trang web không đọc được danh sách tài khoản. Có thể đặt menu hiện ở mọi trang, chỉ ở trang có tài khoản, hoặc tắt (icon extension → cài đặt).
 - Có giao diện sáng / tối. Chỉ điền khi bấm, không tự điền lúc trang vừa tải. Phiên đăng nhập của extension mất khi đóng trình duyệt.
 - Đăng nhập hai bước: điền tài khoản có OTP ở trang chưa có ô OTP thì extension nhớ tài khoản đó trong 2 phút. Ô OTP hiện ra (trang sau, hoặc cùng trang đổi sang bước OTP) là mã được điền luôn, chỉ một lần và chỉ trên cùng tab, cùng trang web.
-- Có bản extension mới (sau mỗi lần deploy có sửa extension) thì icon hiện số 1, popup hướng dẫn tải và chép đè; chép xong extension tự chuyển sang bản mới. Extension dò bản mới mỗi giờ và mỗi lần mở popup; số 1 chỉ thấy khi icon đã được ghim lên thanh công cụ. Địa chỉ dò: trên Vercel tự lấy, nơi khác đặt `VITE_APP_URL` lúc build, mặc định là william-power-tool.vercel.app.
+- Cập nhật bản mới: tải lại file zip, chép đè vào thư mục đang cài, rồi bấm nút tải lại ↻ của William Tool trong `chrome://extensions`. Phiên bản đang chạy xem ở nút cài đặt trong popup.
 
 ![Cài extension](docs/media/extension-setup.gif)
 

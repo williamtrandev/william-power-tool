@@ -81,8 +81,8 @@ export function ExtensionModal({ onClose }: { onClose: () => void }) {
           nội dung trang đi đâu. Muốn tắt menu trong trang: icon extension → nút cài đặt.
         </p>
         <p className="rounded-lg bg-surface-2 px-3 py-2.5 text-[12.5px] text-muted">
-          Có bản mới thì icon extension hiện số 1 và popup hướng dẫn: tải file mới, giải nén, chép đè vào thư mục đang cài (chọn Thay thế). Extension tự chuyển sang bản mới, không cần vào
-          chrome://extensions. Để tài khoản hiện đúng trang, điền “Link đăng nhập” cho từng tài khoản.
+          Cập nhật bản mới: tải lại file, giải nén, chép đè vào thư mục đang cài (chọn Thay thế), rồi vào chrome://extensions bấm nút tải lại ↻ của William Tool. Để tài khoản hiện đúng
+          trang, điền “Link đăng nhập” cho từng tài khoản.
         </p>
       </div>
     </Modal>
