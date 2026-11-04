@@ -9,9 +9,16 @@ const INPUTS = ['extension/src', 'extension/public', 'extension/popup.html', 'ex
 
 const walk = (p: string): string[] => (statSync(p).isDirectory() ? readdirSync(p).sort().flatMap((f) => walk(join(p, f))) : [p]);
 
-/** where the web app is deployed — the extension looks for new builds there. Vercel provides its production URL. */
+/** the team's deployment: a build made on a laptop looks for new builds there too */
+const DEPLOYED = 'https://william-power-tool.vercel.app';
+
+/**
+ * Where the web app is deployed — the extension looks for new builds there. Vercel provides its production URL;
+ * elsewhere `VITE_APP_URL`, else the team's deployment. Demo builds never look.
+ */
 export function appUrl(env: Record<string, string | undefined>) {
-  const url = env.VITE_APP_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? 'https://' + process.env.VERCEL_PROJECT_PRODUCTION_URL : '');
+  const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const url = env.VITE_APP_URL || (vercel ? 'https://' + vercel : env.VITE_SUPABASE_URL === 'demo' ? '' : DEPLOYED);
   return url.replace(/\/+$/, '');
 }
 

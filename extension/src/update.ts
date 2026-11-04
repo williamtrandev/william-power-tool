@@ -67,7 +67,7 @@ async function restoreSession() {
 
 export function setUpUpdates() {
   restoreSession();
-  chrome.alarms.create(CHECK_ALARM, { periodInMinutes: 360 });
+  chrome.alarms.create(CHECK_ALARM, { periodInMinutes: 60 });
   chrome.alarms.onAlarm.addListener((a) => {
     if (a.name === CHECK_ALARM) checkForUpdate();
     if (a.name === DISK_ALARM) reloadIfReplaced();
