@@ -45,6 +45,12 @@ export function AccountRow({ a, mine, selected, confirming, busy, pageHost, comp
             <span className="truncate font-mono text-fg-2">{a.username}</span>
             {host && !mine && <span className="truncate text-faint">· {host}</span>}
           </div>
+          {/* the note usually names the role (maker, checker, admin…): what tells same-site accounts apart */}
+          {a.note && (
+            <div className="truncate text-[11.5px] text-muted" title={a.note}>
+              {a.note}
+            </div>
+          )}
         </button>
         {compact ? (
           <span className="flex size-6 shrink-0 items-center justify-center text-faint">

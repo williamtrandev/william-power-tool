@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "William Tool – Điền tài khoản",
   "short_name": "William Tool",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "description": "Điền tên đăng nhập, mật khẩu và mã OTP từ tab Tài khoản của William Tool vào trang đăng nhập.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAntqk5v8GQx17GKtChBqhibux7ii5xRFxeu/QmHhenZElWN5Kiy0TDgY9rzvcmvcouDZnNgi298rbpxvgfUEv+MUp9nPlR47HLABrwq8XB9maGTLENyVCWFFalMsL9M8IvQlcTNRwkjiAuyj1iBblClmsUO1LA3iKsKvIo+kTf/YLSrQ4BW9VLYdMBbgw2LHfbuxtW7nAyFZQ54RBuh0KeOpxYLN9yCegAFDGXhCO2enxlZSvA5TiaUL/QdMNXWjfnzyZ6SID7LY6XpSJ1wm8hjx+CUIGLcJf7Xm+Ze8sGHHlKc8CmF0Mc27ye7GS/VVU8Li3Zl4R8uTvvpUQUuLQ1QIDAQAB",
   "icons": {
