@@ -17,6 +17,8 @@ const MAX_H = 380;
 
 interface Menu {
   anchor: HTMLInputElement;
+  /** putting in the OTP by itself, not the account picker */
+  auto: boolean;
   host: HTMLDivElement;
   frame: HTMLIFrameElement;
   h: number;
@@ -37,6 +39,8 @@ function init() {
   let opening: HTMLInputElement | null = null;
   // filling focuses the boxes it fills: don't reopen on that
   let quietUntil = 0;
+  // an OTP is expected in this tab until then (learned from the background, see the watcher below)
+  let otpUntil = 0;
 
   const place = () => {
     if (!menu) return;
@@ -55,13 +59,18 @@ function init() {
   };
 
   /** `auto`: opened by itself on an OTP box that appeared after a fill */
-  const open = async (el: HTMLInputElement, auto = false) => {
-    if (menu?.anchor === el || opening === el || (!auto && Date.now() < quietUntil)) return;
+  const open = async (el: HTMLInputElement, auto = false): Promise<void> => {
+    // the OTP step often focuses its box on load: that must not show the picker while an OTP is on its way
+    if (!auto && otpUntil > Date.now() && emptyOtpBox() === el) return open(el, true);
+    // the auto fill replaces a picker already open on the box, never the other way round
+    if (menu?.anchor === el && (menu.auto || !auto)) return;
+    if (!auto && (opening === el || Date.now() < quietUntil)) return;
+    if (auto) otpUntil = 0;
     opening = el;
     const ask: OpenAsk = { type: 'inline-open', auto };
     const r = (await chrome.runtime.sendMessage(ask).catch(() => null)) as OpenReply | null;
-    opening = null;
-    if (!r?.token || (!auto && document.activeElement !== el)) return;
+    if (opening === el) opening = null;
+    if (!r?.token || (!auto && document.activeElement !== el) || (!auto && menu?.auto)) return;
     close();
 
     const host = document.createElement('div');
@@ -74,7 +83,7 @@ function init() {
     frame.style.cssText = 'all:initial;display:block;width:100%;height:100%;border:0;border-radius:10px;box-shadow:0 12px 40px -8px rgb(0 0 0/.35),0 0 0 1px rgb(0 0 0/.08);background:transparent;color-scheme:normal;';
     root.append(frame);
     document.documentElement.append(host);
-    menu = { anchor: el, host, frame, h: 200 };
+    menu = { anchor: el, auto, host, frame, h: 200 };
     place();
   };
 
@@ -153,6 +162,7 @@ function init() {
     const r = (await chrome.runtime.sendMessage({ type: 'otp-watch' }).catch(() => null)) as WatchReply | null;
     const until = r?.until;
     if (!until || until < Date.now() || watcher) return;
+    otpUntil = until;
     let pending = 0;
     const stop = () => {
       watcher?.disconnect();
@@ -160,7 +170,7 @@ function init() {
     };
     const check = () => {
       pending = 0;
-      if (Date.now() > until) return stop();
+      if (Date.now() > until || !otpUntil) return stop();
       const box = emptyOtpBox();
       if (!box) return;
       stop();
