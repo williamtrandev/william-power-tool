@@ -11,6 +11,7 @@ import type { RememberOtp } from './messages';
 import { hostOf } from './site';
 import { useTheme } from './theme';
 import { UpdateBanner } from './UpdateBanner';
+import { OtpStatus } from './OtpStatus';
 import { copyValue, secretsFor, useVault } from './vault';
 
 interface Tab {
@@ -81,6 +82,7 @@ export function Popup() {
       </header>
 
       <UpdateBanner />
+      <OtpStatus tabId={tab.id} />
       {settings && <SettingsPanel />}
 
       {vault.phase === 'ready' ? (

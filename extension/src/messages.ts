@@ -56,6 +56,11 @@ export interface RememberOtp {
   username: string;
   hosts: string[];
 }
+/** popup → background: the OTP this tab is waiting for, to show it */
+export interface StatusAsk {
+  type: 'otp-status';
+  tabId: number;
+}
 /** content script → background, on load and after a fill: is an OTP expected in this tab? */
 export interface WatchAsk {
   type: 'otp-watch';

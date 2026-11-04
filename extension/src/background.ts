@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { AUTH_KEY, getInlineMode, SIGN_IN_ERROR, SITES_KEY, SUPABASE_KEY, SUPABASE_URL, sessionStore, type SitesCache } from './config';
-import type { ContentFill, FillAsk, FillReply, InfoAsk, InfoReply, OpenAsk, OpenReply, PendingOtp, RememberOtp, WatchReply } from './messages';
+import type { ContentFill, FillAsk, FillReply, InfoAsk, InfoReply, OpenAsk, OpenReply, PendingOtp, RememberOtp, StatusAsk, WatchReply } from './messages';
 import { hostOf } from './site';
 import { checkForUpdate, reloadIfReplaced, setUpUpdates } from './update';
 
@@ -9,7 +9,7 @@ setUpUpdates();
 type Msg = { type?: string };
 
 chrome.runtime.onMessage.addListener((msg: Msg, sender, reply) => {
-  const handle = { 'sign-in': onSignIn, 'inline-open': onOpen, 'inline-info': onInfo, 'inline-fill': onFill, 'otp-remember': onRemember, 'otp-watch': onWatch, 'update-check': onUpdateCheck }[msg?.type ?? ''] as
+  const handle = { 'sign-in': onSignIn, 'inline-open': onOpen, 'inline-info': onInfo, 'inline-fill': onFill, 'otp-remember': onRemember, 'otp-watch': onWatch, 'otp-status': onStatus, 'update-check': onUpdateCheck }[msg?.type ?? ''] as
     | ((m: Msg, s: chrome.runtime.MessageSender) => Promise<unknown>)
     | undefined;
   if (!handle) return;
@@ -143,6 +143,13 @@ async function onWatch(_m: Msg, s: chrome.runtime.MessageSender): Promise<WatchR
   if (s.tab?.id == null || !s.url) return {};
   const p = await pendingFor(s.tab.id, hostOf(s.url));
   return p ? { until: p.until } : {};
+}
+
+async function onStatus(m: Msg, s: chrome.runtime.MessageSender): Promise<PendingOtp | null> {
+  if (!s.url?.startsWith(chrome.runtime.getURL(''))) return null;
+  const tabId = (m as StatusAsk).tabId;
+  const p = (await chrome.storage.session.get(OTP + tabId))[OTP + tabId] as PendingOtp | undefined;
+  return p && p.until > Date.now() ? p : null;
 }
 
 chrome.tabs.onRemoved.addListener((tabId) => chrome.storage.session.remove(OTP + tabId));

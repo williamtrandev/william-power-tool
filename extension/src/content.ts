@@ -1,4 +1,4 @@
-import { emptyOtpBox, fillLogin, fillOtp, isLoginField } from './fill';
+import { emptyOtpBox, fillLogin, fillOtp, fillOtpInto, isLoginField } from './fill';
 import type { ContentFill, FrameSignal, OpenAsk, OpenReply, WatchReply } from './messages';
 
 /**
@@ -135,7 +135,8 @@ function init() {
     quietUntil = Date.now() + 1500;
     if (msg.otpOnly) {
       // the menu shows "filled" for a moment before it goes
-      const ok = fillOtp(msg.otp ?? '');
+      // the box the menu opened on — it may have no name that says "OTP"
+      const ok = menu ? fillOtpInto(menu.anchor, msg.otp ?? '') : fillOtp(msg.otp ?? '');
       setTimeout(close, 1400);
       return reply({ user: false, pass: false, otp: ok });
     }
