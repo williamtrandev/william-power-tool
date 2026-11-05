@@ -3,12 +3,17 @@ import { AlertCircle, Download, FileSpreadsheet, Loader2, RefreshCw } from 'luci
 import { useDeferredValue, useMemo, useRef, useState } from 'react';
 import { type CodecResult } from './lib/aesCodec';
 import { fmtBytes, nf } from '../../../lib/format';
-import { ACCEPT, B64ISH, exportTable, readSheet, readTable, type Table } from './lib/sheetFile';
+import { ACCEPT, exportTable, readSheet, readTable, type Table } from '../lib/sheetFile';
 import { Button } from '../../../components/ui';
 import { Select } from '../../../components/form';
 
 const DEFAULT_COL = 'EncryptedCode';
 const PREVIEW = 300;
+const B64ISH = /^[A-Za-z0-9+/]{16,}={0,2}$/;
+
+/** prefer the sheet that looks like it holds encrypted codes */
+const looksEncrypted = (t: Table) =>
+  t.fields.some((f) => /encrypt/i.test(f)) || t.rows.slice(0, 20).some((r) => Object.values(r).some((v) => B64ISH.test(v.trim())));
 
 function guessColumn(t: Table): string {
   return (
@@ -47,7 +52,7 @@ export function FilePanel({ run, decrypting, keyReady, onToast }: Props) {
   const load = async (file: File) => {
     setBusy(true);
     try {
-      openTable(await readTable(file));
+      openTable(await readTable(file, looksEncrypted));
     } catch (e) {
       onToast('Không đọc được file: ' + (e as Error).message);
     } finally {

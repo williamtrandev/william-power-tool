@@ -25,11 +25,10 @@ export interface Table {
 }
 
 export const isExcel = (name: string) => /\.(xlsx|xlsm|xls|xlsb|ods)$/i.test(name);
-export const B64ISH = /^[A-Za-z0-9+/]{16,}={0,2}$/;
 export const ACCEPT = '.csv,.xlsx,.xlsm,.xls,.xlsb,.ods,text/csv';
 
 /** Make header names unique and non-empty ("Cột C", "Code (2)"…). */
-function uniqueFields(raw: string[], firstCol: number): string[] {
+export function uniqueFields(raw: string[], firstCol: number): string[] {
   const seen = new Map<string, number>();
   return raw.map((h, j) => {
     let name = String(h ?? '').trim() || `Cột ${XLSX.utils.encode_col(firstCol + j)}`;
@@ -59,7 +58,7 @@ function readCsv(file: File): Promise<Table> {
  * Guess the header row: among the first rows, the first one with the most filled cells.
  * Skips title rows like "DANH SÁCH CODE" that sit above the real header.
  */
-function guessHeader(aoa: string[][]): number {
+export function guessHeader(aoa: string[][]): number {
   let best = -1;
   let bestN = 0;
   for (let i = 0; i < Math.min(aoa.length, 20); i++) {
@@ -97,18 +96,16 @@ export function readSheet(t: Pick<Table, 'fileName' | 'size'> & { wb: XLSX.WorkB
   return { ...base, fields, rows, headerRow: range.s.r + h, firstCol: range.s.c, rowNums };
 }
 
-export async function readTable(file: File): Promise<Table> {
+/** Read a CSV or Excel file. For Excel, opens the first sheet `prefer` accepts, else the first non-empty one. */
+export async function readTable(file: File, prefer?: (t: Table) => boolean): Promise<Table> {
   if (!isExcel(file.name)) return readCsv(file);
   const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', dense: false });
   const src = { fileName: file.name, size: file.size, wb };
   const sheets = wb.SheetNames.filter((n) => wb.Sheets[n]?.['!ref']).map((n) => readSheet(src, n));
-  // prefer the sheet that looks like it holds encrypted codes, else the first non-empty one
-  const looksEncrypted = (t: Table) =>
-    t.fields.some((f) => /encrypt/i.test(f)) || t.rows.slice(0, 20).some((r) => Object.values(r).some((v) => B64ISH.test(v.trim())));
-  return sheets.find(looksEncrypted) ?? sheets.find((t) => t.rows.length) ?? sheets[0] ?? readSheet(src, wb.SheetNames[0]);
+  return (prefer && sheets.find(prefer)) ?? sheets.find((t) => t.rows.length) ?? sheets[0] ?? readSheet(src, wb.SheetNames[0]);
 }
 
-function save(blob: Blob, name: string) {
+export function downloadBlob(blob: Blob, name: string) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = name;
@@ -123,7 +120,7 @@ export function exportTable(t: Table, outCol: string, values: (string | null)[],
     const data = t.rows.map((row, i) => ({ ...row, [outCol]: values[i] ?? '' }));
     const fields = t.fields.includes(outCol) ? t.fields : [...t.fields, outCol];
     // BOM so Excel opens Vietnamese text as UTF-8 (same as the script's utf-8-sig)
-    save(new Blob(['﻿' + Papa.unparse({ fields, data })], { type: 'text/csv;charset=utf-8' }), `${base}${suffix}.csv`);
+    downloadBlob(new Blob(['﻿' + Papa.unparse({ fields, data })], { type: 'text/csv;charset=utf-8' }), `${base}${suffix}.csv`);
     return;
   }
   const ws = t.wb.Sheets[t.sheetName];
@@ -139,5 +136,5 @@ export function exportTable(t: Table, outCol: string, values: (string | null)[],
   ws['!ref'] = XLSX.utils.encode_range(range);
   const ext = /\.xls$/i.test(t.fileName) ? 'xls' : 'xlsx';
   const out = XLSX.write(t.wb, { type: 'array', bookType: ext === 'xls' ? 'biff8' : 'xlsx' });
-  save(new Blob([out], { type: 'application/octet-stream' }), `${base}${suffix}.${ext}`);
+  downloadBlob(new Blob([out], { type: 'application/octet-stream' }), `${base}${suffix}.${ext}`);
 }

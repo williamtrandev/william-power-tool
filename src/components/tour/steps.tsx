@@ -227,12 +227,12 @@ export const LOG_STEPS: TourStep[] = [
 export const UTILS_STEPS: TourStep[] = [
   {
     title: 'Tiện ích',
-    body: <>Các công cụ nhỏ dùng hằng ngày, gom theo nhóm: mã QR và code Watane. Tất cả chạy ngay trên trình duyệt, không gửi dữ liệu đi đâu.</>,
+    body: <>Các công cụ nhỏ dùng hằng ngày, gom theo nhóm: mã QR, code Watane và so sánh file Excel. Tất cả chạy ngay trên trình duyệt, không gửi dữ liệu đi đâu.</>,
   },
   {
     target: 'u-nav',
     title: 'Chọn tiện ích',
-    body: <>Nhóm <b>Mã QR</b>: đọc và tạo mã QR. Nhóm <b>Watane</b>: giải mã / mã hoá code bằng secret key.</>,
+    body: <>Nhóm <b>Mã QR</b>: đọc và tạo mã QR. Nhóm <b>Watane</b>: giải mã / mã hoá code bằng secret key. Nhóm <b>Excel</b>: so sánh một cột giữa hai file.</>,
   },
   {
     target: 'qr-sources',

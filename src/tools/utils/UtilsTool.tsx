@@ -1,12 +1,13 @@
 import clsx from 'clsx';
-import { KeyRound, QrCode, ScanLine } from 'lucide-react';
+import { GitCompareArrows, KeyRound, QrCode, ScanLine } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Segmented } from '../../components/ui';
+import { CompareSection } from './compare/CompareSection';
 import { QrMake } from './qr/QrMake';
 import { QrRead } from './qr/QrRead';
 import { WataneSection } from './watane/WataneSection';
 
-export type Section = 'qr-read' | 'qr-make' | 'watane';
+export type Section = 'qr-read' | 'qr-make' | 'watane' | 'excel-compare';
 
 const GROUPS: { title: string; items: { id: Section; label: string; short: string; icon: ReactNode; title: string; about: string }[] }[] = [
   {
@@ -43,6 +44,19 @@ const GROUPS: { title: string; items: { id: Section; label: string; short: strin
       },
     ],
   },
+  {
+    title: 'Excel',
+    items: [
+      {
+        id: 'excel-compare',
+        label: 'So sánh 2 file',
+        short: 'So Excel',
+        icon: <GitCompareArrows size={16} />,
+        title: 'So sánh 2 file Excel',
+        about: 'Chọn một cột ở mỗi file để xem giá trị có ở cả hai, chỉ có ở A hoặc chỉ có ở B. Đọc .xlsx / .xls / .csv ngay trên trình duyệt.',
+      },
+    ],
+  },
 ];
 const ITEMS = GROUPS.flatMap((g) => g.items);
 
@@ -53,7 +67,7 @@ function fromHash(): Section {
   return ITEMS.find((i) => i.id === sub)?.id ?? 'qr-read';
 }
 
-/** Small tools grouped by topic: QR codes, Watane codes. Every one runs in the browser only. */
+/** Small tools grouped by topic: QR codes, Watane codes, Excel. Every one runs in the browser only. */
 export function UtilsTool({ active, onToast }: { active: boolean; onToast: (m: string) => void }) {
   const [section, setSection] = useState<Section>(fromHash);
   const item = ITEMS.find((i) => i.id === section)!;
@@ -106,6 +120,9 @@ export function UtilsTool({ active, onToast }: { active: boolean; onToast: (m: s
           </div>
           <div className={clsx(section !== 'watane' && 'hidden')}>
             <WataneSection onToast={onToast} />
+          </div>
+          <div className={clsx(section !== 'excel-compare' && 'hidden')}>
+            <CompareSection onToast={onToast} />
           </div>
         </div>
       </div>
