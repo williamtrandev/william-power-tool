@@ -1,6 +1,7 @@
-import { Check, Copy, Loader2 } from 'lucide-react';
+import { Check, Copy, Loader2, WifiOff } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Button } from '../../src/components/ui';
+import { fmtDateTime } from '../../src/lib/format';
 import type { User } from '../../src/lib/backend/types';
 import { signIn } from './backend';
 import { IS_DEMO, SIGN_IN_ERROR } from './config';
@@ -83,4 +84,19 @@ function SignInHelp({ error }: { error: string }) {
 
 export function Center({ children }: { children: ReactNode }) {
   return <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center text-[12.5px] text-muted">{children}</div>;
+}
+
+/** the server cannot be reached: the list is the saved one, and filling needs the server for the password and OTP */
+export function OfflineNote({ savedAt, onRetry }: { savedAt: number; onRetry: () => void }) {
+  return (
+    <div role="alert" className="flex shrink-0 items-start gap-2 border-b border-warn/30 bg-warn/10 px-3 py-1.5 text-[11.5px] text-fg-2">
+      <WifiOff size={13} className="mt-0.5 shrink-0 text-warn" />
+      <span className="min-w-0 flex-1">
+        <b className="font-semibold text-fg">Không kết nối được máy chủ</b> — danh sách lưu lúc {fmtDateTime(savedAt)}. Tên đăng nhập và OTP vẫn dùng được (mã tải sẵn 4 giờ); mật khẩu cần có mạng.
+      </span>
+      <button type="button" onClick={onRetry} className="focus-ring shrink-0 rounded px-1 font-medium text-accent hover:underline">
+        Thử lại
+      </button>
+    </div>
+  );
 }

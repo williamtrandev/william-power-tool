@@ -5,6 +5,7 @@ import { LoadingScreen, LoginScreen, UnconfiguredScreen, WaitingScreen } from '.
 import { ACCOUNT_STEPS, COMMAND_STEPS, LOG_STEPS, OT_STEPS, UTILS_STEPS } from './components/tour/steps';
 import { Tour } from './components/tour/Tour';
 import { createBackend } from './lib/backend';
+import { fmtDateTime } from './lib/format';
 import { useAuth } from './lib/useAuth';
 import { useTheme } from './lib/useTheme';
 import { CommandsTool } from './tools/commands/CommandsTool';
@@ -25,7 +26,7 @@ const fromHash = (): ToolId => {
 
 export default function App() {
   const { theme, toggle: toggleTheme } = useTheme();
-  const { state: auth, refresh, offline } = useAuth(backend);
+  const { state: auth, refresh, offline, savedAt } = useAuth(backend);
   const ready = auth.kind === 'ready' ? auth : null;
   const admin = ready?.member.role === 'admin';
   const [pending, setPending] = useState(0);
@@ -103,7 +104,7 @@ export default function App() {
         <div role="alert" className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-[12.5px] text-fg-2">
           <WifiOff size={14} className="shrink-0 text-warn" />
           <span className="min-w-0 flex-1">
-            <b className="font-semibold text-fg">Mất kết nối tới máy chủ</b> — dữ liệu có thể chưa cập nhật, lưu thay đổi sẽ không được. Có thể do mất mạng hoặc VPN đang chặn; trang tự thử lại.
+            <b className="font-semibold text-fg">Mất kết nối tới máy chủ</b> — đang xem dữ liệu đã lưu{savedAt ? ` lúc ${fmtDateTime(savedAt)}` : ''}. Mã OTP vẫn dùng được (tải sẵn 4 giờ); lưu thay đổi và xem mật khẩu cần có mạng. Có thể do mất mạng hoặc VPN đang chặn; trang tự thử lại.
           </span>
           <button type="button" onClick={refresh} className="focus-ring rounded px-1.5 font-medium text-accent hover:underline">
             Thử lại

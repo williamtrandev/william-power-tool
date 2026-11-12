@@ -1,15 +1,23 @@
 import { createClient, type SupabaseClient, type SupportedStorage } from '@supabase/supabase-js';
 import type { Command, HistoryRow } from '../commands';
 import type { OtChange, OtDay, OtEntry, OtPerson } from '../ot';
-import type { AccountActivity, AccountCode, OtpCode, TeamAccount } from '../otp';
+import type { AccountActivity, AccountCode, AheadCodes, OtpCode, TeamAccount } from '../otp';
 import { friendly, isNetworkError, OfflineError } from './errors';
 import type { Backend, DirectoryEntry, Member, User } from './types';
+
+const AUTH_KEY = 'wpt-auth';
+const FETCH_TIMEOUT = 8_000;
 
 /** The real backend: Supabase auth + tables / RPCs (schema and access rules: supabase/setup.sql). */
 export function supabaseBackend(url: string, anonKey: string, storage?: SupportedStorage): Backend {
   // PKCE: the provider sends back ?code=…, which does not collide with the #tool hash routing.
   // `storage`: where the session lives when not in localStorage (the browser extension)
-  const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, storageKey: 'wpt-auth', flowType: 'pkce', storage } });
+  // a VPN that drops the packets leaves a request hanging for minutes: give up and go offline instead
+  const timedFetch: typeof fetch = (input, init) => {
+    const limit = AbortSignal.timeout(FETCH_TIMEOUT);
+    return fetch(input, { ...init, signal: init?.signal ? AbortSignal.any([init.signal, limit]) : limit });
+  };
+  const sb: SupabaseClient = createClient(url, anonKey, { auth: { persistSession: true, storageKey: AUTH_KEY, flowType: 'pkce', storage }, global: { fetch: timedFetch } });
   type AuthUser = { id: string; email?: string; last_sign_in_at?: string; user_metadata?: Record<string, unknown> };
   const toUser = (u: AuthUser | undefined | null): User | null => {
     if (!u) return null;
@@ -27,7 +35,12 @@ export function supabaseBackend(url: string, anonKey: string, storage?: Supporte
   return {
     mode: 'supabase',
     async session() {
-      const { data } = await sb.auth.getSession();
+      const { data, error } = await sb.auth.getSession();
+      // offline with an expired token: the renewal failed but the session is still stored — stay signed in
+      if (!data.session && error && isNetworkError(error)) {
+        const raw = await (storage ?? localStorage).getItem(AUTH_KEY);
+        return toUser(raw ? (JSON.parse(raw) as { user?: AuthUser }).user : null);
+      }
       return toUser(data.session?.user);
     },
     onAuthChange(cb) {
@@ -127,6 +140,12 @@ export function supabaseBackend(url: string, anonKey: string, storage?: Supporte
       const { data, error } = await sb.rpc('acct_codes', { ids });
       if (error) throw friendly(error);
       return (data ?? []) as AccountCode[];
+    },
+    async acctCodesAhead(ids) {
+      if (!ids.length) return [];
+      const { data, error } = await sb.rpc('acct_codes_ahead', { ids });
+      if (error) throw friendly(error);
+      return ((data ?? []) as AheadCodes[]).map((r) => ({ ...r, start_step: Number(r.start_step) }));
     },
     async acctCopied(id) {
       const { error } = await sb.rpc('acct_copied', { aid: id });

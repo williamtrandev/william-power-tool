@@ -1,6 +1,6 @@
 import { SAMPLE_COMMANDS, type Command, type HistoryRow } from '../commands';
 import type { OtChange, OtDay, OtEntry, OtPerson } from '../ot';
-import { cleanSecret, secondsLeft, totp, type AccountActivity, type AccountCode, type AccountInput, type TeamAccount } from '../otp';
+import { cleanSecret, secondsLeft, totp, type AccountActivity, type AccountCode, type AccountInput, type AheadCodes, type TeamAccount } from '../otp';
 import { OfflineError } from './errors';
 import type { Backend, Member, MemberRole, MemberStatus, User } from './types';
 
@@ -91,7 +91,7 @@ export function demoBackend(): Backend {
   };
   const own = (s: Store, c: Command) => member(s) && (c.owner_id === sessionEmail() || (admin(s) && !c.is_private));
 
-  return {
+  const api: Backend = {
     mode: 'demo',
     async session() {
       return user();
@@ -120,8 +120,6 @@ export function demoBackend(): Backend {
       emit();
     },
     async me() {
-      // rehearse the offline screens: localStorage.setItem('wpt-demo-offline', '1')
-      if (localStorage.getItem('wpt-demo-offline')) throw new OfflineError();
       return meRow(read()) ?? null;
     },
     async members() {
@@ -208,6 +206,20 @@ export function demoBackend(): Backend {
         if (!(s.accountLog ?? []).some((l) => l.account_id === a.id && l.user_email === sessionEmail() && l.action === 'code' && +new Date(l.at) > hour)) logAcct(s, a, 'code');
         const opt = { algorithm: a.otp_algorithm, digits: a.otp_digits, period: a.otp_period };
         out.push({ id: a.id, code: await totp(a.otp_secret!, opt), next_code: await totp(a.otp_secret!, { ...opt, at: Date.now() + a.otp_period * 1000 }), remaining: secondsLeft(a.otp_period), period: a.otp_period });
+      }
+      return out;
+    },
+    async acctCodesAhead(ids) {
+      const s = read();
+      if (!member(s)) throw deny();
+      const out: AheadCodes[] = [];
+      for (const a of (s.accounts ?? []).filter((x) => ids.includes(x.id) && x.otp_secret && canUse(s, x))) {
+        const hour = Date.now() - 3600_000;
+        if (!(s.accountLog ?? []).some((l) => l.account_id === a.id && l.user_email === sessionEmail() && l.action === 'offline' && +new Date(l.at) > hour)) logAcct(s, a, 'offline');
+        const opt = { algorithm: a.otp_algorithm, digits: a.otp_digits, period: a.otp_period };
+        const start = Math.floor(Date.now() / 1000 / a.otp_period);
+        const steps = Array.from({ length: (4 * 3600) / a.otp_period }, (_, i) => start + i);
+        out.push({ id: a.id, start_step: start, period: a.otp_period, codes: await Promise.all(steps.map((n) => totp(a.otp_secret!, { ...opt, at: n * a.otp_period * 1000 }))) });
       }
       return out;
     },
@@ -349,6 +361,14 @@ export function demoBackend(): Backend {
       write(s);
     },
   };
+  // rehearse being offline: localStorage.setItem('wpt-demo-offline', '1') — every server call fails as if the VPN blocked it
+  const AUTH = ['mode', 'session', 'onAuthChange', 'signInAs', 'signInWithGoogle', 'signOut'];
+  for (const [k, fn] of Object.entries(api))
+    if (!AUTH.includes(k) && typeof fn === 'function')
+      Object.assign(api, {
+        [k]: (...a: unknown[]) => (localStorage.getItem('wpt-demo-offline') ? Promise.reject(new OfflineError()) : (fn as (...x: unknown[]) => unknown)(...a)),
+      });
+  return api;
 }
 
 /** a roster (one person without an account) and a few OT days this month, so the demo table is not empty */

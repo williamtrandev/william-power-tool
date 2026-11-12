@@ -55,11 +55,19 @@ export interface AccountCode extends OtpCode {
   id: string;
 }
 
+/** the codes of the hours ahead, kept for when the server cannot be reached: codes[i] is the code of time step start_step + i */
+export interface AheadCodes {
+  id: string;
+  start_step: number;
+  period: number;
+  codes: string[];
+}
+
 export interface AccountActivity {
   id: number;
   account_id: string | null;
   account: string;
-  action: 'code' | 'copy' | 'password' | 'create' | 'update' | 'delete';
+  action: 'code' | 'copy' | 'password' | 'create' | 'update' | 'delete' | 'offline';
   user_email: string | null;
   at: string;
 }

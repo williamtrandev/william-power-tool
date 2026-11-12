@@ -12,7 +12,8 @@ export function isNetworkError(e: unknown): boolean {
   const err = e as { name?: string; message?: string; status?: number } | null;
   if (!err) return false;
   if (err.name === 'AuthRetryableFetchError' || err.name === 'AbortError' || err.name === 'TimeoutError') return true;
-  return /failed to fetch|fetch failed|networkerror|network request failed|load failed|err_internet_disconnected|err_network/i.test(err.message ?? '');
+  // PostgREST words a thrown fetch as "<name>: <message>", e.g. "TimeoutError: signal timed out"
+  return /failed to fetch|fetch failed|networkerror|network request failed|load failed|err_internet_disconnected|err_network|timeouterror|aborterror|timed out/i.test(err.message ?? '');
 }
 
 /** Turn Supabase / PostgREST errors into something a support agent can act on. */

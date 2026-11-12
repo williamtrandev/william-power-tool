@@ -4,10 +4,10 @@ import { Button } from '../../src/components/ui';
 import type { TeamAccount } from '../../src/lib/otp';
 import { AccountPicker } from './AccountPicker';
 import { backend } from './backend';
-import { Gate } from './Gate';
+import { Gate, OfflineNote } from './Gate';
 import type { FillAsk, FillReply, FrameSignal, InfoReply, PendingOtp } from './messages';
 import { hostOf } from './site';
-import { copyValue, secretsFor, useVault } from './vault';
+import { copyValue, NO_PASSWORD, secretsFor, useVault } from './vault';
 
 const token = location.hash.slice(1);
 const signal = (s: FrameSignal) => parent.postMessage(s, '*');
@@ -64,7 +64,7 @@ function Menu({ host, onNote }: { host: string | null; onNote: (m: string) => vo
   const fill = async (a: TeamAccount) => {
     onNote('');
     try {
-      const { password, otp } = await secretsFor(a);
+      const { password, otp, noPassword } = await secretsFor(a);
       // copied first: the menu closes as soon as the page is filled
       if (otp) await navigator.clipboard.writeText(otp).catch(() => {});
       const r = await send({
@@ -76,6 +76,7 @@ function Menu({ host, onNote }: { host: string | null; onNote: (m: string) => vo
         otpFor: a.has_otp ? { accountId: a.id, username: a.username, host: hostOf(a.url) } : undefined,
       });
       if (!r.user && !r.pass && !r.otp) onNote('Không thấy ô đăng nhập để điền');
+      else if (noPassword) onNote(NO_PASSWORD);
     } catch (e) {
       onNote((e as Error).message);
     }
@@ -83,15 +84,18 @@ function Menu({ host, onNote }: { host: string | null; onNote: (m: string) => vo
 
   if (vault.phase !== 'ready') return <Gate phase={vault.phase} error={vault.error} user={vault.user} onRetry={vault.reload} />;
   return (
-    <AccountPicker
-      compact
+    <>
+      {vault.savedAt && <OfflineNote savedAt={vault.savedAt} onRetry={vault.reload} />}
+      <AccountPicker
+        compact
       autoFocus={false}
       accounts={vault.accounts}
       pageHost={host}
       onFill={fill}
       onCopy={(a, what) => copyValue(a, what).then(onNote, (e: Error) => onNote(e.message))}
-      onEscape={() => signal({ wpt: 'close' })}
-    />
+        onEscape={() => signal({ wpt: 'close' })}
+      />
+    </>
   );
 }
 

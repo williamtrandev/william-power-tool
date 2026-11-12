@@ -22,12 +22,24 @@ export function useAuth(backend: Backend | null) {
   const [error, setError] = useState<string | null>(null);
   // the last check could not reach the server; once the account is known the app keeps running
   const [offline, setOffline] = useState(false);
+  // when the data shown was saved, while the server cannot be reached
+  const [savedAt, setSavedAt] = useState<number | undefined>();
 
   useEffect(() => {
     if (!backend) return;
     backend.session().then(setUser, () => setUser(null));
     return backend.onAuthChange(setUser);
   }, [backend]);
+
+  // any read, from any tool, tells whether the server answered or saved data stood in
+  useEffect(
+    () =>
+      backend?.onConnection?.((off, at) => {
+        setOffline(off);
+        setSavedAt(off ? at : undefined);
+      }),
+    [backend],
+  );
 
   const userId = user?.id;
   const signedInAt = user?.signedInAt;
@@ -39,9 +51,9 @@ export function useAuth(backend: Backend | null) {
       return;
     }
     try {
+      // reached the server, or answered from saved data (then onConnection reports offline)
       setMember(await backend.me());
       setError(null);
-      setOffline(false);
     } catch (e) {
       if (isNetworkError(e)) setOffline(true);
       else setError((e as Error).message);
@@ -81,5 +93,5 @@ export function useAuth(backend: Backend | null) {
   else if (!member) state = { kind: 'error', message: 'Không tìm thấy thông tin tài khoản — nhờ admin kiểm tra' };
   else state = { kind: member.status === 'approved' ? 'ready' : member.status, user, member };
   // offline while already in the app: keep the app, the shell shows a banner instead
-  return { state, refresh, offline: offline && !!member };
+  return { state, refresh, offline: offline && !!member, savedAt };
 }

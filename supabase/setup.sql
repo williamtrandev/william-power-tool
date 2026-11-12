@@ -267,7 +267,7 @@ create table if not exists public.team_account_log (
   id         bigserial primary key,
   account_id uuid,
   account    text not null,
-  action     text not null check (action in ('code', 'copy', 'password', 'create', 'update', 'delete')),
+  action     text not null check (action in ('code', 'copy', 'password', 'create', 'update', 'delete', 'offline')),
   user_email text,
   at         timestamptz not null default now()
 );
@@ -282,7 +282,7 @@ update public.team_accounts a set owner_id = m.user_id
 alter table public.team_accounts add column if not exists env text not null default '' check (char_length(env) <= 40);
 alter table public.team_account_log drop constraint if exists team_account_log_action_check;
 alter table public.team_account_log add constraint team_account_log_action_check
-  check (action in ('code', 'copy', 'password', 'create', 'update', 'delete'));
+  check (action in ('code', 'copy', 'password', 'create', 'update', 'delete', 'offline'));
 create index if not exists team_account_log_recent_idx on public.team_account_log (account_id, user_email, action, at desc);
 -- added later: SSO login links carry long query strings, 500 characters was too short
 alter table public.team_accounts drop constraint if exists team_accounts_url_check;
@@ -452,6 +452,36 @@ begin
   end loop;
 end $$;
 
+-- the codes of the next hours (at most 4) of several accounts, so the app and the extension can still put in an
+-- OTP while the server cannot be reached (a VPN blocking it). Never the secret: what is handed out stops working
+-- when the window ends. Logged at most once an hour per person and account.
+create or replace function public.acct_codes_ahead(ids uuid[], hours int default 4)
+  returns table (id uuid, start_step bigint, period int, codes text[])
+  language plpgsql security definer set search_path = public
+  as $$
+declare
+  a public.team_accounts;
+  now_ts timestamptz := clock_timestamp();
+  me text := public.current_email();
+  n int;
+begin
+  if not public.is_member() then raise exception 'not allowed' using errcode = '42501'; end if;
+  for a in select * from public.team_accounts t where t.id = any(ids[1:100]) and t.otp_secret is not null loop
+    continue when not public.can_use_account(a.id);
+    if not exists (select 1 from public.team_account_log l
+                    where l.account_id = a.id and l.user_email = me and l.action = 'offline' and l.at > now_ts - interval '1 hour') then
+      insert into public.team_account_log (account_id, account, action, user_email) values (a.id, public.account_name(a), 'offline', me);
+    end if;
+    id := a.id;
+    period := a.otp_period;
+    start_step := floor(extract(epoch from now_ts))::bigint / a.otp_period;
+    n := least(greatest(hours, 1), 4) * 3600 / a.otp_period;
+    select array_agg(public.totp(a.otp_secret, a.otp_algorithm, a.otp_digits, a.otp_period, to_timestamp((start_step + i) * a.otp_period)) order by i)
+      into codes from generate_series(0, n - 1) i;
+    return next;
+  end loop;
+end $$;
+
 -- a member copied an OTP code
 create or replace function public.acct_copied(aid uuid) returns void
   language plpgsql security definer set search_path = public
@@ -555,13 +585,13 @@ end $$;
 
 revoke execute on function public.acct_list(), public.acct_password(uuid), public.acct_code(uuid),
   public.acct_save(uuid, text, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
-  public.acct_codes(uuid[]), public.acct_copied(uuid),
+  public.acct_codes(uuid[]), public.acct_codes_ahead(uuid[], int), public.acct_copied(uuid),
   public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.member_directory(),
   public.can_use_account(uuid), public.can_manage_account(uuid),
   public.totp(text, text, int, int, timestamptz), public.base32_decode(text) from anon, public;
 grant execute on function public.acct_list(), public.acct_password(uuid), public.acct_code(uuid),
   public.acct_save(uuid, text, text, text, text, text, text, text, text, int, int, boolean, uuid[], boolean),
-  public.acct_codes(uuid[]), public.acct_copied(uuid),
+  public.acct_codes(uuid[]), public.acct_codes_ahead(uuid[], int), public.acct_copied(uuid),
   public.acct_delete(uuid), public.acct_members(uuid), public.acct_activity(int), public.member_directory() to authenticated;
 
 -- ── overtime log ──────────────────────────────────────────────────────────────

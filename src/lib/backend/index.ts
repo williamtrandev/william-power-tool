@@ -1,3 +1,4 @@
+import { withCache } from './cache';
 import { demoBackend } from './demo';
 import { supabaseBackend } from './supabase';
 import type { Backend } from './types';
@@ -19,7 +20,7 @@ export function createBackend(): Backend | null {
   if (!url) return null;
   // the fake backend has no passwords — only ever available on a local dev server, and
   // stripped from production builds
-  if (url === 'demo') return import.meta.env.DEV ? demoBackend() : null;
+  if (url === 'demo') return import.meta.env.DEV ? withCache(demoBackend(), localStorage) : null;
   const key = env.VITE_SUPABASE_ANON_KEY?.trim();
-  return key ? supabaseBackend(url, key) : null;
+  return key ? withCache(supabaseBackend(url, key), localStorage) : null;
 }

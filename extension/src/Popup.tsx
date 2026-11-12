@@ -6,12 +6,12 @@ import type { TeamAccount } from '../../src/lib/otp';
 import { AccountPicker } from './AccountPicker';
 import { getInlineMode, INLINE_KEY, type InlineMode } from './config';
 import { fillTab } from './fillTab';
-import { Gate } from './Gate';
+import { Gate, OfflineNote } from './Gate';
 import type { RememberOtp } from './messages';
 import { hostOf } from './site';
 import { useTheme } from './theme';
 import { OtpStatus } from './OtpStatus';
-import { copyValue, secretsFor, useVault } from './vault';
+import { copyValue, NO_PASSWORD, secretsFor, useVault } from './vault';
 
 interface Tab {
   id?: number;
@@ -40,7 +40,7 @@ export function Popup() {
   const fill = async (a: TeamAccount) => {
     if (tab.id == null || !/^(https?|file):/.test(tab.url)) return say('Trang này không cho điền tự động');
     try {
-      const { password, otp } = await secretsFor(a);
+      const { password, otp, noPassword } = await secretsFor(a);
       const r = await fillTab(tab.id, a.username, password, otp);
       // the OTP is often asked on the next screen, and again on later steps: put it in when such a box shows up
       if (otp) {
@@ -50,6 +50,7 @@ export function Popup() {
         if (!r.otp) await navigator.clipboard.writeText(otp).catch(() => {});
       }
       if (!r.user && !r.pass && !r.otp) return say('Không thấy ô đăng nhập trên trang — dùng các nút copy');
+      if (noPassword) return say(NO_PASSWORD);
       window.close();
     } catch (e) {
       say((e as Error).message);
@@ -86,6 +87,7 @@ export function Popup() {
 
       {vault.phase === 'ready' ? (
         <>
+          {vault.savedAt && <OfflineNote savedAt={vault.savedAt} onRetry={vault.reload} />}
           <AccountPicker
             accounts={vault.accounts}
             pageHost={tab.host}

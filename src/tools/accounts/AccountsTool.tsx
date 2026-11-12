@@ -464,6 +464,7 @@ const ACTION: Record<AccountActivity['action'], { label: string; cls: string }> 
   create: { label: 'thêm', cls: 'bg-surface-3 text-fg-2' },
   update: { label: 'sửa', cls: 'bg-surface-3 text-fg-2' },
   delete: { label: 'xoá', cls: 'bg-error/12 text-error' },
+  offline: { label: 'tải mã OTP dùng offline', cls: 'bg-accent-soft text-accent' },
 };
 
 function ActivityDialog({ backend, admin, onClose }: { backend: Backend; admin: boolean; onClose: () => void }) {

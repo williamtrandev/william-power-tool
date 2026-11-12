@@ -1,6 +1,6 @@
 import type { Command, CommandInput, HistoryRow } from '../commands';
 import type { OtChange, OtEntry, OtInput, OtMonth, OtPerson, OtPersonInput } from '../ot';
-import type { AccountActivity, AccountCode, AccountInput, OtpCode, TeamAccount } from '../otp';
+import type { AccountActivity, AccountCode, AccountInput, AheadCodes, OtpCode, TeamAccount } from '../otp';
 
 export type MemberStatus = 'pending' | 'approved' | 'blocked';
 export type MemberRole = 'member' | 'admin';
@@ -39,6 +39,9 @@ export interface Backend {
   /** demo only: switch to one of the fake accounts */
   signInAs?(email: string): Promise<void>;
   signOut(): Promise<void>;
+  /** whether reads come from the server, or from what was saved on this device because it cannot be reached
+   * (`savedAt`: when that data was fetched) — see cache.ts */
+  onConnection?(cb: (offline: boolean, savedAt?: number) => void): () => void;
   /** this user's access row (created as "pending" on sign-up) */
   me(): Promise<Member | null>;
   // admin
@@ -57,6 +60,8 @@ export interface Backend {
   acctCode(id: string): Promise<OtpCode>;
   /** current + next code of every given account the user may use; seeing is logged at most hourly */
   acctCodes(ids: string[]): Promise<AccountCode[]>;
+  /** the codes of the next 4 hours, for putting in an OTP while the server cannot be reached; logged at most hourly */
+  acctCodesAhead(ids: string[]): Promise<AheadCodes[]>;
   /** log that a code was copied */
   acctCopied(id: string): Promise<void>;
   /** admin; returns the account id */

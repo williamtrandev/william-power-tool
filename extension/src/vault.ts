@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { isNetworkError } from '../../src/lib/backend/errors';
 import type { User } from '../../src/lib/backend/types';
 import type { TeamAccount } from '../../src/lib/otp';
 import { backend } from './backend';
@@ -14,6 +15,9 @@ export function useVault() {
   const [error, setError] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [accounts, setAccounts] = useState<TeamAccount[]>([]);
+  // the list shown is the one saved when the server last answered (then: when)
+  const [savedAt, setSavedAt] = useState<number | null>(null);
+  useEffect(() => backend?.onConnection?.((off, at) => setSavedAt(off ? (at ?? Date.now()) : null)), []);
 
   const load = useCallback(async () => {
     if (!backend) return;
@@ -48,15 +52,18 @@ export function useVault() {
     setAccounts([]);
     setPhase('signed-out');
   };
-  return { phase, error, user, accounts, reload, signOut };
+  return { phase, error, user, accounts, savedAt, reload, signOut };
 }
 
-/** password and current OTP, fetched only when filling — each fetch is logged by the database */
+/** password and current OTP, fetched only when filling — each fetch is logged by the database. Without the server the
+ * OTP comes from the codes fetched ahead, and the password is left out (`noPassword`): the rest is still filled */
 export async function secretsFor(a: TeamAccount) {
-  const password = a.has_password ? await backend!.acctPassword(a.id) : null;
+  const password = a.has_password ? await backend!.acctPassword(a.id).catch((e: unknown) => (isNetworkError(e) ? null : Promise.reject(e))) : null;
   const otp = a.has_otp ? (await backend!.acctCode(a.id)).code : null;
-  return { password, otp };
+  return { password, otp, noPassword: a.has_password && password == null };
 }
+
+export const NO_PASSWORD = 'Không kết nối được máy chủ — đã điền tên đăng nhập và OTP, mật khẩu cần có mạng';
 
 /** copies one value of the account; returns the toast text */
 export async function copyValue(a: TeamAccount, what: CopyWhat) {
