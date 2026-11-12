@@ -24,6 +24,8 @@ export function friendly(e: { message?: string; code?: string; name?: string } |
   if (/no password stored/i.test(m)) return new Error('Tài khoản này chưa lưu mật khẩu');
   if (/only the owner can make an account private/i.test(m)) return new Error('Chỉ người tạo mới đặt tài khoản thành riêng tư được');
   if (/no otp stored/i.test(m)) return new Error('Tài khoản này chưa có OTP');
+  if (/team_accounts_url_check/i.test(m)) return new Error('Link đăng nhập quá dài (tối đa 2000 ký tự) — admin cần chạy lại supabase/setup.sql nếu link chưa tới mức đó');
+  if (/team_accounts_\w+_check/i.test(m)) return new Error('Có ô nhập quá dài hoặc không hợp lệ — rút gọn rồi lưu lại');
   if (/acct_|team_account/i.test(m) && /not find|does not exist/i.test(m)) return new Error('Database chưa có phần Tài khoản — admin cần chạy lại supabase/setup.sql');
   if (/ot_entries_person_day_key/i.test(m)) return new Error('Người này đã có OT ngày đó — mở ô đó để sửa');
   if (/ot_people_email_key/i.test(m)) return new Error('Email này đã gắn với một người khác trong danh sách OT');

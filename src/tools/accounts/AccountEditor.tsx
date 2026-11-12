@@ -470,7 +470,7 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
               </div>
               <div>
                 <Label hint="extension dựa vào đây để gợi ý đúng trang">Link đăng nhập</Label>
-                <input value={url} onChange={(e) => setUrl(e.target.value)} className={field} placeholder="https://…" autoComplete="off" />
+                <input value={url} onChange={(e) => setUrl(e.target.value)} className={field} placeholder="https://…" autoComplete="off" maxLength={2000} />
               </div>
               <div className="sm:col-span-2">
                 <Label>Mật khẩu</Label>

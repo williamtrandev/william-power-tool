@@ -243,7 +243,7 @@ create table if not exists public.team_accounts (
   id            uuid primary key default gen_random_uuid(),
   system        text not null default '' check (char_length(system) <= 100),
   username      text not null check (char_length(username) between 1 and 200),
-  url           text not null default '' check (char_length(url) <= 500),
+  url           text not null default '' check (char_length(url) <= 2000),
   note          text not null default '' check (char_length(note) <= 2000),
   password      text check (char_length(password) <= 500),
   otp_secret    text,
@@ -284,6 +284,9 @@ alter table public.team_account_log drop constraint if exists team_account_log_a
 alter table public.team_account_log add constraint team_account_log_action_check
   check (action in ('code', 'copy', 'password', 'create', 'update', 'delete'));
 create index if not exists team_account_log_recent_idx on public.team_account_log (account_id, user_email, action, at desc);
+-- added later: SSO login links carry long query strings, 500 characters was too short
+alter table public.team_accounts drop constraint if exists team_accounts_url_check;
+alter table public.team_accounts add constraint team_accounts_url_check check (char_length(url) <= 2000);
 
 alter table public.team_accounts enable row level security;
 alter table public.team_account_access enable row level security;
