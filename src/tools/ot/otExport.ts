@@ -2,11 +2,12 @@ import type { Alignment, Borders, Cell, Fill, Font } from 'exceljs';
 import { dayKind, dayMonth, holidayName, monthLabel, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
 
 /**
- * The month as one sheet laid out like the team's own: one column per OT day (titled), the total in yellow,
- * and under each person's hours a second row saying what they did that day.
+ * One or more months as one sheet laid out like the team's own: one column per OT day (titled), the total in yellow,
+ * and under each person's hours a second row saying what they did that day. Several months get a row above the days
+ * naming the month, merged across its days.
  * exceljs is loaded on demand: it is only needed when someone exports.
  */
-export async function exportOtMonth({ month, roster, entries, labels }: { month: MonthKey; roster: OtPerson[]; entries: OtEntry[]; labels: Map<string, string> }) {
+export async function exportOt({ months, roster, entries, labels }: { months: MonthKey[]; roster: OtPerson[]; entries: OtEntry[]; labels: Map<string, string> }) {
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'William Tool';
@@ -21,10 +22,15 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
     return label ? `${dayMonth(d)}\n(${label})` : dayMonth(d);
   };
   const lastCol = dates.length + 2;
-  const HEAD = 3;
+  const first = months[0];
+  const last = months[months.length - 1];
+  const several = months.length > 1;
+  // several months: the month row sits above the day row
+  const HEAD = several ? 4 : 3;
+  const short = (m: MonthKey) => `T${Number(m.slice(5))}-${m.slice(0, 4)}`;
 
   // sheet names cannot contain "/"
-  const ws = wb.addWorksheet(`OT T${Number(month.slice(5))}-${month.slice(0, 4)}`, {
+  const ws = wb.addWorksheet(several ? `OT ${short(first)} đến ${short(last)}` : `OT ${short(first)}`, {
     // no gridlines (the table draws its own) and nothing frozen: Excel draws a freeze split as a grey
     // line across the whole sheet, right through the table
     views: [{ showGridLines: false }],
@@ -44,7 +50,7 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
   // title
   ws.mergeCells(1, 1, 1, lastCol);
   const title = ws.getCell(1, 1);
-  title.value = `BẢNG TỔNG HỢP GIỜ OT — ${monthLabel(month).toUpperCase()}`;
+  title.value = `BẢNG TỔNG HỢP GIỜ OT — ${(several ? `${monthLabel(first)} đến ${monthLabel(last)}` : monthLabel(first)).toUpperCase()}`;
   title.font = { ...FONT, bold: true, size: 15, color: { argb: 'FF1F3864' } };
   title.alignment = { vertical: 'middle' };
   ws.getRow(1).height = 26;
@@ -58,6 +64,26 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
     put(head.getCell(i + 2), heading(d), { fill: BLUE, font: { ...WHITE_BOLD, color: { argb: off ? 'FFFFE699' : 'FFFFFFFF' } }, align: CENTER });
   });
   put(head.getCell(lastCol), 'TỔNG (giờ)', { fill: YELLOW, font: { ...FONT, bold: true }, align: CENTER });
+  if (several) {
+    // "Tên" and the total span both header rows; each month's name spans its days
+    const top = HEAD - 1;
+    ws.getRow(top).height = 22;
+    for (const c of [1, lastCol]) {
+      // merging hands the cell to the top row: take the text first
+      const text = head.getCell(c).value;
+      ws.mergeCells(top, c, HEAD, c);
+      put(ws.getCell(top, c), text, { fill: c === 1 ? BLUE : YELLOW, font: c === 1 ? WHITE_BOLD : { ...FONT, bold: true }, align: CENTER });
+      cover(ws.getCell(HEAD, c), c === 1 ? BLUE : YELLOW);
+    }
+    for (const m of months) {
+      const cols = dates.flatMap((d, i) => (d.startsWith(m) ? [i + 2] : []));
+      if (!cols.length) continue;
+      const [from, to] = [cols[0], cols[cols.length - 1]];
+      if (to > from) ws.mergeCells(top, from, top, to);
+      put(ws.getCell(top, from), monthLabel(m), { fill: NAVY, font: WHITE_BOLD, align: CENTER });
+      for (let c = from + 1; c <= to; c++) cover(ws.getCell(top, c), NAVY);
+    }
+  }
 
   // two rows per person: hours, then what they did
   people.forEach((p, i) => {
@@ -111,7 +137,8 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
   const url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = `OT_${month.slice(5)}-${month.slice(0, 4)}.xlsx`;
+  const name = (m: MonthKey) => `${m.slice(5)}-${m.slice(0, 4)}`;
+  a.download = several ? `OT_${name(first)}_den_${name(last)}.xlsx` : `OT_${name(first)}.xlsx`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
@@ -119,6 +146,7 @@ export async function exportOtMonth({ month, roster, entries, labels }: { month:
 // look of the team's sheet
 const solid = (argb: string): Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 const BLUE = solid('FF4472C4');
+const NAVY = solid('FF1F3864');
 const WHITE = solid('FFFFFFFF');
 const BAND = solid('FFDCE6F1');
 const BAND_STRONG = solid('FFB4C6E7');

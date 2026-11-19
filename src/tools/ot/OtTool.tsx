@@ -17,6 +17,7 @@ import {
   type OtPerson,
 } from '../../lib/ot';
 import { OtBulkEditor } from './OtBulkEditor';
+import { OtExportDialog } from './OtExportDialog';
 import { DayLabelEditor, OtEditor, type Editing } from './OtEditor';
 import { OtGrid } from './OtGrid';
 import { OtHistory } from './OtHistory';
@@ -105,18 +106,6 @@ export function OtTool({ active, backend, me, onToast }: Props) {
   const otDays = new Set(entries.map((e) => e.work_date)).size;
 
 
-  const doExport = async () => {
-    setExporting(true);
-    try {
-      const { exportOtMonth } = await import('./otExport');
-      await exportOtMonth({ month, roster: sheet, entries, labels });
-      onToast('Đã xuất file Excel');
-    } catch (e) {
-      onToast('Không xuất được file: ' + (e as Error).message);
-    } finally {
-      setExporting(false);
-    }
-  };
 
   // the whole tab is shared: anyone logs OT for anyone; the form starts on you if you are on the roster
   const startAdd = () => {
@@ -137,8 +126,8 @@ export function OtTool({ active, backend, me, onToast }: Props) {
             <Button variant="ghost" size="icon" aria-label="Tải lại" title="Tải lại" onClick={load} disabled={loading}>
               <RefreshCw size={16} className={clsx(loading && 'animate-spin')} />
             </Button>
-            <Button data-tour="ot-export" onClick={doExport} disabled={!data || exporting} title={`Xuất ${monthLabel(month).toLowerCase()} ra file .xlsx`}>
-              {exporting ? <Loader2 size={15} className="animate-spin" /> : <FileSpreadsheet size={15} className="text-emerald-600 dark:text-emerald-400" />}
+            <Button data-tour="ot-export" onClick={() => setExporting(true)} disabled={!data} title="Xuất một hoặc nhiều tháng ra file .xlsx">
+              <FileSpreadsheet size={15} className="text-emerald-600 dark:text-emerald-400" />
               Xuất Excel
             </Button>
             <Button data-tour="ot-people" onClick={() => setManaging(true)} title="Ai có trên bảng OT, tên hiển thị, người chưa có tài khoản">
@@ -282,6 +271,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
           }}
         />
       )}
+      {exporting && <OtExportDialog backend={backend} month={month} roster={roster} onDone={onToast} onClose={() => setExporting(false)} />}
       {managing && <PeopleManager backend={backend} people={roster} dir={dir} me={me} onClose={() => setManaging(false)} onChanged={load} onToast={onToast} />}
       {dayEdit && (
         <DayLabelEditor
