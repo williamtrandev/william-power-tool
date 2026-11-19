@@ -103,11 +103,19 @@ function set(el: HTMLInputElement, v: string) {
 export function fillLogin(username: string, password: string | null, otp: string | null, doc: Document = document, anchor?: HTMLInputElement): FillResult {
   const f = findFields(doc);
   const at = anchor ?? (doc.activeElement instanceof HTMLInputElement ? doc.activeElement : undefined);
+  const res: FillResult = { user: false, pass: false, otp: false };
+  // picked on an OTP box: that step wants the code only. Without this the username lands in whatever email box the
+  // page has — the receiver's email of an order being confirmed
+  if (at && (at === f.otp || f.boxes.includes(at))) {
+    if (otp) res.otp = fillOtp(otp, f);
+    return res;
+  }
   if (at && at !== f.user && asksForUser(at)) {
     f.user = at;
     if (f.pw && at.form && f.pw.form !== at.form) f.pw = undefined;
   }
-  const res: FillResult = { user: false, pass: false, otp: false };
+  // no password box but an OTP box: a confirmation step, not a login — its email boxes are not the username
+  else if (at !== f.user && !f.pw && (f.otp || f.boxes.length)) f.user = undefined;
   if (f.user) {
     set(f.user, username);
     res.user = true;
