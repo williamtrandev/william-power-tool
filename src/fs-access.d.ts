@@ -7,5 +7,5 @@ interface FileSystemHandle {
   requestPermission?(d?: FileSystemHandlePermissionDescriptor): Promise<PermissionState>;
 }
 interface Window {
-  showDirectoryPicker?(o?: { id?: string; mode?: 'read' | 'readwrite'; startIn?: string }): Promise<FileSystemDirectoryHandle>;
+  showDirectoryPicker?(o?: { id?: string; mode?: 'read' | 'readwrite'; startIn?: string | FileSystemHandle }): Promise<FileSystemDirectoryHandle>;
 }

@@ -188,30 +188,42 @@ export function useFolder(api: Api, onToast: (m: string) => void) {
     loaded.current.clear();
   };
 
-  const connect = useCallback(async () => {
-    if (!window.showDirectoryPicker) return;
-    try {
-      const h = await window.showDirectoryPicker({ id: 'wpt-logs', mode: 'read' });
-      closeAll();
-      seen.current = null;
-      setNewNames(new Set());
-      setFiles([]);
-      setSelected([]);
-      setHandle(h);
-      setPerm('granted');
-    } catch (e) {
-      if ((e as Error).name !== 'AbortError') onToast('Không mở được thư mục: ' + (e as Error).message);
-    }
-  }, [onToast]);
+  /** `from`: the folder to open the picker in — picking it again keeps its ticked files */
+  const pick = useCallback(
+    async (from?: FileSystemDirectoryHandle) => {
+      if (!window.showDirectoryPicker) return;
+      try {
+        const h = await window.showDirectoryPicker({ id: 'wpt-logs', mode: 'read', ...(from && { startIn: from }) });
+        if (!(from && (await h.isSameEntry(from)))) {
+          closeAll();
+          seen.current = null;
+          setNewNames(new Set());
+          setFiles([]);
+          setSelected([]);
+        }
+        setHandle(h);
+        setPerm('granted');
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') onToast('Không mở được thư mục: ' + (e as Error).message);
+      }
+    },
+    [onToast],
+  );
+  const connect = useCallback(() => pick(), [pick]);
 
   const reconnect = useCallback(async () => {
     if (!handle) return;
+    let p: PermissionState = 'denied';
     try {
-      setPerm((await handle.requestPermission?.({ mode: 'read' })) ?? 'denied');
-    } catch (e) {
-      onToast('Không xin được quyền: ' + (e as Error).message);
+      p = (await handle.requestPermission?.({ mode: 'read' })) ?? 'denied';
+    } catch {
+      /* the saved folder is gone, or the browser refuses to ask: pick it again below */
     }
-  }, [handle, onToast]);
+    if (p === 'granted') return setPerm(p);
+    // Chrome answers "denied" without asking once the site was blocked, or after the prompt was dismissed a few
+    // times — the button then did nothing. Choosing the folder again in the picker always grants it
+    await pick(handle);
+  }, [handle, pick]);
 
   const disconnect = useCallback(() => {
     closeAll();
