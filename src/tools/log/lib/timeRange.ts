@@ -1,23 +1,40 @@
 /**
  * The time-range filter typed in by hand. A range is [from, to) in ms, like the one picked on the histogram.
- * Inputs are `datetime-local` strings to the second, in local time (never through ISO: it shifts the time zone).
+ * Inputs are Vietnamese "dd/mm/yyyy hh:mm:ss" text in local time — not `datetime-local`, whose format follows the
+ * browser's language (mm/dd/yyyy on an English Chrome) — and never go through ISO (it shifts the time zone).
  */
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
-/** ms → "YYYY-MM-DDTHH:mm:ss" (local) */
+export const INPUT_HINT = 'dd/mm/yyyy hh:mm:ss';
+
+/** ms → "dd/mm/yyyy hh:mm:ss" (local) */
 export function toInput(ts: number): string {
   const d = new Date(ts);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-/** "YYYY-MM-DDTHH:mm[:ss]" (local) → ms, or null when empty / not a date */
-export function fromInput(s: string): number | null {
-  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?/.exec(s);
+/** puts the separators in while typing digits: "25112026143" → "25/11/2026 14:3" */
+export function maskInput(s: string): string {
+  const d = s.replace(/\D/g, '').slice(0, 14);
+  const parts = [d.slice(0, 2), d.slice(2, 4), d.slice(4, 8), d.slice(8, 10), d.slice(10, 12), d.slice(12, 14)];
+  const seps = ['', '/', '/', ' ', ':', ':'];
+  return parts.reduce((out, p, i) => (p ? out + seps[i] + p : out), '');
+}
+
+/**
+ * "dd/mm/yyyy[ hh[:mm[:ss]]]" (local) → its start in ms and how long the typed precision lasts (a whole day when
+ * only the date is typed, a minute without seconds…), or null when it is not a real date.
+ */
+export function fromInput(s: string): { t: number; span: number } | null {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2})(?::(\d{1,2})(?::(\d{1,2}))?)?)?$/.exec(s.trim());
   if (!m) return null;
-  const [y, mo, d, h, mi, sec] = m.slice(1).map((x) => Number(x ?? 0));
-  const t = new Date(y, mo - 1, d, h, mi, sec).getTime();
-  return Number.isNaN(t) ? null : t;
+  const [d, mo, y, h, mi, sec] = m.slice(1).map((x) => (x == null ? null : Number(x)));
+  const date = new Date(y!, mo! - 1, d!, h ?? 0, mi ?? 0, sec ?? 0);
+  // 31/02 rolls over to March: not a date
+  if (date.getDate() !== d || date.getMonth() !== mo! - 1 || (h ?? 0) > 23 || (mi ?? 0) > 59 || (sec ?? 0) > 59) return null;
+  const span = sec != null ? 1000 : mi != null ? 60_000 : h != null ? 3600_000 : 86400_000;
+  return { t: date.getTime(), span };
 }
 
 /** earliest and latest timestamp of the loaded lines, or null when none has a time */
@@ -33,17 +50,18 @@ export function timeBounds(entries: { ts: number | null }[]): [number, number] |
 }
 
 /**
- * The range for what was typed: "Đến" counts its whole second; an empty side means from the first / to the last
- * line. Null when nothing is typed, a string when the input is wrong.
+ * The range for what was typed: "Đến" counts the whole of what it names (its second, or its day when only the date is
+ * typed); an empty side means from the first / to the last line. Null when nothing is typed, a string when the input
+ * is wrong.
  */
 export function rangeOf(from: string, to: string, bounds: [number, number] | null): [number, number] | null | string {
-  if (!from && !to) return null;
-  const a = from ? fromInput(from) : (bounds?.[0] ?? null);
-  const b = to ? fromInput(to) : (bounds?.[1] ?? null);
-  if (a == null || b == null) return 'Thời gian chưa đúng';
-  const end = to ? b + 1000 : b + 1;
-  if (end <= a) return '“Từ” phải trước “Đến”';
-  return [a, end];
+  if (!from.trim() && !to.trim()) return null;
+  const a = from.trim() ? fromInput(from) : bounds && { t: bounds[0], span: 0 };
+  const b = to.trim() ? fromInput(to) : bounds && { t: bounds[1], span: 1 };
+  if (!a || !b) return `Nhập theo dạng ${INPUT_HINT}`;
+  const end = b.t + b.span;
+  if (end <= a.t) return '“Từ” phải trước “Đến”';
+  return [a.t, end];
 }
 
 /** quick picks, counted back from the latest line (logs are often read hours after they were written) */

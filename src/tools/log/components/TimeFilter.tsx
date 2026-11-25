@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { Clock, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { PRESETS, rangeOf, toInput } from '../lib/timeRange';
+import { INPUT_HINT, maskInput, PRESETS, rangeOf, toInput } from '../lib/timeRange';
 import { fmtDateTime } from '../../../lib/format';
 import { fieldSm, Label } from '../../../components/form';
 import { Button } from '../../../components/ui';
@@ -55,8 +55,15 @@ export function TimeFilter({ range, onRange, bounds }: Props) {
     onRange(r);
     setOpen(false);
   };
-  const min = bounds ? toInput(bounds[0]) : undefined;
-  const max = bounds ? toInput(bounds[1]) : undefined;
+  // typing adds the separators; deleting leaves the text alone, else a removed "/" would come straight back
+  const typed = (prev: string, set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    set(e.target.value.length > prev.length ? maskInput(e.target.value) : e.target.value);
+  const box = (label: string, value: string, set: (v: string) => void) => (
+    <div>
+      <Label compact>{label}</Label>
+      <input aria-label={label} inputMode="numeric" autoComplete="off" spellCheck={false} placeholder={INPUT_HINT} value={value} onChange={typed(value, set)} className={clsx(fieldSm, 'font-mono tabular-nums')} />
+    </div>
+  );
 
   return (
     <div className="relative" ref={ref}>
@@ -116,15 +123,11 @@ export function TimeFilter({ range, onRange, bounds }: Props) {
               if (!problem) apply(picked as [number, number] | null);
             }}
           >
-            <div>
-              <Label compact>Từ</Label>
-              <input type="datetime-local" step={1} value={from} min={min} max={max} onChange={(e) => setFrom(e.target.value)} className={fieldSm} />
-            </div>
-            <div>
-              <Label compact>Đến</Label>
-              <input type="datetime-local" step={1} value={to} min={min} max={max} onChange={(e) => setTo(e.target.value)} className={fieldSm} />
-            </div>
-            <p className={clsx('text-[11.5px]', problem ? 'text-error' : 'text-faint')}>{problem || 'Để trống một ô: tính từ dòng đầu / đến dòng cuối.'}</p>
+            {box('Từ', from, setFrom)}
+            {box('Đến', to, setTo)}
+            <p className={clsx('text-[11.5px]', problem ? 'text-error' : 'text-faint')}>
+              {problem || 'Có thể bỏ giây, giờ (lấy cả ngày). Để trống một ô: tính từ dòng đầu / đến dòng cuối.'}
+            </p>
             <div className="flex justify-end gap-2">
               {range && (
                 <Button size="sm" variant="ghost" type="button" onClick={() => apply(null)}>
