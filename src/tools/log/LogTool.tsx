@@ -45,6 +45,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
   }, [query, big]);
   const deferredQuery = useDeferredValue(typedQuery);
   const [regex, setRegex] = useState(false);
+  const [whole, setWhole] = useState(false);
   const [suspiciousOnly, setSuspiciousOnly] = useState(false);
   const sort: Sort = display.sort;
   const setSort = (v: Sort) => setLogDisplay({ sort: v });
@@ -62,7 +63,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
   const searchRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<LogTableHandle>(null);
 
-  const q = useMemo(() => parseQuery(deferredQuery, regex), [deferredQuery, regex]);
+  const q = useMemo(() => parseQuery(deferredQuery, regex, whole), [deferredQuery, regex, whole]);
   const res = useMemo(
     () => runSearch(logs.entries, logs.files, { query: q, levels, suspiciousOnly, timeRange, sig, sort }),
     [logs.entries, logs.files, q, levels, suspiciousOnly, timeRange, sig, sort],
@@ -80,7 +81,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
     });
   }, [res]);
   // scroll the table back to the top only when the search / filters change, not when data is re-read
-  const scrollKey = [deferredQuery, regex, [...levels].join(), suspiciousOnly, timeRange?.join('-'), sig, sort].join('|');
+  const scrollKey = [deferredQuery, regex, whole, [...levels].join(), suspiciousOnly, timeRange?.join('-'), sig, sort].join('|');
 
   const select = useCallback((e: LogEntry) => {
     setSelected(e);
@@ -268,6 +269,8 @@ export function LogTool({ active, onToast: showToast }: Props) {
               suspiciousOnly={suspiciousOnly}
               onSuspicious={setSuspiciousOnly}
               regex={regex}
+              whole={whole}
+              onWhole={setWhole}
               onRegex={setRegex}
               sort={sort}
               onSort={setSort}

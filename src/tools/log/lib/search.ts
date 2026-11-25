@@ -26,10 +26,27 @@ function jsonField(key: string, val: string): string {
   return '"' + esc(key) + '"\\s*:\\s*' + v;
 }
 
+/** letters (Vietnamese too), digits, _ and - : what a whole word may not run on into… */
+const WORD = '[-\\w\\u00C0-\\u1EF9]';
+/** …and after it, a "/" either: it continues a path */
+const WORD_AFTER = '[-/\\w\\u00C0-\\u1EF9]';
+const WORD_EDGE = /[-\w\u00C0-\u1EF9]/;
+
+/**
+ * Whole-word match: `voucher/search` finds `/api/voucher/search?x=1` but not `voucher/search/abc` — a "/" after it
+ * continues the path. Only an end that is itself a letter or digit is checked, so `/search` may follow `api/voucher`.
+ */
+function wholeWord(text: string): string {
+  const start = WORD_EDGE.test(text[0]) ? `(?<!${WORD})` : '';
+  const end = WORD_EDGE.test(text[text.length - 1]) ? `(?!${WORD_AFTER})` : '';
+  return start + esc(text) + end;
+}
+
 /** one thing to look for: plain text, or (`"key": value`) a regex source */
 type Atom = { text: string } | { src: string };
 
-export function parseQuery(q: string, regex: boolean): Query {
+/** `whole`: plain words match only as a whole word (not used with regex, which says it itself) */
+export function parseQuery(q: string, regex: boolean, whole = false): Query {
   // each term is a list of alternatives (a|b, a OR b); all terms must match (AND)
   const terms: Atom[][] = [];
   const ex: Atom[][] = [];
@@ -74,7 +91,7 @@ export function parseQuery(q: string, regex: boolean): Query {
       }
       // "09:30:44" or "https://…" parse as key:value — put them back together
       const t = key ? m[4] + ':' + val : val;
-      atoms = regex ? [{ src: t }] : t.split('|').filter(Boolean).map((text) => ({ text }));
+      atoms = regex ? [{ src: t }] : t.split('|').filter(Boolean).map((text) => (whole ? { src: wholeWord(text) } : { text }));
     }
     if (neg) ex.push(atoms);
     else if (or) terms[terms.length - 1].push(...atoms);

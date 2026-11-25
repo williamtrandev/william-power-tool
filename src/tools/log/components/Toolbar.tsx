@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { ArrowDownWideNarrow, Download, HelpCircle, Regex, Route, Search, ShieldAlert, X } from 'lucide-react';
+import { ArrowDownWideNarrow, Download, HelpCircle, Regex, Route, Search, ShieldAlert, WholeWord, X } from 'lucide-react';
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { DisplayMenu } from './DisplayMenu';
 import { Button, Kbd, Switch } from '../../../components/ui';
@@ -14,6 +14,9 @@ interface Props {
   onSuspicious: (v: boolean) => void;
   regex: boolean;
   onRegex: (v: boolean) => void;
+  /** plain words match only as a whole word: voucher/search not in voucher/search/abc */
+  whole: boolean;
+  onWhole: (v: boolean) => void;
   sort: Sort;
   onSort: (s: Sort) => void;
   onExport: () => void;
@@ -70,13 +73,36 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
           aria-invalid={!!p.queryError}
           title={p.queryError ?? undefined}
           className={clsx(
-            'h-9 w-full rounded-lg border bg-surface pr-24 pl-9 font-mono text-[13px] text-fg transition-shadow outline-none placeholder:font-sans placeholder:text-faint',
+            p.regex ? 'pr-32' : p.whole ? 'pr-40' : 'pr-24',
+            'h-9 w-full rounded-lg border bg-surface pl-9 font-mono text-[13px] text-fg transition-shadow outline-none placeholder:font-sans placeholder:text-faint',
             p.queryError
               ? 'border-error focus:shadow-[0_0_0_3px_color-mix(in_srgb,var(--lv-error)_25%,transparent)]'
               : 'border-line focus:border-accent focus:shadow-[0_0_0_3px_var(--accent-ring)]',
           )}
         />
         <div className="absolute top-1/2 right-2 flex -translate-y-1/2 items-center gap-1">
+          {/* shown with regex too (disabled), so it is easy to find */}
+          <button
+            type="button"
+            disabled={p.regex}
+            aria-pressed={p.whole && !p.regex}
+            aria-label="Khớp nguyên từ"
+            onClick={() => p.onWhole(!p.whole)}
+            title={
+              p.regex
+                ? 'Khớp nguyên từ không dùng cùng regex — tắt regex để dùng'
+                : p.whole
+                  ? 'Đang khớp nguyên từ — bấm để tìm cả chuỗi nằm trong từ khác'
+                  : 'Khớp nguyên từ: voucher/search không ra voucher/search/abc, "error" không ra "errors"'
+            }
+            className={clsx(
+              'focus-ring inline-flex h-6 items-center gap-1 rounded px-1 transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+              p.whole && !p.regex ? 'bg-accent text-white' : 'text-muted hover:bg-surface-2 hover:text-fg',
+            )}
+          >
+            <WholeWord size={16} />
+            {p.whole && !p.regex && <span className="text-[11px] font-semibold">Chính xác</span>}
+          </button>
           <button
             type="button"
             data-tour="regex"
@@ -140,6 +166,10 @@ export const Toolbar = forwardRef<HTMLInputElement, Props>(function Toolbar(p, r
                 ))}
               </tbody>
             </table>
+            <p className="mt-2 flex items-center gap-1.5 text-[12.5px] text-muted">
+              Tìm chính xác: bật nút <WholeWord size={15} className="inline shrink-0 text-fg" /> trong ô tìm — <code className="font-mono text-[11.5px]">voucher/search</code> không ra{' '}
+              <code className="font-mono text-[11.5px]">…/search/abc</code>
+            </p>
             <div className="mt-3 mb-1.5 flex items-center gap-1.5 border-t border-line pt-2.5 text-xs font-semibold tracking-wide text-muted uppercase">
               Regex <span className="font-normal normal-case">(bật nút <Regex size={13} className="inline" /> trong ô tìm)</span>
             </div>
