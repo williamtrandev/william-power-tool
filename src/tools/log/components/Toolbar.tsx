@@ -27,6 +27,7 @@ const SYNTAX: [string, string][] = [
   ['export timeout', 'Có cả hai từ (AND)'],
   ['export|import', 'Một trong các từ (OR)'],
   ['"timed out"', 'Đúng cụm từ'],
+  ['"api/orders" and "success": true', 'Field JSON, bỏ qua khoảng trắng'],
   ['-healthcheck', 'Loại trừ'],
   ['level:error,warn', 'Lọc theo level'],
   ['trace:3e4fb6b3', 'Theo trace / request id'],

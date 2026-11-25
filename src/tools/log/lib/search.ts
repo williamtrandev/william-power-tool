@@ -15,55 +15,86 @@ export interface Query {
   hl: RegExp | null;
 }
 
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * `"key": value` as written in JSON, whatever the spacing: `"success": true` matches `"success":true` too.
+ * A quoted value is matched whole; a bare one (true, 2, null) not as the start of a longer word.
+ */
+function jsonField(key: string, val: string): string {
+  const v = val.startsWith('"') ? esc(val) : '"?' + esc(val) + '(?![\\w.])';
+  return '"' + esc(key) + '"\\s*:\\s*' + v;
+}
+
+/** one thing to look for: plain text, or (`"key": value`) a regex source */
+type Atom = { text: string } | { src: string };
+
 export function parseQuery(q: string, regex: boolean): Query {
-  const terms: string[] = [];
-  const ex: string[] = [];
+  // each term is a list of alternatives (a|b, a OR b); all terms must match (AND)
+  const terms: Atom[][] = [];
+  const ex: Atom[][] = [];
   const levels: Level[] = [];
   let trace: string | null = null;
   let file: string | null = null;
   let error: string | null = null;
-  const re = /(-?)(?:([A-Za-z_]+):)?(?:"([^"]*)"|(\S+))/g;
+  let or = false;
+  // a regex is taken as typed: `"(code|message)": "[^"]+` is not a JSON field (its groups 2–3 never match, so
+  // both patterns keep the same group numbers)
+  const re = regex
+    ? /(-?)(?:(?!)()())?(?:([A-Za-z_]+):)?(?:"([^"]*)"|(\S+))/g
+    : /(-?)(?:"([^"]+)"\s*:\s*("[^"]*"|[^\s"|]+)|(?:([A-Za-z_]+):)?(?:"([^"]*)"|(\S+)))/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(q))) {
     const neg = !!m[1];
-    const key = (m[2] || '').toLowerCase();
-    const val = m[3] ?? m[4] ?? '';
-    if (!val && !m[2]) continue;
-    if (key === 'level' || key === 'lv') {
-      val.split(/[,|]/).forEach((v) => v && levels.push(normLevel(v)));
-      continue;
-    }
-    if (key === 'trace' || key === 'id') {
-      trace = val.toLowerCase();
-      continue;
-    }
-    if (key === 'file') {
-      file = val.toLowerCase();
-      continue;
-    }
-    // "09:30:44" or "https://…" parse as key:value — put them back together
-    (neg ? ex : terms).push(key ? m[2] + ':' + val : val);
-  }
-  const compile = (t: string): Term => {
-    if (regex) {
-      try {
-        return { rx: new RegExp(t, 'i') };
-      } catch (e) {
-        error = (e as Error).message;
-        return { rx: /(?!)/ };
+    let atoms: Atom[];
+    if (m[2] != null) atoms = [{ src: jsonField(m[2], m[3]) }];
+    else {
+      const key = (m[4] || '').toLowerCase();
+      const val = m[5] ?? m[6] ?? '';
+      if (!val && !m[4]) continue;
+      // AND / OR between words, as people type them in other log viewers (a quoted "and" is still a word)
+      if (m[6] != null && !key && !neg) {
+        if (/^(and|&&)$/i.test(val)) continue;
+        if (/^(or|\|\|)$/i.test(val)) {
+          or = terms.length > 0;
+          continue;
+        }
       }
+      if (key === 'level' || key === 'lv') {
+        val.split(/[,|]/).forEach((v) => v && levels.push(normLevel(v)));
+        continue;
+      }
+      if (key === 'trace' || key === 'id') {
+        trace = val.toLowerCase();
+        continue;
+      }
+      if (key === 'file') {
+        file = val.toLowerCase();
+        continue;
+      }
+      // "09:30:44" or "https://…" parse as key:value — put them back together
+      const t = key ? m[4] + ':' + val : val;
+      atoms = regex ? [{ src: t }] : t.split('|').filter(Boolean).map((text) => ({ text }));
     }
-    return { alts: t.toLowerCase().split('|').filter(Boolean) };
+    if (neg) ex.push(atoms);
+    else if (or) terms[terms.length - 1].push(...atoms);
+    else terms.push(atoms);
+    or = false;
+  }
+  const srcOf = (a: Atom) => ('src' in a ? a.src : esc(a.text));
+  const compile = (atoms: Atom[]): Term => {
+    if (atoms.every((a) => 'text' in a)) return { alts: atoms.map((a) => (a as { text: string }).text.toLowerCase()) };
+    try {
+      return { rx: new RegExp(atoms.map((a) => '(?:' + srcOf(a) + ')').join('|'), 'i') };
+    } catch (e) {
+      error = (e as Error).message;
+      return { rx: /(?!)/ };
+    }
   };
   const inc = terms.map(compile);
   const exc = ex.map(compile);
   let hl: RegExp | null = null;
-  const srcs = regex
-    ? terms
-    : terms
-        .flatMap((t) => t.split('|'))
-        .filter(Boolean)
-        .map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const srcs = terms.flat().map(srcOf);
   if (srcs.length && !error) {
     try {
       hl = new RegExp(srcs.map((s) => '(?:' + s + ')').join('|'), 'gi');
