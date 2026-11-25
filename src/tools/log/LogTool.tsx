@@ -17,6 +17,7 @@ import { groupSuspicious, parseQuery, runSearch, sigOf } from './lib/search';
 import { SUS_MIN, type Level, type LogEntry } from './lib/types';
 import { useLogs } from './lib/useLogs';
 import { exportBlob } from './lib/rawCache';
+import { timeBounds } from './lib/timeRange';
 import { sampleLogFiles } from './lib/sampleLogs';
 import { setLogDisplay, useLogDisplay } from './lib/useLogDisplay';
 import { usePanelWidth } from './lib/usePanelWidth';
@@ -67,6 +68,7 @@ export function LogTool({ active, onToast: showToast }: Props) {
     [logs.entries, logs.files, q, levels, suspiciousOnly, timeRange, sig, sort],
   );
   const groups = useMemo(() => groupSuspicious(res.rows), [res]);
+  const bounds = useMemo(() => timeBounds(logs.entries), [logs.entries]);
 
   // When the result set changes and the current selection fell out of it, jump to the first suspicious line —
   // unless the same line is still there (its file was just re-read from a watched folder).
@@ -286,7 +288,8 @@ export function LogTool({ active, onToast: showToast }: Props) {
                 })
               }
               timeRange={timeRange}
-              onClearTime={() => setTimeRange(null)}
+              onTime={setTimeRange}
+              timeBounds={bounds}
               sig={sig}
               onClearSig={() => setSig(null)}
               canClear={hasFilters}

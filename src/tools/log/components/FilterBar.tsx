@@ -1,15 +1,18 @@
 import clsx from 'clsx';
-import { Clock, Layers, X } from 'lucide-react';
+import { Layers, X } from 'lucide-react';
 import { LEVELS, type Level } from '../lib/types';
-import { fmtDateTime, nf } from '../../../lib/format';
+import { nf } from '../../../lib/format';
 import { LEVEL_META } from './logUi';
+import { TimeFilter } from './TimeFilter';
 
 interface Props {
   levelCounts: Record<Level, number>;
   levels: Set<Level>;
   onToggleLevel: (l: Level) => void;
   timeRange: [number, number] | null;
-  onClearTime: () => void;
+  onTime: (r: [number, number] | null) => void;
+  /** first and last time in the loaded logs */
+  timeBounds: [number, number] | null;
   sig: string | null;
   onClearSig: () => void;
   canClear: boolean;
@@ -56,11 +59,7 @@ export function FilterBar(p: Props) {
           </button>
         );
       })}
-      {p.timeRange && (
-        <ActiveChip icon={<Clock size={14} />} onClear={p.onClearTime} label="Bỏ lọc thời gian">
-          {fmtDateTime(p.timeRange[0])} → {fmtDateTime(p.timeRange[1])}
-        </ActiveChip>
-      )}
+      <TimeFilter range={p.timeRange} onRange={p.onTime} bounds={p.timeBounds} />
       {p.sig && (
         <ActiveChip icon={<Layers size={14} />} onClear={p.onClearSig} label="Bỏ lọc nhóm lỗi">
           {p.sig}
