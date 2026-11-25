@@ -133,10 +133,13 @@ const LV_SCORE: Partial<Record<Level, number>> = { FATAL: 100, ERROR: 80, WARN: 
 
 export type Reason = [label: string, weight: number];
 
+/** error fields that say there was none — `"exception": null` in every request dump is not an exception */
+const EMPTY_ERROR = /"(?:exceptions?|errors?|error_?(?:message|code|msg)|stack_?trace)"\s*:\s*(?:null|""|\[\s*\]|\{\s*\}|false)/g;
+
 export function scoreOf(level: Level, lcMsg: string, reasons?: Reason[]): number {
   let s = LV_SCORE[level] || 0;
   if (reasons && s) reasons.push(['level ' + level, s]);
-  const t = lcMsg.length > 12000 ? lcMsg.slice(0, 12000) : lcMsg;
+  const t = (lcMsg.length > 12000 ? lcMsg.slice(0, 12000) : lcMsg).replace(EMPTY_ERROR, '');
   for (const [re, w, name] of SUS_RULES)
     if (re.test(t)) {
       s += w;
