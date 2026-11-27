@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Dropdown, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
 import { dayMonth, dayTasks, fmtHours, fullName, holidayName, parseHours, parsePeriods, periodHours, NO_TASK, periodsNote, QUICK_HOURS, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
+import { OtDateField } from './OtDateField';
 import { OtPeriods } from './OtPeriods';
 import { relTime } from '../../lib/format';
 import { Modal } from '../../components/Modal';
@@ -152,6 +153,8 @@ export function OtEditor({
   // this person's groups that day (the open one included), and the names used that day by anyone, to pick from
   const mineToday = findAll(personId, date);
   const suggestions = dayTasks(entries, date).filter(Boolean);
+  // this person's OT days in the loaded month, dotted on the calendar
+  const otDays = new Set(entries.filter((e) => e.person_id === personId).map((e) => e.work_date));
   const face = (p: OtPerson, size: number) => <Avatar src={avatars.get(p.id)} name={fullName(p)} email={p.email ?? p.id} size={size} />;
   const special = holidayName(date) ?? (date && [0, 6].includes(new Date(date + 'T00:00').getDay()) ? 'Cuối tuần' : null);
 
@@ -203,7 +206,7 @@ export function OtEditor({
           </div>
           <div>
             <Label hint={date ? (special ? `${weekdayLong(date)} · ${special}` : weekdayLong(date)) : undefined}>Ngày</Label>
-            <input type="date" required className={field} value={date} onChange={(e) => pick(personId, e.target.value, task)} />
+            <OtDateField label="Ngày" value={date} onChange={(d) => pick(personId, d, task)} marked={otDays} />
           </div>
         </div>
 

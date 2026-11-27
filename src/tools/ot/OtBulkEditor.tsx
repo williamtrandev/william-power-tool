@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import { Clock, CopyPlus, Hash, Loader2, Search, Users } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Modal } from '../../components/Modal';
+import { OtDateField } from './OtDateField';
 import { OtPeriods } from './OtPeriods';
 import { field, fieldSm, Label } from '../../components/form';
 import { Button, Segmented, Switch } from '../../components/ui';
@@ -166,7 +167,7 @@ export function OtBulkEditor({
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label hint={date ? (special ? `${weekdayLong(date)} · ${special}` : weekdayLong(date)) : undefined}>Ngày</Label>
-            <input type="date" required className={field} value={date} onChange={(e) => pickDate(e.target.value)} />
+            <OtDateField label="Ngày" value={date} onChange={pickDate} />
           </div>
           <div>
             <Label hint="tuỳ chọn">Nhóm / việc</Label>

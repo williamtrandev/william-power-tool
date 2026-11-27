@@ -8,8 +8,8 @@ const HEAD = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
 
 /**
  * A month to pick a range of days on: the first click starts the range, the second ends it (either order); while
- * waiting for the end, hovering shows what would be picked. Days in `marked` (with OT) get a dot. `onMonth` says
- * which month is on screen, so the marks can be fetched for it.
+ * waiting for the end, hovering shows what would be picked. `single`: one click picks one day (from = to). Days in
+ * `marked` (with OT) get a dot. `onMonth` says which month is on screen, so the marks can be fetched for it.
  */
 export function RangeCalendar({
   from,
@@ -17,12 +17,14 @@ export function RangeCalendar({
   onPick,
   marked,
   onMonth,
+  single,
 }: {
   from: string | null;
   to: string | null;
   onPick: (from: string, to: string) => void;
   marked: Set<string>;
-  onMonth: (m: MonthKey) => void;
+  onMonth?: (m: MonthKey) => void;
+  single?: boolean;
 }) {
   const [month, setMonth] = useState<MonthKey>(() => monthOf(to ?? from ?? today()));
   // the start of a range being picked, until its end is clicked
@@ -31,13 +33,14 @@ export function RangeCalendar({
 
   const go = (m: MonthKey) => {
     setMonth(m);
-    onMonth(m);
+    onMonth?.(m);
   };
   const days = monthDays(month);
   // Monday-first: blanks before the 1st
   const lead = (parseYmd(days[0]).getDay() + 6) % 7;
   const [lo, hi] = anchor ? [anchor, hover ?? anchor].sort() : [from, to];
   const click = (d: string) => {
+    if (single) return onPick(d, d);
     if (!anchor) {
       setAnchor(d);
       onPick(d, d);
@@ -98,7 +101,7 @@ export function RangeCalendar({
           );
         })}
       </div>
-      <p className="mt-1.5 text-[11.5px] text-faint">{anchor ? 'Bấm ngày kết thúc' : 'Bấm ngày bắt đầu rồi ngày kết thúc · chấm xanh: ngày có OT'}</p>
+      {!single && <p className="mt-1.5 text-[11.5px] text-faint">{anchor ? 'Bấm ngày kết thúc' : 'Bấm ngày bắt đầu rồi ngày kết thúc · chấm xanh: ngày có OT'}</p>}
     </div>
   );
 }
