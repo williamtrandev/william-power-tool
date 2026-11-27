@@ -48,12 +48,18 @@ export function OtHistory({ changes, people, actorName }: { changes: OtChange[] 
               const a = ACTION[c.action];
               const who = <b className="font-semibold text-fg">{actorName(c.actor)}</b>;
               const person = <b className="font-semibold text-fg">{c.person_name ?? '(đã xoá)'}</b>;
-              const date = <b className="font-semibold text-fg tabular-nums">{dayMonth(c.work_date)}</b>;
+              const date = (
+                <>
+                  <b className="font-semibold text-fg tabular-nums">{dayMonth(c.work_date)}</b>
+                  {c.task && <span className="text-muted"> ({c.task})</span>}
+                </>
+              );
               const forOther = !!c.actor && c.person_id != null && emailOf.get(c.person_id) !== c.actor;
               const diffs: ReactNode[] = [];
               if (c.action === 'update') {
                 if (c.old_person_name) diffs.push(<Diff key="p" label="Người" from={c.old_person_name} to={c.person_name ?? '?'} />);
                 if (c.old_work_date) diffs.push(<Diff key="d" label="Ngày" from={dayMonth(c.old_work_date)} to={dayMonth(c.work_date)} />);
+                if (c.old_task != null) diffs.push(<Diff key="t" label="Nhóm" from={c.old_task || '(theo ngày)'} to={c.task || '(theo ngày)'} />);
                 if (c.old_hours !== c.hours) diffs.push(<Diff key="h" label="Số giờ" from={`${fmtHours(c.old_hours ?? 0)}h`} to={`${fmtHours(c.hours ?? 0)}h`} />);
               }
               const noteChanged = c.action === 'update' && (c.old_note ?? '') !== (c.note ?? '');

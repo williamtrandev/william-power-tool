@@ -28,7 +28,7 @@ export function friendly(e: { message?: string; code?: string; name?: string } |
   if (/team_accounts_url_check/i.test(m)) return new Error('Link đăng nhập quá dài (tối đa 2000 ký tự) — admin cần chạy lại supabase/setup.sql nếu link chưa tới mức đó');
   if (/team_accounts_\w+_check/i.test(m)) return new Error('Có ô nhập quá dài hoặc không hợp lệ — rút gọn rồi lưu lại');
   if (/acct_|team_account/i.test(m) && /not find|does not exist/i.test(m)) return new Error('Database chưa có phần Tài khoản — admin cần chạy lại supabase/setup.sql');
-  if (/ot_entries_person_day_key/i.test(m)) return new Error('Người này đã có OT ngày đó — mở ô đó để sửa');
+  if (/ot_entries_person_day(_task)?_key/i.test(m)) return new Error('Người này đã có OT nhóm này ngày đó — mở ô đó để sửa');
   if (/ot_people_email_key/i.test(m)) return new Error('Email này đã gắn với một người khác trong danh sách OT');
   if (/ot_entries_person_id_fkey/i.test(m)) return new Error('Người này còn giờ OT đã ghi — tắt “Đang làm” để ẩn thay vì xoá');
   if (/ot_entries|ot_days|ot_people/i.test(m) && /not find|does not exist/i.test(m)) return new Error('Database chưa có phần OT — admin cần chạy lại supabase/setup.sql');

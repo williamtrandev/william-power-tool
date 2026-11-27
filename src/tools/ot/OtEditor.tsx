@@ -1,19 +1,18 @@
 import clsx from 'clsx';
-import { Loader2, Trash2, Users } from 'lucide-react';
+import { Clock, Hash, Loader2, Plus, Trash2, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { Avatar, Button, Dropdown } from '../../components/ui';
+import { Avatar, Button, Dropdown, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
-import { dayMonth, fmtHours, fullName, holidayName, parseHours, QUICK_HOURS, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
+import { dayMonth, dayTasks, fmtHours, fullName, holidayName, parseHours, parsePeriods, periodHours, periodsNote, QUICK_HOURS, taskTitle, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
+import { OtPeriods } from './OtPeriods';
 import { relTime } from '../../lib/format';
 import { Modal } from '../../components/Modal';
 import { field, Label } from '../../components/form';
 
-
-
 /** what the editor opens on: an existing entry, or a person + day to log */
 export type Editing = OtEntry | { person_id: string; work_date: string };
 
-/** Add or change one person's OT on one day, and the day's shared title. */
+/** Add or change one person's OT in one group on one day, and the day's shared title. */
 export function OtEditor({
   backend,
   initial,
@@ -21,7 +20,9 @@ export function OtEditor({
   avatars,
   mine,
   labels,
+  entries,
   find,
+  findAll,
   history,
   actorName,
   onClose,
@@ -37,8 +38,12 @@ export function OtEditor({
   /** your own roster row, marked in the picker */
   mine: string | undefined;
   labels: Map<string, string>;
-  /** the entry already logged for this person + day, if it is in the loaded month */
-  find: (personId: string, date: string) => OtEntry | undefined;
+  /** the loaded month, for the groups already used on a day */
+  entries: OtEntry[];
+  /** the entry already logged for this person + day + group, if it is in the loaded month */
+  find: (personId: string, date: string, task: string) => OtEntry | undefined;
+  /** all of a person's groups on a day */
+  findAll: (personId: string, date: string) => OtEntry[];
   /** the month's change log; the editor shows the part about this person + day */
   history: OtChange[];
   actorName: (email: string | null) => string;
@@ -46,43 +51,86 @@ export function OtEditor({
   onSaved: (date: string) => void;
   onToast: (m: string) => void;
 }) {
-  const origin = 'id' in initial ? initial : undefined;
-  const [entry, setEntry] = useState<OtEntry | undefined>(origin ?? find(initial.person_id, initial.work_date));
+  // the row that moves when person / day / group is switched onto a free spot; none after "+ Thêm nhóm"
+  const [origin, setOrigin] = useState<OtEntry | undefined>('id' in initial ? initial : findAll(initial.person_id, initial.work_date)[0]);
+  const [entry, setEntry] = useState<OtEntry | undefined>(origin);
   const [personId, setPersonId] = useState(initial.person_id);
   const [date, setDate] = useState(initial.work_date);
+  const [task, setTask] = useState(origin?.task ?? '');
   const [hours, setHours] = useState(entry ? fmtHours(entry.hours) : '');
   const [note, setNote] = useState(entry?.note ?? '');
+  const [periods, setPeriods] = useState(entry?.periods ?? '');
+  // hours from start / end times when the entry has them; `loaded` remounts the periods on another entry
+  const [timed, setTimed] = useState(!!entry?.periods);
+  const [loaded, setLoaded] = useState(0);
   const [label, setLabel] = useState(labels.get(initial.work_date) ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
   const hoursRef = useRef<HTMLInputElement>(null);
+  const taskRef = useRef<HTMLInputElement>(null);
 
-  // switching person / day onto one that is already logged edits that entry instead of adding a duplicate;
-  // onto a free day, an existing entry is moved there
-  const pick = (u: string, d: string) => {
+  // switching person / day / group onto one that is already logged edits that entry instead of adding a duplicate;
+  // onto a free one, the entry being edited is moved there
+  const pick = (u: string, d: string, t: string) => {
     setPersonId(u);
     setDate(d);
-    const e = find(u, d);
+    setTask(t);
+    const e = find(u, d, t.trim());
     setEntry(e ?? origin);
-    if (e) {
-      setHours(fmtHours(e.hours));
-      setNote(e.note);
-    }
-    setLabel(labels.get(d) ?? '');
+    if (e) load(e);
+    if (d !== date) setLabel(labels.get(d) ?? '');
   };
+  // another of this person's groups that day, or a new one
+  const open = (e: OtEntry | undefined) => {
+    setOrigin(e);
+    setEntry(e);
+    setTask(e?.task ?? '');
+    load(e);
+    setConfirmDel(false);
+    if (!e) taskRef.current?.focus();
+  };
+
+  // the hours, times and note of an entry (none: a blank form)
+  function load(e: OtEntry | undefined) {
+    setHours(e ? fmtHours(e.hours) : '');
+    setNote(e?.note ?? '');
+    setPeriods(e?.periods ?? '');
+    setTimed(!!e?.periods);
+    setLoaded((n) => n + 1);
+  }
 
   useEffect(() => hoursRef.current?.focus(), []);
 
   const h = parseHours(hours);
   const valid = h > 0 && h <= 24 && !!date;
+  // two ways to give the hours: typed, or worked out from start / end times (then the hours and the note follow
+  // the periods and cannot be typed over). Leaving the periods keeps their total and note as a starting point.
+  // what was typed before switching to periods comes back if no period was filled in
+  const typed = useRef({ hours: '', note: '' });
+  const switchMode = (toPeriods: boolean) => {
+    if (toPeriods === timed) return;
+    setTimed(toPeriods);
+    if (!toPeriods) {
+      if (!periods) {
+        setHours(typed.current.hours);
+        setNote(typed.current.note);
+      }
+      return;
+    }
+    typed.current = { hours, note };
+    const list = parsePeriods(periods);
+    setHours(list.length ? fmtHours(periodHours(list)) : '');
+    setNote(periodsNote(list));
+    setLoaded((n) => n + 1);
+  };
 
   const save = async () => {
     if (!valid || busy) return;
     setBusy(true);
     setErr(null);
     try {
-      await backend.otSave(entry?.id ?? null, { person_id: personId, work_date: date, hours: h, note: note.trim() });
+      await backend.otSave(entry?.id ?? null, { person_id: personId, work_date: date, task: task.trim(), hours: h, periods: timed ? periods : '', note: note.trim() });
       if (label.trim() !== (labels.get(date) ?? '')) await backend.otSetDay(date, label);
       onToast(entry ? 'Đã cập nhật giờ OT' : 'Đã ghi giờ OT');
       onSaved(date);
@@ -106,6 +154,10 @@ export function OtEditor({
   };
 
   const person = people.find((p) => p.id === personId);
+  // this person's groups that day (the open one included), and the names used that day by anyone, to pick from
+  const mineToday = findAll(personId, date);
+  const dayLabel = label.trim() || labels.get(date);
+  const suggestions = dayTasks(entries, date).filter(Boolean);
   const face = (p: OtPerson, size: number) => <Avatar src={avatars.get(p.id)} name={fullName(p)} email={p.email ?? p.id} size={size} />;
   const special = holidayName(date) ?? (date && [0, 6].includes(new Date(date + 'T00:00').getDay()) ? 'Cuối tuần' : null);
 
@@ -146,7 +198,7 @@ export function OtEditor({
               label="Người làm"
               align="left"
               value={personId}
-              onChange={(u) => pick(u, date)}
+              onChange={(u) => pick(u, date, task)}
               icon={person && face(person, 18)}
               options={people.map((p) => ({
                 id: p.id,
@@ -157,48 +209,149 @@ export function OtEditor({
           </div>
           <div>
             <Label hint={date ? (special ? `${weekdayLong(date)} · ${special}` : weekdayLong(date)) : undefined}>Ngày</Label>
-            <input type="date" required className={field} value={date} onChange={(e) => pick(personId, e.target.value)} />
+            <input type="date" required className={field} value={date} onChange={(e) => pick(personId, e.target.value, task)} />
           </div>
         </div>
 
+        {mineToday.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-line bg-surface-2/50 px-2.5 py-2">
+            <span className="mr-1 text-[12px] text-muted">{person?.name ?? 'Người này'} ngày này:</span>
+            {mineToday.map((e) => (
+              <button
+                key={e.id}
+                type="button"
+                onClick={() => open(e)}
+                aria-pressed={e.id === entry?.id}
+                className={clsx(
+                  'focus-ring inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[12px]',
+                  e.id === entry?.id ? 'border-accent bg-accent text-white' : 'border-line bg-surface text-fg-2 hover:border-accent/50',
+                )}
+              >
+                <span className="max-w-[160px] truncate">{taskTitle(e.task, dayLabel) || 'Không nhóm'}</span>
+                <b className="font-semibold tabular-nums">{fmtHours(e.hours)}h</b>
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => open(undefined)}
+              aria-pressed={!entry}
+              className={clsx(
+                'focus-ring inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-[12px]',
+                !entry ? 'border-accent bg-accent-soft text-accent' : 'border-line text-muted hover:border-accent/50 hover:text-fg',
+              )}
+            >
+              <Plus size={12} /> Thêm nhóm
+            </button>
+          </div>
+        )}
+
         <div>
-          <Label hint="ví dụ 3 hoặc 11,5">Số giờ OT</Label>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              ref={hoursRef}
-              inputMode="decimal"
-              className={clsx(field.replace('w-full', 'w-28'), 'text-right font-mono tabular-nums')}
-              value={hours}
-              placeholder="0"
-              onChange={(e) => setHours(e.target.value)}
-              aria-invalid={!!hours && !valid}
-            />
-            <span className="text-[13px] text-muted">giờ</span>
-            <div className="ml-auto flex flex-wrap gap-1">
-              {QUICK_HOURS.map((q) => (
-                <Button key={q} size="sm" active={h === q} onClick={() => setHours(String(q))}>
-                  {q}h
+          <Label hint={suggestions.length ? 'chọn nhóm đã có hoặc gõ tên mới' : 'để trống nếu cả ngày chỉ làm một việc'}>Nhóm / việc</Label>
+          <input
+            ref={taskRef}
+            className={field}
+            list="ot-day-tasks"
+            value={task}
+            maxLength={80}
+            placeholder={dayLabel ? `Để trống = ${dayLabel}` : 'VD: LIVE gencode, Dựng RL…'}
+            onChange={(e) => pick(personId, date, e.target.value)}
+          />
+          <datalist id="ot-day-tasks">
+            {suggestions.map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
+          {suggestions.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {suggestions.map((t) => (
+                <Button key={t} size="sm" active={task.trim() === t} onClick={() => pick(personId, date, task.trim() === t ? '' : t)}>
+                  {t}
                 </Button>
               ))}
             </div>
+          )}
+        </div>
+
+        <div>
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[12.5px] font-medium text-fg-2">Thời gian OT</p>
+            <Segmented
+              label="Cách nhập giờ"
+              value={timed ? 'periods' : 'hours'}
+              onChange={(m) => switchMode(m === 'periods')}
+              items={[
+                { id: 'hours', label: 'Nhập số giờ', icon: <Hash size={13} /> },
+                { id: 'periods', label: 'Giờ bắt đầu – kết thúc', icon: <Clock size={13} /> },
+              ]}
+            />
           </div>
-          {!!hours && !valid && <p className="mt-1 text-[12px] text-error">Số giờ phải lớn hơn 0 và không quá 24</p>}
+
+          {timed ? (
+            <div className="rounded-xl border border-line bg-surface-2/40 p-3">
+              <OtPeriods
+                key={loaded}
+                value={periods}
+                onChange={(list, total, text) => {
+                  setPeriods(list);
+                  setNote(text);
+                  setHours(total != null ? fmtHours(total) : '');
+                }}
+              />
+              <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-line pt-2.5">
+                <span className="text-[12.5px] text-muted">Tổng số giờ OT</span>
+                <span className="font-mono text-[18px] font-semibold text-fg tabular-nums">
+                  {valid ? fmtHours(h) : '—'} <span className="font-sans text-[12px] font-normal text-muted">giờ</span>
+                </span>
+              </div>
+              {!!hours && !valid && <p className="mt-1 text-right text-[12px] text-error">Tổng phải lớn hơn 0 và không quá 24 giờ</p>}
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={hoursRef}
+                  inputMode="decimal"
+                  aria-label="Số giờ OT"
+                  className={clsx(field.replace('w-full', 'w-28'), 'text-right font-mono tabular-nums')}
+                  value={hours}
+                  placeholder="0"
+                  onChange={(e) => setHours(e.target.value)}
+                  aria-invalid={!!hours && !valid}
+                />
+                <span className="text-[13px] text-muted">giờ</span>
+                <div className="ml-auto flex flex-wrap gap-1">
+                  {QUICK_HOURS.map((q) => (
+                    <Button key={q} size="sm" active={h === q} onClick={() => setHours(String(q))}>
+                      {q}h
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              {!!hours && !valid && <p className="mt-1 text-[12px] text-error">Số giờ phải lớn hơn 0 và không quá 24</p>}
+            </>
+          )}
         </div>
 
         <div>
-          <Label hint="làm gì trong buổi OT">Nội dung công việc</Label>
-          <textarea
-            rows={3}
-            className={clsx(field, 'h-auto resize-y py-2 leading-relaxed')}
-            value={note}
-            maxLength={2000}
-            placeholder="VD: Hỗ trợ LIVE gencode, fix lỗi đối soát…"
-            onChange={(e) => setNote(e.target.value)}
-          />
+          <Label hint={timed ? 'ghép từ các đợt ở trên' : 'làm gì trong buổi OT'}>Nội dung công việc</Label>
+          {timed ? (
+            <p className={clsx('min-h-10 rounded-lg border border-dashed border-line px-3 py-2 text-[13px] leading-relaxed whitespace-pre-line', note ? 'text-fg-2' : 'text-faint')}>
+              {note || 'Nhập giờ và việc làm của từng đợt — VD: 17h30 - 19h30: Golive hệ thống A'}
+            </p>
+          ) : (
+            <textarea
+              rows={3}
+              className={clsx(field, 'h-auto resize-y py-2 leading-relaxed')}
+              value={note}
+              maxLength={2000}
+              placeholder="VD: Hỗ trợ LIVE gencode, fix lỗi đối soát…"
+              onChange={(e) => setNote(e.target.value)}
+            />
+          )}
         </div>
 
         <div>
-          <Label hint="dùng chung cho cả cột ngày này, hiện trên file Excel">Tiêu đề ngày</Label>
+          <Label hint="việc chung của ngày, dùng cho ai không chọn nhóm">Tiêu đề ngày</Label>
           <input className={field} value={label} maxLength={80} placeholder="VD: LIVE gencode, Security, Dựng RL…" onChange={(e) => setLabel(e.target.value)} />
         </div>
 

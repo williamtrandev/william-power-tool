@@ -215,7 +215,7 @@ export function supabaseBackend(url: string, anonKey: string, storage?: Supporte
       if (e.error) throw friendly(e.error);
       if (d.error) throw friendly(d.error);
       // numeric comes back as a string
-      return { entries: (e.data ?? []).map((r) => ({ ...r, hours: Number(r.hours) })) as OtEntry[], days: (d.data ?? []) as OtDay[] };
+      return { entries: (e.data ?? []).map((r) => ({ ...r, hours: Number(r.hours), task: r.task ?? '', periods: r.periods ?? '' })) as OtEntry[], days: (d.data ?? []) as OtDay[] };
     },
     async otSave(id, input) {
       const q = id ? sb.from('ot_entries').update(input).eq('id', id) : sb.from('ot_entries').insert(input);
@@ -227,7 +227,7 @@ export function supabaseBackend(url: string, anonKey: string, storage?: Supporte
     async otSaveMany(rows, overwrite) {
       if (!rows.length) return 0;
       // one request; the audit trigger still logs each row (insert, or update when overwriting)
-      const { data, error } = await sb.from('ot_entries').upsert(rows, { onConflict: 'person_id,work_date', ignoreDuplicates: !overwrite }).select('id');
+      const { data, error } = await sb.from('ot_entries').upsert(rows, { onConflict: 'person_id,work_date,task', ignoreDuplicates: !overwrite }).select('id');
       if (error) throw friendly(error);
       return data?.length ?? 0;
     },

@@ -600,7 +600,10 @@ grant execute on function public.acct_list(), public.acct_password(uuid), public
 --   * The whole tab is shared by the team: every approved member sees everyone's hours, adds people to the
 --     roster and logs / fixes OT for anyone, including people without an account. Only admins delete
 --     someone from the roster (and only while they have no OT logged).
---   * One OT row per person per day: hours + what they did.
+--   * One OT row per person per day per group: hours + what they did. A day can have several groups
+--     ("LIVE gencode" and "Dựng RL") and one person can log hours in each; '' is the day's own title.
+--   * periods optionally says when and what, as JSON: [{"start":"17:30","end":"19:30","what":"Golive hệ thống A"}];
+--     the app works the hours and the note ("17h30 - 19h30: Golive hệ thống A") out from it.
 --   * Every add / edit / delete of an OT row lands in ot_log (who, when, before → after), visible to all.
 --   * ot_days holds a shared title per day ("LIVE gencode", "Dựng RL"…), shown above the column in the export.
 
@@ -640,8 +643,11 @@ begin
   end if;
 end $$;
 alter table public.ot_entries alter column person_id set not null;
+alter table public.ot_entries add column if not exists task text not null default '' check (char_length(task) <= 80);
+alter table public.ot_entries add column if not exists periods text not null default '' check (char_length(periods) <= 4000);
 alter table public.ot_entries drop constraint if exists ot_entries_person_day_key;
-alter table public.ot_entries add constraint ot_entries_person_day_key unique (person_id, work_date);
+alter table public.ot_entries drop constraint if exists ot_entries_person_day_task_key;
+alter table public.ot_entries add constraint ot_entries_person_day_task_key unique (person_id, work_date, task);
 create index if not exists ot_entries_date_idx on public.ot_entries (work_date);
 
 create table if not exists public.ot_days (
@@ -712,6 +718,10 @@ create table if not exists public.ot_log (
   old_hours       numeric(4, 2),
   old_note        text
 );
+alter table public.ot_log add column if not exists task text;
+alter table public.ot_log add column if not exists old_task text;
+alter table public.ot_log add column if not exists periods text;
+alter table public.ot_log add column if not exists old_periods text;
 create index if not exists ot_log_at_idx on public.ot_log (at desc);
 create index if not exists ot_log_date_idx on public.ot_log (work_date);
 
@@ -726,17 +736,18 @@ begin
   if tg_op <> 'INSERT' then select name into name_old from public.ot_people where id = old.person_id; end if;
   if tg_op <> 'DELETE' then select name into name_new from public.ot_people where id = new.person_id; end if;
   if tg_op = 'INSERT' then
-    insert into public.ot_log (actor, action, person_id, person_name, work_date, hours, note)
-    values (who, 'insert', new.person_id, name_new, new.work_date, new.hours, new.note);
+    insert into public.ot_log (actor, action, person_id, person_name, work_date, task, hours, note, periods)
+    values (who, 'insert', new.person_id, name_new, new.work_date, new.task, new.hours, new.note, new.periods);
   elsif tg_op = 'DELETE' then
-    insert into public.ot_log (actor, action, person_id, person_name, work_date, old_hours, old_note)
-    values (who, 'delete', old.person_id, name_old, old.work_date, old.hours, old.note);
-  elsif (new.person_id, new.work_date, new.hours, new.note) is distinct from (old.person_id, old.work_date, old.hours, old.note) then
-    insert into public.ot_log (actor, action, person_id, person_name, work_date, hours, note, old_person_name, old_work_date, old_hours, old_note)
-    values (who, 'update', new.person_id, name_new, new.work_date, new.hours, new.note,
+    insert into public.ot_log (actor, action, person_id, person_name, work_date, task, old_hours, old_note, old_periods)
+    values (who, 'delete', old.person_id, name_old, old.work_date, old.task, old.hours, old.note, old.periods);
+  elsif (new.person_id, new.work_date, new.task, new.hours, new.note, new.periods) is distinct from (old.person_id, old.work_date, old.task, old.hours, old.note, old.periods) then
+    insert into public.ot_log (actor, action, person_id, person_name, work_date, task, hours, note, periods, old_person_name, old_work_date, old_task, old_hours, old_note, old_periods)
+    values (who, 'update', new.person_id, name_new, new.work_date, new.task, new.hours, new.note, new.periods,
             case when new.person_id is distinct from old.person_id then name_old end,
             case when new.work_date is distinct from old.work_date then old.work_date end,
-            old.hours, old.note);
+            case when new.task is distinct from old.task then old.task end,
+            old.hours, old.note, old.periods);
   end if;
   return null;
 end $$;

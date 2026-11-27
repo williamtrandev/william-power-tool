@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { Pencil, Plus } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, type ReactNode } from 'react';
-import { dayKind, dayMonth, fmtHours, fullDate, fullName, holidayName, monthDays, monthOf, today, weekday, weekdayLong, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
+import { dayKind, dayMonth, dayTasks, fmtHours, fullDate, fullName, holidayName, monthDays, monthOf, taskTitle, today, weekday, weekdayLong, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
 import type { Editing } from './OtEditor';
 
 /**
@@ -18,7 +18,7 @@ export function OtGrid({
   onlyOt,
   setOnlyOt,
   mineId,
-  find,
+  findAll,
   face,
   actorName,
   onEdit,
@@ -37,7 +37,8 @@ export function OtGrid({
   onlyOt: boolean;
   setOnlyOt: (v: boolean) => void;
   mineId: string | undefined;
-  find: (personId: string, date: string) => OtEntry | undefined;
+  /** a person's rows on one day, one per group */
+  findAll: (personId: string, date: string) => OtEntry[];
   face: (p: OtPerson, size: number) => ReactNode;
   actorName: (email: string | null) => string;
   onEdit: (e: Editing) => void;
@@ -52,6 +53,14 @@ export function OtGrid({
   const totalOf = (pred: (e: OtEntry) => boolean) => entries.filter(pred).reduce((a, e) => a + e.hours, 0);
   const total = totalOf(() => true);
   const isToday = (d: string) => d === today();
+  // what the day's column says: its title, plus the name of every other group logged that day
+  const titlesOf = useCallback(
+    (d: string) => {
+      const label = labels.get(d) ?? holidayName(d);
+      return [...new Set([label ?? '', ...dayTasks(entries, d)].filter(Boolean))];
+    },
+    [labels, entries],
+  );
 
   // late in the month the first days are the least interesting: open the table on today
   // (or, for another month, its last OT day), sitting just right of the name column
@@ -76,8 +85,14 @@ export function OtGrid({
     const chip = [...(box?.querySelectorAll<HTMLElement>('[data-day]') ?? [])].filter((c) => c.dataset.day! <= focusDay).at(-1);
     if (box && chip) box.scrollLeft = Math.max(0, chip.offsetLeft + chip.offsetWidth - box.clientWidth + 12);
   }, [active, focusDay, month, onlyOt, entries, scrollToDay]);
-  // titled days of the month, readable in full above the table
-  const titled = useMemo(() => [...labels].filter(([d]) => monthOf(d) === month).sort(([a], [b]) => a.localeCompare(b)), [labels, month]);
+  // titles and groups of the month, readable in full above the table (holidays only when titled)
+  const titled = useMemo(
+    () =>
+      monthDays(month)
+        .filter((d) => labels.has(d) || entries.some((e) => e.work_date === d && e.task))
+        .flatMap((d) => titlesOf(d).map((t) => [d, t] as const)),
+    [month, labels, entries, titlesOf],
+  );
 
   return (
     <div data-tour="ot-table" className="overflow-hidden rounded-xl border border-line bg-surface">
@@ -90,7 +105,7 @@ export function OtGrid({
           <div ref={strip} className="relative flex min-w-0 flex-1 gap-1.5 overflow-x-auto pr-3 [scrollbar-width:thin] [&>*]:shrink-0">
             {titled.map(([d, label]) => (
               <button
-                key={d}
+                key={d + label}
                 data-day={d}
                 type="button"
                 onClick={() => {
@@ -133,7 +148,8 @@ export function OtGrid({
                 <th className="sticky left-0 z-20 min-w-[96px] border-b border-line bg-surface-2 px-3 py-2 text-left text-[11.5px] font-medium text-muted">Tên</th>
                 {days.map((d) => {
                   const kind = dayKind(d);
-                  const label = labels.get(d) ?? holidayName(d);
+                  const titles = titlesOf(d);
+                  const label = titles.join(' · ');
                   return (
                     <th
                       key={d}
@@ -148,14 +164,19 @@ export function OtGrid({
                       <button
                         type="button"
                         onClick={() => onDay(d)}
-                        title={`${weekdayLong(d)} ${fullDate(d)}${label ? ` · ${label}` : ''}\nBấm để đặt tiêu đề cho ngày này`}
+                        title={`${weekdayLong(d)} ${fullDate(d)}${titles.length ? `\n${titles.join('\n')}` : ''}\nBấm để đặt tiêu đề cho ngày này`}
                         className="focus-ring group/h flex w-full flex-col items-center gap-0.5 px-1 py-1.5 hover:bg-surface-3/60"
                       >
                         <span className={clsx('text-[10.5px]', kind !== 'weekday' ? 'font-medium text-emerald-700 dark:text-emerald-400' : 'text-faint')}>{weekday(d)}</span>
                         <span className={clsx('grid h-5 min-w-5 place-items-center rounded-full px-1 font-semibold tabular-nums', isToday(d) ? 'bg-accent text-white' : 'text-fg')}>
                           {onlyOt ? dayMonth(d) : Number(d.slice(8))}
                         </span>
-                        {label ? (
+                        {titles.length > 1 ? (
+                          <span className="w-full rounded bg-accent-soft px-1 py-0.5 text-center text-[10px] leading-tight font-medium text-accent">
+                            <span className="line-clamp-1 break-words">{titles[0]}</span>
+                            <span className="block text-[9.5px] font-normal opacity-80">+{titles.length - 1} nhóm</span>
+                          </span>
+                        ) : label ? (
                           <span className="line-clamp-2 w-full rounded bg-accent-soft px-1 py-0.5 text-center text-[10px] leading-tight font-medium break-words text-accent">{label}</span>
                         ) : (
                           <Pencil size={9} className="text-faint opacity-0 group-hover/h:opacity-100" />
@@ -180,14 +201,23 @@ export function OtGrid({
                       </span>
                     </th>
                     {days.map((d) => {
-                      const e = find(p.id, d);
+                      const mine = findAll(p.id, d);
+                      const e = mine[0];
+                      const hours = mine.reduce((a, x) => a + x.hours, 0);
+                      const dayLabel = labels.get(d);
                       const weekend = dayKind(d) !== 'weekday';
                       return (
                         <td key={d} className={clsx('border-b border-l border-line p-0 group-hover/r:bg-surface-2/60', isToday(d) ? 'bg-accent-soft/60' : weekend && 'bg-emerald-500/[0.04]')}>
                           <button
                             type="button"
                             onClick={() => onEdit(e ?? { person_id: p.id, work_date: d })}
-                            title={e ? `${fmtHours(e.hours)} giờ${e.note ? `\n${e.note}` : ''}\n— sửa lần cuối: ${actorName(e.updated_by)}` : `Ghi OT ${dayMonth(d)} cho ${p.name}`}
+                            title={
+                              mine.length > 1
+                                ? mine.map((x) => `${taskTitle(x.task, dayLabel) || 'Không nhóm'}: ${fmtHours(x.hours)} giờ${x.note ? ` — ${x.note}` : ''}`).join('\n')
+                                : e
+                                  ? `${fmtHours(e.hours)} giờ${e.task ? ` · ${e.task}` : ''}${e.note ? `\n${e.note}` : ''}\n— sửa lần cuối: ${actorName(e.updated_by)}`
+                                  : `Ghi OT ${dayMonth(d)} cho ${p.name}`
+                            }
                             className={clsx(
                               'focus-ring group/c relative flex h-9 w-full items-center justify-center font-mono tabular-nums',
                               'cursor-pointer hover:bg-accent-soft',
@@ -195,12 +225,18 @@ export function OtGrid({
                           >
                             {e ? (
                               <span className={clsx('rounded px-1.5 py-0.5 font-semibold', weekend ? 'bg-emerald-500/18 text-emerald-800 dark:text-emerald-300' : 'bg-accent-soft text-accent')}>
-                                {fmtHours(e.hours)}
+                                {fmtHours(hours)}
                               </span>
                             ) : (
                               <Plus size={12} className="text-faint opacity-0 group-hover/c:opacity-100" />
                             )}
-                            {e?.note && <span className="absolute top-1 right-1 size-1 rounded-full bg-accent/70" />}
+                            {mine.length > 1 ? (
+                              <span className="absolute top-0.5 right-0.5 rounded-sm bg-accent/15 px-0.5 text-[9px] leading-tight font-semibold text-accent" aria-label={`${mine.length} nhóm`}>
+                                {mine.length}
+                              </span>
+                            ) : (
+                              e?.note && <span className="absolute top-1 right-1 size-1 rounded-full bg-accent/70" />
+                            )}
                           </button>
                         </td>
                       );
@@ -236,6 +272,9 @@ export function OtGrid({
         </span>
         <span className="flex items-center gap-1.5">
           <span className="size-1 rounded-full bg-accent/70" /> Có ghi chú
+        </span>
+        <span className="flex items-center gap-1.5">
+          <span className="rounded-sm bg-accent/15 px-0.5 text-[9px] leading-tight font-semibold text-accent">2</span> Làm nhiều nhóm trong ngày
         </span>
       </p>
     </div>

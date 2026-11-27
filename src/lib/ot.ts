@@ -1,6 +1,6 @@
 /**
  * Overtime log (supabase/setup.sql, "overtime log"): a roster of people kept apart from sign-in accounts,
- * one row per person per day, and a shared title per day.
+ * one row per person per day per group, and a shared title per day.
  */
 
 /** someone on the OT sheet — may or may not have an account */
@@ -22,13 +22,17 @@ export interface OtEntry {
   person_id: string;
   /** YYYY-MM-DD */
   work_date: string;
+  /** the group this was for when a day has several ("Dựng RL"); '' = the day's own title */
+  task: string;
   hours: number;
+  /** when it was worked, "12:00-13:00, 18:00-21:30"; '' when only the hours were typed */
+  periods: string;
   note: string;
   updated_by: string | null;
   updated_at: string;
 }
 
-export type OtInput = Pick<OtEntry, 'person_id' | 'work_date' | 'hours' | 'note'>;
+export type OtInput = Pick<OtEntry, 'person_id' | 'work_date' | 'task' | 'hours' | 'periods' | 'note'>;
 
 /** one change to an OT row, written by the database (ot_log) — never edited */
 export interface OtChange {
@@ -40,14 +44,20 @@ export interface OtChange {
   person_id: string | null;
   person_name: string | null;
   work_date: string;
+  /** null in history written before groups existed */
+  task: string | null;
   /** after the change (null for a delete) */
   hours: number | null;
   note: string | null;
+  /** null in history written before periods existed */
+  periods: string | null;
   /** before the change (null for an insert); person / date only when they changed */
   old_person_name: string | null;
   old_work_date: string | null;
+  old_task: string | null;
   old_hours: number | null;
   old_note: string | null;
+  old_periods: string | null;
 }
 
 export interface OtDay {
@@ -102,6 +112,33 @@ export const weekdayLong = (s: string) => WEEKDAYS_LONG[parseYmd(s).getDay()];
 /** "26/9", like the team's sheet */
 export const dayMonth = (s: string) => `${Number(s.slice(8))}/${Number(s.slice(5, 7))}`;
 export const fullDate = (s: string) => `${s.slice(8)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
+/** "25/11/2026" (as typed, 1-digit day / month too) → "2026-11-25", or null when it is not a real date */
+export const parseDmy = (s: string): string | null => {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(s.trim());
+  if (!m) return null;
+  const out = `${m[3]}-${pad(Number(m[2]))}-${pad(Number(m[1]))}`;
+  // 31/02 rolls over to March: not a date
+  return ymd(parseYmd(out)) === out ? out : null;
+};
+/**
+ * Puts the "/" in while typing or pasting: "07112026" → "07/11/2026". A "/" typed by hand ends the day or month
+ * early, so "7/11/2026" stays as it is.
+ */
+export const maskDmy = (s: string) => {
+  const parts: string[] = [];
+  let cur = '';
+  for (const ch of s) {
+    const digit = /\d/.test(ch);
+    if (digit && parts.length === 2 && cur.length === 4) break;
+    if (digit) cur += ch;
+    // day and month end at 2 digits, or at a "/"
+    if (parts.length < 2 && cur && (cur.length === 2 || ch === '/')) {
+      parts.push(cur);
+      cur = '';
+    }
+  }
+  return parts.map((p) => p + '/').join('') + cur;
+};
 
 /** Solar public holidays (Tết and Giỗ Tổ follow the lunar calendar — give those days a title instead). */
 const HOLIDAYS: Record<string, string> = { '01-01': 'Tết Dương lịch', '04-30': 'Giải phóng miền Nam', '05-01': 'Quốc tế Lao động', '09-02': 'Quốc khánh' };
@@ -111,6 +148,16 @@ export type DayKind = 'weekday' | 'weekend' | 'holiday';
 export const dayKind = (s: string): DayKind => (HOLIDAYS[s.slice(5)] ? 'holiday' : [0, 6].includes(parseYmd(s).getDay()) ? 'weekend' : 'weekday');
 export const holidayName = (s: string) => HOLIDAYS[s.slice(5)];
 export const DAY_KIND_LABEL: Record<DayKind, string> = { weekday: 'Ngày thường', weekend: 'Cuối tuần', holiday: 'Ngày lễ' };
+
+// ── groups ──
+
+/** what a group is called on screen and in the export: its own name, else the day's title */
+export const taskTitle = (task: string, dayLabel: string | undefined) => task || dayLabel || '';
+/** the day's groups, in the order they were first logged ('' — the day's own title — first) */
+export const dayTasks = (entries: OtEntry[], date: string) => {
+  const list = [...new Set(entries.filter((e) => e.work_date === date).map((e) => e.task))];
+  return list.sort((a, b) => Number(!!a) - Number(!!b));
+};
 
 // ── numbers ──
 
@@ -124,6 +171,51 @@ export const parseHours = (s: string) => {
   const n = Number(s.trim().replace(',', '.'));
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
 };
+
+/** "18:30", "18h30", "1830", "18" → minutes after midnight, or null */
+export const parseHm = (s: string): number | null => {
+  const m = /^(\d{1,2})(?:[:hH.]?(\d{2}))?$/.exec(s.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const mi = Number(m[2] ?? 0);
+  return h <= 23 && mi <= 59 ? h * 60 + mi : null;
+};
+/** puts the ":" in while typing: "1830" → "18:30" */
+export const maskHm = (s: string) => {
+  const d = s.replace(/\D/g, '').slice(0, 4);
+  return d.length > 2 ? `${d.slice(0, 2)}:${d.slice(2)}` : d;
+};
+/** hours from start to end; an end at or before the start is the next morning (22:00 → 02:00 = 4) */
+export const hoursBetween = (start: number, end: number) => Math.round((((end - start + 1440) % 1440 || 1440) / 60) * 100) / 100;
+
+/** one stretch of OT and what was done in it: "17:30" → "19:30", "Golive hệ thống A" */
+export type Period = { start: string; end: string; what: string };
+const completePeriod = (p: Period) => parseHm(p.start) != null && parseHm(p.end) != null;
+/** the stored JSON → the periods ('' or anything unreadable: none) */
+export const parsePeriods = (s: string): Period[] => {
+  try {
+    const list: unknown = s ? JSON.parse(s) : [];
+    return Array.isArray(list) ? list.map((p: Partial<Period>) => ({ start: String(p.start ?? ''), end: String(p.end ?? ''), what: String(p.what ?? '') })).filter(completePeriod) : [];
+  } catch {
+    return [];
+  }
+};
+/** the complete periods as stored ('' when none) */
+export const fmtPeriods = (list: Period[]) => {
+  const done = list.filter(completePeriod).map((p) => ({ ...p, what: p.what.trim() }));
+  return done.length ? JSON.stringify(done) : '';
+};
+/** 1050 → "17h30", 1140 → "19h" (how the team writes times) */
+const hm = (min: number) => `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, '0') : ''}`;
+/** the note the periods make, one line each: "17h30 - 19h30: Golive hệ thống A" */
+export const periodsNote = (list: Period[]) =>
+  list
+    .filter(completePeriod)
+    .map((p) => `${hm(parseHm(p.start)!)} - ${hm(parseHm(p.end)!)}${p.what.trim() ? `: ${p.what.trim()}` : ''}`)
+    .join('\n');
+/** total hours of the periods that are complete */
+export const periodHours = (list: Period[]) =>
+  Math.round(list.reduce((a, p) => a + hoursBetween(parseHm(p.start)!, parseHm(p.end)!), 0) * 100) / 100;
 
 // ── people ──
 

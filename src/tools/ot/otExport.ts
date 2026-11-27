@@ -1,36 +1,63 @@
 import type { Alignment, Borders, Cell, Fill, Font } from 'exceljs';
-import { dayKind, dayMonth, holidayName, monthLabel, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
+import { dayKind, dayMonth, fullDate, holidayName, monthLabel, monthOf, monthRange, shiftMonth, taskTitle, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
 
 /**
- * One or more months as one sheet laid out like the team's own: one column per OT day (titled), the total in yellow,
- * and under each person's hours a second row saying what they did that day. Several months get a row above the days
- * naming the month, merged across its days.
+ * A range of days as one sheet laid out like the team's own: one column per OT day, the total in yellow, and under
+ * each person's hours a second row saying what they did. The header has the date over what was done that day; a day
+ * with several groups gets one column per group under a date cell merged across them. A range over several months
+ * gets a row above the days naming the month.
  * exceljs is loaded on demand: it is only needed when someone exports.
  */
-export async function exportOt({ months, roster, entries, labels }: { months: MonthKey[]; roster: OtPerson[]; entries: OtEntry[]; labels: Map<string, string> }) {
+export async function exportOt({ from, to, roster, entries, labels }: { from: string; to: string; roster: OtPerson[]; entries: OtEntry[]; labels: Map<string, string> }) {
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'William Tool';
   wb.created = new Date();
 
-  const byKey = new Map(entries.map((e) => [`${e.person_id}|${e.work_date}`, e]));
-  // only what has data: days someone did OT, people who did any
-  const dates = [...new Set(entries.map((e) => e.work_date))].sort();
+  entries = entries.filter((e) => e.work_date >= from && e.work_date <= to);
+  const byKey = new Map(entries.map((e) => [`${e.person_id}|${e.work_date}|${e.task}`, e]));
+  // only what has data: a column per day and group someone did OT in ('' — the day's title — first), people who did any
+  const columns = [...new Map(entries.map((e) => [`${e.work_date}|${e.task}`, { d: e.work_date, task: e.task }])).values()].sort(
+    (a, b) => a.d.localeCompare(b.d) || Number(!!a.task) - Number(!!b.task) || a.task.localeCompare(b.task, 'vi'),
+  );
+  const dates = columns.map((c) => c.d);
   const people = roster.filter((p) => entries.some((e) => e.person_id === p.id));
-  const heading = (d: string) => {
-    const label = labels.get(d) ?? holidayName(d);
-    return label ? `${dayMonth(d)}\n(${label})` : dayMonth(d);
+  // the columns of each day
+  const spans = [...new Set(dates)].map((d) => ({ d, cols: dates.flatMap((x, i) => (x === d ? [i] : [])) }));
+  const shared = (d: string) => dates.filter((x) => x === d).length > 1;
+  // what was done: the group, else the day's title, else the note when everyone in the column wrote the same one
+  const titleOf = ({ d, task }: (typeof columns)[number]) => {
+    const named = taskTitle(task, labels.get(d) ?? holidayName(d));
+    if (named) return named;
+    const notes = new Set(entries.filter((e) => e.work_date === d && e.task === task).map((e) => e.note.trim().split('\n')[0]));
+    const [only] = notes;
+    return notes.size === 1 && only ? (only.length > 60 ? only.slice(0, 59) + '…' : only) : shared(d) ? 'Chung' : '';
   };
-  const lastCol = dates.length + 2;
+  // the date row over a row saying what was done, unless no column has anything to say
+  const grouped = columns.some((c) => titleOf(c));
+  const heading = (c: (typeof columns)[number]) => (grouped ? titleOf(c) : dayMonth(c.d));
+  const entryAt = (p: OtPerson, j: number) => byKey.get(`${p.id}|${columns[j].d}|${columns[j].task}`);
+  // what goes under the hours (with start / end times it already reads "17h30 - 19h30: Golive hệ thống A")
+  const noteOf = (e: OtEntry | undefined) => e?.note ?? '';
+  const lastCol = columns.length + 2;
+  const months: MonthKey[] = [];
+  for (let m = monthOf(from); m <= monthOf(to); m = shiftMonth(m, 1)) months.push(m);
   const first = months[0];
   const last = months[months.length - 1];
   const several = months.length > 1;
-  // several months: the month row sits above the day row
-  const HEAD = several ? 4 : 3;
+  // whole months are named as months; any other range by its days
+  const wholeMonths = from === monthRange(first).from && to === monthRange(last).to;
+  const period = wholeMonths ? (several ? `${monthLabel(first)} đến ${monthLabel(last)}` : monthLabel(first)) : from === to ? `ngày ${fullDate(from)}` : `${fullDate(from)} đến ${fullDate(to)}`;
+  // the last header row: below the title, the month row (several months) and the date row (when days are titled)
+  const HEAD = 3 + Number(several) + Number(grouped);
+  const DAY = grouped ? HEAD - 1 : HEAD;
+  const TOP = several ? DAY - 1 : DAY;
   const short = (m: MonthKey) => `T${Number(m.slice(5))}-${m.slice(0, 4)}`;
+  const dashed = (d: string) => fullDate(d).replace(/\//g, '-');
 
-  // sheet names cannot contain "/"
-  const ws = wb.addWorksheet(several ? `OT ${short(first)} đến ${short(last)}` : `OT ${short(first)}`, {
+  // sheet names cannot contain "/" and hold at most 31 characters
+  const sheetName = wholeMonths ? (several ? `OT ${short(first)} đến ${short(last)}` : `OT ${short(first)}`) : from === to ? `OT ${dashed(from)}` : `OT ${dashed(from)} đến ${dashed(to)}`;
+  const ws = wb.addWorksheet(sheetName.slice(0, 31), {
     // no gridlines (the table draws its own) and nothing frozen: Excel draws a freeze split as a grey
     // line across the whole sheet, right through the table
     views: [{ showGridLines: false }],
@@ -39,9 +66,9 @@ export async function exportOt({ months, roster, entries, labels }: { months: Mo
   // exceljs cannot autofit, so size every column from what it holds: wide enough for the day title
   // and for most notes on one line, capped so a long note wraps instead of making a huge column
   ws.getColumn(1).width = Math.max(10, ...people.map((p) => p.name.length * 1.15 + 3));
-  const widths = dates.map((d) => {
-    const head = Math.max(...heading(d).split('\n').map((l) => l.length * 1.1 + 3));
-    const notes = Math.max(0, ...people.map((p) => longestLine(byKey.get(`${p.id}|${d}`)?.note ?? '') * 0.9 + 2));
+  const widths = columns.map((c, j) => {
+    const head = Math.max(...[dayMonth(c.d), heading(c)].map((l) => l.length * 1.1 + 3));
+    const notes = Math.max(0, ...people.map((p) => longestLine(noteOf(entryAt(p, j))) * 0.9 + 2));
     return Math.min(MAX_W, Math.max(9, head, notes));
   });
   widths.forEach((w, i) => (ws.getColumn(i + 2).width = w));
@@ -50,38 +77,47 @@ export async function exportOt({ months, roster, entries, labels }: { months: Mo
   // title
   ws.mergeCells(1, 1, 1, lastCol);
   const title = ws.getCell(1, 1);
-  title.value = `BẢNG TỔNG HỢP GIỜ OT — ${(several ? `${monthLabel(first)} đến ${monthLabel(last)}` : monthLabel(first)).toUpperCase()}`;
+  title.value = `BẢNG TỔNG HỢP GIỜ OT — ${period.toUpperCase()}`;
   title.font = { ...FONT, bold: true, size: 15, color: { argb: 'FF1F3864' } };
   title.alignment = { vertical: 'middle' };
   ws.getRow(1).height = 26;
 
-  // header: "26/9" with the day's title under it, like "(Dựng RL)"
+  // header: "26/9" over what was done, like "Dựng RL"; a day with groups: "7/11" over one cell per group
   const head = ws.getRow(HEAD);
-  head.height = Math.max(2, ...dates.map((d, i) => heading(d).split('\n').reduce((n, l) => n + wrapped(l, widths[i] / 1.1), 0))) * 17 + 6;
-  put(head.getCell(1), 'Tên', { fill: BLUE, font: WHITE_BOLD, align: CENTER });
-  dates.forEach((d, i) => {
-    const off = dayKind(d) !== 'weekday';
-    put(head.getCell(i + 2), heading(d), { fill: BLUE, font: { ...WHITE_BOLD, color: { argb: off ? 'FFFFE699' : 'FFFFFFFF' } }, align: CENTER });
-  });
-  put(head.getCell(lastCol), 'TỔNG (giờ)', { fill: YELLOW, font: { ...FONT, bold: true }, align: CENTER });
-  if (several) {
-    // "Tên" and the total span both header rows; each month's name spans its days
-    const top = HEAD - 1;
-    ws.getRow(top).height = 22;
-    for (const c of [1, lastCol]) {
-      // merging hands the cell to the top row: take the text first
-      const text = head.getCell(c).value;
-      ws.mergeCells(top, c, HEAD, c);
-      put(ws.getCell(top, c), text, { fill: c === 1 ? BLUE : YELLOW, font: c === 1 ? WHITE_BOLD : { ...FONT, bold: true }, align: CENTER });
-      cover(ws.getCell(HEAD, c), c === 1 ? BLUE : YELLOW);
+  head.height = Math.max(1, ...columns.map((c, i) => wrapped(heading(c), widths[i] / 1.1))) * 17 + 6;
+  if (grouped) ws.getRow(DAY).height = 22;
+  const dayFont = (d: string) => ({ ...WHITE_BOLD, color: { argb: dayKind(d) !== 'weekday' ? 'FFFFE699' : 'FFFFFFFF' } });
+  for (const { d, cols } of spans) {
+    const [a, b] = [cols[0] + 2, cols[cols.length - 1] + 2];
+    if (DAY < HEAD && cols.length === 1 && !heading(columns[cols[0]])) {
+      // nothing to say about the day: its date fills both rows
+      ws.mergeCells(DAY, a, HEAD, a);
+      put(ws.getCell(DAY, a), dayMonth(d), { fill: BLUE, font: dayFont(d), align: CENTER });
+      cover(ws.getCell(HEAD, a), BLUE);
+      continue;
     }
+    if (b > a) ws.mergeCells(DAY, a, DAY, b);
+    put(ws.getCell(DAY, a), dayMonth(d), { fill: BLUE, font: dayFont(d), align: CENTER });
+    for (let c = a + 1; c <= b; c++) cover(ws.getCell(DAY, c), BLUE);
+    if (DAY < HEAD) cols.forEach((i) => put(ws.getCell(HEAD, i + 2), heading(columns[i]), { fill: SUB, font: { ...dayFont(d), size: 11 }, align: CENTER }));
+  }
+  // "Tên" and the total span every header row
+  for (const c of [1, lastCol]) {
+    const look = c === 1 ? { fill: BLUE, font: WHITE_BOLD } : { fill: YELLOW, font: { ...FONT, bold: true } };
+    if (TOP < HEAD) ws.mergeCells(TOP, c, HEAD, c);
+    put(ws.getCell(TOP, c), c === 1 ? 'Tên' : 'TỔNG (giờ)', { ...look, align: CENTER });
+    for (let r = TOP + 1; r <= HEAD; r++) cover(ws.getCell(r, c), look.fill);
+  }
+  if (several) {
+    // each month's name spans its days
+    ws.getRow(TOP).height = 22;
     for (const m of months) {
       const cols = dates.flatMap((d, i) => (d.startsWith(m) ? [i + 2] : []));
       if (!cols.length) continue;
-      const [from, to] = [cols[0], cols[cols.length - 1]];
-      if (to > from) ws.mergeCells(top, from, top, to);
-      put(ws.getCell(top, from), monthLabel(m), { fill: NAVY, font: WHITE_BOLD, align: CENTER });
-      for (let c = from + 1; c <= to; c++) cover(ws.getCell(top, c), NAVY);
+      const [a, b] = [cols[0], cols[cols.length - 1]];
+      if (b > a) ws.mergeCells(TOP, a, TOP, b);
+      put(ws.getCell(TOP, a), monthLabel(m), { fill: NAVY, font: WHITE_BOLD, align: CENTER });
+      for (let c = a + 1; c <= b; c++) cover(ws.getCell(TOP, c), NAVY);
     }
   }
 
@@ -99,10 +135,11 @@ export async function exportOt({ months, roster, entries, labels }: { months: Mo
 
     let lines = 1;
     dates.forEach((d, j) => {
-      const e = byKey.get(`${p.id}|${d}`);
+      const e = entryAt(p, j);
       put(hoursRow.getCell(j + 2), e?.hours ?? 0, { fill: e && dayKind(d) !== 'weekday' ? GREEN : band, font: { ...FONT, bold: !!e, color: { argb: e ? 'FF000000' : 'FFA6A6A6' } }, align: RIGHT, edge: 'top' });
-      put(noteRow.getCell(j + 2), e?.note ?? '', { fill: band, font: NOTE, align: { horizontal: 'left', vertical: 'top', wrapText: true }, edge: 'bottom' });
-      if (e?.note) lines = Math.max(lines, e.note.split('\n').reduce((n, l) => n + wrapped(l, widths[j] / 0.9), 0));
+      put(noteRow.getCell(j + 2), noteOf(e), { fill: band, font: NOTE, align: { horizontal: 'left', vertical: 'top', wrapText: true }, edge: 'bottom' });
+      const text = noteOf(e);
+      if (text) lines = Math.max(lines, text.split('\n').reduce((n, l) => n + wrapped(l, widths[j] / 0.9), 0));
     });
     hoursRow.height = 20;
     // exceljs cannot autofit, so size the note row from the longest note
@@ -121,8 +158,8 @@ export async function exportOt({ months, roster, entries, labels }: { months: Mo
   put(foot.getCell(1), 'Tổng', { fill: BLUE, font: WHITE_BOLD, align: CENTER });
   const hourRows = people.map((_, i) => HEAD + 1 + i * 2);
   for (let c = 2; c <= lastCol; c++) {
-    const d = dates[c - 2];
-    const result = sum(d ? entries.filter((e) => e.work_date === d) : entries);
+    const k = columns[c - 2];
+    const result = sum(k ? entries.filter((e) => e.work_date === k.d && e.task === k.task) : entries);
     const cell = foot.getCell(c);
     // only the hour rows: the note rows in between are text
     cell.value = hourRows.length ? { formula: `SUM(${hourRows.map((r) => `${col(c)}${r}`).join(',')})`, result } : 0;
@@ -130,7 +167,7 @@ export async function exportOt({ months, roster, entries, labels }: { months: Mo
   }
 
   const legend = ws.getCell(foot.number + 2, 1);
-  legend.value = 'Dòng in nghiêng dưới mỗi người: nội dung công việc trong ngày. Ô xanh: OT cuối tuần / ngày lễ.';
+  legend.value = 'Dòng in nghiêng dưới mỗi người: nội dung công việc trong ngày. Ô xanh: OT cuối tuần / ngày lễ. Dưới mỗi ngày: việc làm hôm đó (ngày nhiều nhóm thì mỗi nhóm một cột).';
   legend.font = { ...FONT, italic: true, size: 10, color: { argb: 'FF7F7F7F' } };
 
   const buf = await wb.xlsx.writeBuffer();
@@ -138,7 +175,13 @@ export async function exportOt({ months, roster, entries, labels }: { months: Mo
   const a = document.createElement('a');
   a.href = url;
   const name = (m: MonthKey) => `${m.slice(5)}-${m.slice(0, 4)}`;
-  a.download = several ? `OT_${name(first)}_den_${name(last)}.xlsx` : `OT_${name(first)}.xlsx`;
+  a.download = wholeMonths
+    ? several
+      ? `OT_${name(first)}_den_${name(last)}.xlsx`
+      : `OT_${name(first)}.xlsx`
+    : from === to
+      ? `OT_${dashed(from)}.xlsx`
+      : `OT_${dashed(from)}_den_${dashed(to)}.xlsx`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
@@ -146,6 +189,8 @@ export async function exportOt({ months, roster, entries, labels }: { months: Mo
 // look of the team's sheet
 const solid = (argb: string): Fill => ({ type: 'pattern', pattern: 'solid', fgColor: { argb } });
 const BLUE = solid('FF4472C4');
+/** what was done, under the date: a shade lighter than the date above it */
+const SUB = solid('FF5B85D0');
 const NAVY = solid('FF1F3864');
 const WHITE = solid('FFFFFFFF');
 const BAND = solid('FFDCE6F1');

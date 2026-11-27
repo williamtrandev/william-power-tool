@@ -1,19 +1,20 @@
 import clsx from 'clsx';
-import { CopyPlus, Loader2, Search, Users } from 'lucide-react';
+import { Clock, CopyPlus, Hash, Loader2, Search, Users } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Modal } from '../../components/Modal';
+import { OtPeriods } from './OtPeriods';
 import { field, fieldSm, Label } from '../../components/form';
-import { Button, Switch } from '../../components/ui';
+import { Button, Segmented, Switch } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
-import { dayMonth, fmtHours, holidayName, parseHours, QUICK_HOURS, shiftDay, weekdayLong, type OtEntry, type OtPerson } from '../../lib/ot';
+import { dayMonth, dayTasks, fmtHours, holidayName, parseHours, QUICK_HOURS, shiftDay, weekdayLong, type OtEntry, type OtPerson } from '../../lib/ot';
 
 type Row = { on: boolean; hours: string; note: string };
 
 /** what the days around the chosen date already hold, fetched when the date changes */
 interface Around {
   date: string;
-  /** OT already logged that day, by person */
-  existing: Map<string, OtEntry>;
+  /** OT already logged that day, every group */
+  existing: OtEntry[];
   /** the latest earlier day with OT (up to a month back), to copy from */
   prev?: { date: string; entries: OtEntry[]; label?: string };
 }
@@ -44,8 +45,15 @@ export function OtBulkEditor({
 }) {
   const [date, setDate] = useState(initialDate);
   const [label, setLabel] = useState(labels.get(initialDate) ?? '');
+  /** the group everyone here is logged under; '' = the day's title */
+  const [task, setTask] = useState('');
   const [hours, setHours] = useState('');
   const [note, setNote] = useState('');
+  // start / end times shared by everyone ticked: the hours and the note come from them, nobody's can be typed over
+  const [timed, setTimed] = useState(false);
+  const [periods, setPeriods] = useState('');
+  const [periodTotal, setPeriodTotal] = useState<number | null>(null);
+  const [periodNote, setPeriodNote] = useState('');
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [overwrite, setOverwrite] = useState(false);
   const [q, setQ] = useState('');
@@ -65,11 +73,11 @@ export function OtBulkEditor({
         const last = before.reduce<string | undefined>((m, e) => (!m || e.work_date > m ? e.work_date : m), undefined);
         setAround({
           date,
-          existing: new Map(entries.filter((e) => e.work_date === date).map((e) => [e.person_id, e])),
+          existing: entries.filter((e) => e.work_date === date),
           prev: last ? { date: last, entries: before.filter((e) => e.work_date === last), label: days.find((d) => d.work_date === last)?.label } : undefined,
         });
       })
-      .catch(() => alive && setAround({ date, existing: new Map() }));
+      .catch(() => alive && setAround({ date, existing: [] }));
     return () => {
       alive = false;
     };
@@ -98,18 +106,22 @@ export function OtBulkEditor({
     const h = same((e) => e.hours);
     setHours(h != null ? fmtHours(h) : '');
     setNote(same((e) => e.note) ?? '');
+    setTask(same((e) => e.task) ?? '');
     if (!label.trim() && prev.label) setLabel(prev.label);
     onToast(`Đã chép ${prev.entries.length} người từ ${dayMonth(prev.date)} — sửa lại nếu cần`);
   };
 
-  const existing = around?.date === date ? around.existing : new Map<string, OtEntry>();
+  const dayRows = around?.date === date ? around.existing : [];
+  // only the same group counts as already logged: other groups that day stay as they are
+  const existing = new Map(dayRows.filter((e) => e.task === task.trim()).map((e) => [e.person_id, e]));
+  const otherGroups = dayTasks(dayRows, date).filter(Boolean);
   const chosen = people.filter((p) => row(p.id).on);
   const skipped = overwrite ? [] : chosen.filter((p) => existing.has(p.id));
   const toWrite = chosen.filter((p) => !skipped.includes(p));
-  const invalid = toWrite.filter((p) => {
-    const h = parseHours(row(p.id).hours);
-    return !(h > 0 && h <= 24);
-  });
+  const okHours = (n: number | null) => n != null && n > 0 && n <= 24;
+  // what each ticked person gets: the shared periods, or their own hours and note
+  const valuesOf = (pid: string) => (timed ? { hours: periodTotal ?? NaN, periods, note: periodNote } : { hours: parseHours(row(pid).hours), periods: '', note: row(pid).note.trim() });
+  const invalid = toWrite.filter((p) => !okHours(valuesOf(p.id).hours));
   const ready = !!date && toWrite.length > 0 && invalid.length === 0 && !busy;
   const shown = useMemo(() => {
     const w = q.trim().toLowerCase();
@@ -123,7 +135,7 @@ export function OtBulkEditor({
     setErr(null);
     try {
       const n = await backend.otSaveMany(
-        toWrite.map((p) => ({ person_id: p.id, work_date: date, hours: parseHours(row(p.id).hours), note: row(p.id).note.trim() })),
+        toWrite.map((p) => ({ person_id: p.id, work_date: date, task: task.trim(), ...valuesOf(p.id) })),
         overwrite,
       );
       if (label.trim() !== (labels.get(date) ?? '')) await backend.otSetDay(date, label);
@@ -157,16 +169,35 @@ export function OtBulkEditor({
       }
     >
       <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <Label hint={date ? (special ? `${weekdayLong(date)} · ${special}` : weekdayLong(date)) : undefined}>Ngày</Label>
             <input type="date" required className={field} value={date} onChange={(e) => pickDate(e.target.value)} />
           </div>
           <div>
-            <Label hint="dùng chung cho cả cột">Tiêu đề ngày</Label>
+            <Label hint="cả ngày">Tiêu đề ngày</Label>
             <input className={field} value={label} maxLength={80} placeholder="VD: Dựng RL, LIVE gencode…" onChange={(e) => setLabel(e.target.value)} />
           </div>
+          <div>
+            <Label hint="tuỳ chọn">Nhóm / việc</Label>
+            <input className={field} list="ot-bulk-tasks" value={task} maxLength={80} placeholder={label.trim() ? `Để trống = ${label.trim()}` : 'VD: Security'} onChange={(e) => setTask(e.target.value)} />
+            <datalist id="ot-bulk-tasks">
+              {otherGroups.map((t) => (
+                <option key={t} value={t} />
+              ))}
+            </datalist>
+          </div>
         </div>
+        {otherGroups.length > 0 && (
+          <div className="-mt-2 flex flex-wrap items-center gap-1">
+            <span className="mr-1 text-[12px] text-muted">Nhóm đã có ngày này:</span>
+            {otherGroups.map((t) => (
+              <Button key={t} size="sm" active={task.trim() === t} onClick={() => setTask(task.trim() === t ? '' : t)}>
+                {t}
+              </Button>
+            ))}
+          </div>
+        )}
 
         {around?.prev && around.date === date && (
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-accent/25 bg-accent-soft px-3 py-2 text-[12.5px]">
@@ -183,44 +214,77 @@ export function OtBulkEditor({
         )}
 
         <div className="rounded-xl border border-line bg-surface-2/40 p-3">
-          <p className="mb-2 text-[12px] font-medium text-fg-2">Áp dụng cho mọi người được chọn</p>
-          <div className="flex flex-wrap items-center gap-2">
-            <input
-              inputMode="decimal"
-              className={clsx(fieldSm.replace('w-full', 'w-24'), 'text-right font-mono tabular-nums')}
-              value={hours}
-              placeholder="Số giờ"
-              aria-label="Số giờ cho mọi người"
-              onChange={(e) => {
-                setHours(e.target.value);
-                applyAll({ hours: e.target.value });
-              }}
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[12px] font-medium text-fg-2">Áp dụng cho mọi người được chọn</p>
+            <Segmented
+              label="Cách nhập giờ"
+              value={timed ? 'periods' : 'hours'}
+              onChange={(m) => setTimed(m === 'periods')}
+              items={[
+                { id: 'hours', label: 'Nhập số giờ', icon: <Hash size={13} /> },
+                { id: 'periods', label: 'Giờ bắt đầu – kết thúc', icon: <Clock size={13} /> },
+              ]}
             />
-            {QUICK_HOURS.map((n) => (
-              <Button
-                key={n}
-                size="sm"
-                active={h === n}
-                onClick={() => {
-                  setHours(String(n));
-                  applyAll({ hours: String(n) });
-                }}
-              >
-                {n}h
-              </Button>
-            ))}
           </div>
-          <input
-            className={clsx(fieldSm, 'mt-2')}
-            value={note}
-            maxLength={2000}
-            placeholder="Nội dung công việc chung — VD: Dựng môi trường RL"
-            aria-label="Nội dung cho mọi người"
-            onChange={(e) => {
-              setNote(e.target.value);
-              applyAll({ note: e.target.value });
-            }}
-          />
+          {timed ? (
+            <>
+              <OtPeriods
+                value={periods}
+                onChange={(list, total, text) => {
+                  setPeriods(list);
+                  setPeriodNote(text);
+                  setPeriodTotal(total);
+                }}
+              />
+              <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-line pt-2.5">
+                <span className="text-[12.5px] text-muted">Mỗi người được ghi</span>
+                <span className="font-mono text-[16px] font-semibold text-fg tabular-nums">
+                  {periodTotal != null ? fmtHours(periodTotal) : '—'} <span className="font-sans text-[12px] font-normal text-muted">giờ</span>
+                </span>
+              </div>
+              {periodNote && <p className="mt-2 rounded-lg border border-dashed border-line px-3 py-1.5 text-[12.5px] whitespace-pre-line text-fg-2">{periodNote}</p>}
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  inputMode="decimal"
+                  className={clsx(fieldSm.replace('w-full', 'w-24'), 'text-right font-mono tabular-nums')}
+                  value={hours}
+                  placeholder="Số giờ"
+                  aria-label="Số giờ cho mọi người"
+                  onChange={(e) => {
+                    setHours(e.target.value);
+                    applyAll({ hours: e.target.value });
+                  }}
+                />
+                {QUICK_HOURS.map((n) => (
+                  <Button
+                    key={n}
+                    size="sm"
+                    active={h === n}
+                    onClick={() => {
+                      setHours(String(n));
+                      applyAll({ hours: String(n) });
+                    }}
+                  >
+                    {n}h
+                  </Button>
+                ))}
+              </div>
+              <input
+                className={clsx(fieldSm, 'mt-2')}
+                value={note}
+                maxLength={2000}
+                placeholder="Nội dung công việc chung — VD: Dựng môi trường RL"
+                aria-label="Nội dung cho mọi người"
+                onChange={(e) => {
+                  setNote(e.target.value);
+                  applyAll({ note: e.target.value });
+                }}
+              />
+            </>
+          )}
         </div>
 
         <div>
@@ -240,7 +304,7 @@ export function OtBulkEditor({
             {shown.map((p) => {
               const r = row(p.id);
               const had = existing.get(p.id);
-              const bad = r.on && !(parseHours(r.hours) > 0 && parseHours(r.hours) <= 24) && !(had && !overwrite);
+              const bad = r.on && !timed && !okHours(parseHours(r.hours)) && !(had && !overwrite);
               return (
                 <li key={p.id} className={clsx('flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2', r.on && 'bg-accent-soft/50')}>
                   <label className="flex min-w-0 flex-1 basis-[160px] cursor-pointer items-center gap-2.5">
@@ -250,12 +314,15 @@ export function OtBulkEditor({
                       <span className="block truncate text-[13px] font-medium">{p.name}</span>
                       {had && (
                         <span className={clsx('block text-[11px]', overwrite ? 'text-warn' : 'text-faint')} title={had.note}>
-                          Đã có {fmtHours(had.hours)}h ngày này — {overwrite ? 'sẽ ghi đè' : 'sẽ bỏ qua'}
+                          Đã có {fmtHours(had.hours)}h {task.trim() ? 'nhóm này' : 'ngày này'} — {overwrite ? 'sẽ ghi đè' : 'sẽ bỏ qua'}
                         </span>
                       )}
                     </span>
                   </label>
-                  {r.on && (
+                  {r.on && timed && (
+                    <span className="ml-auto shrink-0 font-mono text-[12.5px] font-semibold text-fg-2 tabular-nums">{periodTotal != null ? `${fmtHours(periodTotal)} giờ` : '—'}</span>
+                  )}
+                  {r.on && !timed && (
                     <div className="flex w-full items-center gap-2 sm:w-auto sm:flex-[2]">
                       <input
                         inputMode="decimal"
@@ -283,9 +350,14 @@ export function OtBulkEditor({
         </div>
 
         {existing.size > 0 && (
-          <Switch checked={overwrite} onChange={setOverwrite} label={`Ghi đè người đã có OT ngày ${dayMonth(date)}`} />
+          <Switch checked={overwrite} onChange={setOverwrite} label={`Ghi đè người đã có OT ${task.trim() ? `nhóm “${task.trim()}” ` : ''}ngày ${dayMonth(date)}`} />
         )}
-        {invalid.length > 0 && <p className="text-[12px] text-error">Nhập số giờ (0–24) cho: {invalid.map((p) => p.name).join(', ')}</p>}
+        {invalid.length > 0 &&
+          (timed ? (
+            <p className="text-[12px] text-error">Nhập ít nhất một đợt có đủ giờ bắt đầu và kết thúc (tổng không quá 24 giờ)</p>
+          ) : (
+            <p className="text-[12px] text-error">Nhập số giờ (0–24) cho: {invalid.map((p) => p.name).join(', ')}</p>
+          ))}
         {err && <p className="rounded-lg bg-error/10 px-3 py-2 text-[12.5px] text-error">{err}</p>}
       </div>
     </Modal>

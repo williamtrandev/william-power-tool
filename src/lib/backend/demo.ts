@@ -72,7 +72,7 @@ export function demoBackend(): Backend {
   const logOt = (s: Store, before: OtEntry | undefined, after: OtEntry | undefined) => {
     const name = (pid: string) => s.otPeople?.find((p) => p.id === pid)?.name ?? null;
     const row = after ?? before!;
-    if (before && after && before.person_id === after.person_id && before.work_date === after.work_date && before.hours === after.hours && before.note === after.note) return;
+    if (before && after && before.person_id === after.person_id && before.work_date === after.work_date && before.task === after.task && before.hours === after.hours && before.note === after.note && before.periods === after.periods) return;
     (s.otLog ??= []).unshift({
       id: Date.now() + Math.random(),
       at: now(),
@@ -81,12 +81,16 @@ export function demoBackend(): Backend {
       person_id: row.person_id,
       person_name: name(row.person_id),
       work_date: row.work_date,
+      task: row.task,
       hours: after?.hours ?? null,
       note: after?.note ?? null,
+      periods: after?.periods ?? null,
       old_person_name: before && after && before.person_id !== after.person_id ? name(before.person_id) : null,
       old_work_date: before && after && before.work_date !== after.work_date ? before.work_date : null,
+      old_task: before && after && before.task !== after.task ? before.task : null,
       old_hours: before?.hours ?? null,
       old_note: before?.note ?? null,
+      old_periods: before?.periods ?? null,
     });
   };
   const own = (s: Store, c: Command) => member(s) && (c.owner_id === sessionEmail() || (admin(s) && !c.is_private));
@@ -304,14 +308,16 @@ export function demoBackend(): Backend {
       if (!member(s)) throw deny();
       seedOt(s);
       const inRange = (d: string) => d >= from && d <= to;
-      return { entries: s.ot!.filter((e) => inRange(e.work_date)), days: (s.otDays ?? []).filter((d) => inRange(d.work_date)) };
+      // rows saved before groups existed have no task
+      return { entries: s.ot!.filter((e) => inRange(e.work_date)).map((e) => ({ ...e, task: e.task ?? '', periods: e.periods ?? '' })), days: (s.otDays ?? []).filter((d) => inRange(d.work_date)) };
     },
     async otSave(oid, input) {
       const s = read();
       seedOt(s);
       if (!member(s)) throw deny();
       const list = s.ot!;
-      if (list.some((e) => e.id !== oid && e.person_id === input.person_id && e.work_date === input.work_date)) throw new Error('Người này đã có OT ngày đó — mở ô đó để sửa');
+      if (list.some((e) => e.id !== oid && e.person_id === input.person_id && e.work_date === input.work_date && (e.task ?? '') === input.task))
+        throw new Error('Người này đã có OT nhóm này ngày đó — mở ô đó để sửa');
       let e = oid ? list.find((x) => x.id === oid) : undefined;
       if (oid && !e) throw new Error('Không tìm thấy giờ OT này — tải lại trang');
       const before = e && { ...e };
@@ -327,7 +333,7 @@ export function demoBackend(): Backend {
       if (!member(s)) throw deny();
       let n = 0;
       for (const input of rows) {
-        const e = s.ot!.find((x) => x.person_id === input.person_id && x.work_date === input.work_date);
+        const e = s.ot!.find((x) => x.person_id === input.person_id && x.work_date === input.work_date && (x.task ?? '') === input.task);
         if (e && !overwrite) continue;
         const before = e && { ...e };
         const after = e ? Object.assign(e, input, { updated_by: sessionEmail(), updated_at: now() }) : { ...input, id: id(), updated_by: sessionEmail(), updated_at: now() };
@@ -380,14 +386,17 @@ function seedOt(s: { members: Member[]; ot?: OtEntry[]; otPeople?: OtPerson[] })
   const people = (s.otPeople ??= [p('Demo', 'Admin Demo', 'admin@demo'), p('Lan', 'Lan QC', 'qc@demo'), p('Thông', 'Trần Văn Thông', null)]);
   const d = new Date();
   const day = (n: number) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(n).padStart(2, '0')}`;
-  const rows: [number, number, number, string][] = [
-    [0, 3, 4, 'Fix lỗi đối soát cuối ngày'],
-    [0, 7, 3, 'LIVE gencode'],
-    [1, 7, 2.5, 'Test gencode trên Live'],
-    [0, 10, 8, 'Dựng môi trường RL'],
-    [2, 10, 8, 'Dựng môi trường RL'],
-    [1, 11, 6, 'Rà soát security'],
+  // day 7 has two groups, and Demo works in both
+  const rows: [number, number, number, string, string][] = [
+    [0, 3, 4, 'Fix lỗi đối soát cuối ngày', ''],
+    [0, 7, 3, 'Deploy và theo dõi', 'LIVE gencode'],
+    [1, 7, 2.5, 'Test gencode trên Live', 'LIVE gencode'],
+    [0, 7, 2, 'Rà quyền truy cập', 'Security'],
+    [2, 7, 4, 'Quét lỗ hổng', 'Security'],
+    [0, 10, 8, 'Dựng môi trường RL', ''],
+    [2, 10, 8, 'Dựng môi trường RL', ''],
+    [1, 11, 6, 'Rà soát security', ''],
   ];
-  s.ot ??= rows.map(([i, n, hours, note]) => ({ id: crypto.randomUUID(), person_id: people[i].id, work_date: day(n), hours, note, updated_by: 'admin@demo', updated_at: new Date().toISOString() }));
+  s.ot ??= rows.map(([i, n, hours, note, task]) => ({ id: crypto.randomUUID(), person_id: people[i].id, work_date: day(n), task, hours, periods: '', note, updated_by: 'admin@demo', updated_at: new Date().toISOString() }));
   localStorage.setItem('wpt-demo-db', JSON.stringify(s));
 }

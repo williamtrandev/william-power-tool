@@ -74,8 +74,14 @@ export function OtTool({ active, backend, me, onToast }: Props) {
 
   const entries = useMemo(() => data?.entries ?? [], [data]);
   const labels = useMemo(() => new Map((data?.days ?? []).map((d) => [d.work_date, d.label])), [data]);
-  const byKey = useMemo(() => new Map(entries.map((e) => [`${e.person_id}|${e.work_date}`, e])), [entries]);
-  const find = useCallback((pid: string, d: string) => byKey.get(`${pid}|${d}`), [byKey]);
+  // a person can have a row per group on one day
+  const byDay = useMemo(() => {
+    const m = new Map<string, OtEntry[]>();
+    for (const e of entries) m.set(`${e.person_id}|${e.work_date}`, [...(m.get(`${e.person_id}|${e.work_date}`) ?? []), e]);
+    return m;
+  }, [entries]);
+  const findAll = useCallback((pid: string, d: string) => byDay.get(`${pid}|${d}`) ?? [], [byDay]);
+  const find = useCallback((pid: string, d: string, task: string) => findAll(pid, d).find((e) => e.task === task), [findAll]);
 
   // your roster row is the one carrying your sign-in email
   const myRow = roster.find((p) => p.email === me.email);
@@ -126,7 +132,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
             <Button variant="ghost" size="icon" aria-label="Tải lại" title="Tải lại" onClick={load} disabled={loading}>
               <RefreshCw size={16} className={clsx(loading && 'animate-spin')} />
             </Button>
-            <Button data-tour="ot-export" onClick={() => setExporting(true)} disabled={!data} title="Xuất một hoặc nhiều tháng ra file .xlsx">
+            <Button data-tour="ot-export" onClick={() => setExporting(true)} disabled={!data} title="Xuất một khoảng ngày ra file .xlsx">
               <FileSpreadsheet size={15} className="text-emerald-600 dark:text-emerald-400" />
               Xuất Excel
             </Button>
@@ -220,7 +226,7 @@ export function OtTool({ active, backend, me, onToast }: Props) {
             onlyOt={onlyOt}
             setOnlyOt={setOnlyOt}
             mineId={mineId}
-            find={find}
+            findAll={findAll}
             face={face}
             actorName={actorName}
             onEdit={setEditing}
@@ -243,7 +249,9 @@ export function OtTool({ active, backend, me, onToast }: Props) {
           avatars={avatars}
           mine={mineId}
           labels={labels}
+          entries={entries}
           find={find}
+          findAll={findAll}
           history={history ?? []}
           actorName={actorName}
           onClose={() => setEditing(null)}

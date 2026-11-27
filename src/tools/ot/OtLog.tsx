@@ -25,7 +25,8 @@ export function OtLog({
   const who = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
   const groups = useMemo(() => {
     const m = new Map<string, OtEntry[]>();
-    for (const e of [...entries].sort((a, b) => b.work_date.localeCompare(a.work_date))) m.set(e.work_date, [...(m.get(e.work_date) ?? []), e]);
+    // newest day first; inside a day, one group after the other
+    for (const e of [...entries].sort((a, b) => b.work_date.localeCompare(a.work_date) || a.task.localeCompare(b.task, 'vi'))) m.set(e.work_date, [...(m.get(e.work_date) ?? []), e]);
     return [...m];
   }, [entries]);
   if (!groups.length) return <p className="rounded-xl border border-line bg-surface px-4 py-10 text-center text-[13px] text-muted">Tháng này chưa có ai ghi OT.</p>;
@@ -54,6 +55,7 @@ export function OtLog({
                       <p className="text-[13px] font-medium">
                         {p ? fullName(p) : '(đã xoá)'}
                         {e.person_id === mineId && <span className="ml-1.5 text-[11px] font-normal text-faint">bạn</span>}
+                        {e.task && <span className="ml-2 rounded-full bg-accent-soft px-1.5 py-px text-[11px] font-medium text-accent">{e.task}</span>}
                       </p>
                       <p className={clsx('text-[12.5px] whitespace-pre-wrap', e.note ? 'text-fg-2' : 'text-faint italic')}>{e.note || 'Chưa ghi nội dung'}</p>
                     </div>
