@@ -84,8 +84,6 @@ export interface Backend {
   /** several people at once; a person who already has that day is skipped, or overwritten when asked. Returns how many rows were written */
   otSaveMany(rows: OtInput[], overwrite: boolean): Promise<number>;
   otDelete(id: string): Promise<void>;
-  /** shared title of a day; empty clears it */
-  otSetDay(date: string, label: string): Promise<void>;
   /** changes to OT rows of days in [from, to], newest first — written by the database, readable by all */
   otHistory(from: string, to: string): Promise<OtChange[]>;
 }

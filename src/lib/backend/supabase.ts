@@ -1,6 +1,6 @@
 import { createClient, type SupabaseClient, type SupportedStorage } from '@supabase/supabase-js';
 import type { Command, HistoryRow } from '../commands';
-import type { OtChange, OtDay, OtEntry, OtPerson } from '../ot';
+import type { OtChange, OtEntry, OtPerson } from '../ot';
 import type { AccountActivity, AccountCode, AheadCodes, OtpCode, TeamAccount } from '../otp';
 import { friendly, isNetworkError, OfflineError } from './errors';
 import type { Backend, DirectoryEntry, Member, User } from './types';
@@ -208,14 +208,10 @@ export function supabaseBackend(url: string, anonKey: string, storage?: Supporte
       if (!data?.length) throw new Error('Chỉ admin xoá được người khỏi danh sách');
     },
     async otList(from, to) {
-      const [e, d] = await Promise.all([
-        sb.from('ot_entries').select('*').gte('work_date', from).lte('work_date', to).order('work_date'),
-        sb.from('ot_days').select('work_date, label').gte('work_date', from).lte('work_date', to),
-      ]);
-      if (e.error) throw friendly(e.error);
-      if (d.error) throw friendly(d.error);
+      const { data, error } = await sb.from('ot_entries').select('*').gte('work_date', from).lte('work_date', to).order('work_date');
+      if (error) throw friendly(error);
       // numeric comes back as a string
-      return { entries: (e.data ?? []).map((r) => ({ ...r, hours: Number(r.hours), task: r.task ?? '', periods: r.periods ?? '' })) as OtEntry[], days: (d.data ?? []) as OtDay[] };
+      return { entries: (data ?? []).map((r) => ({ ...r, hours: Number(r.hours), task: r.task ?? '', periods: r.periods ?? '' })) as OtEntry[] };
     },
     async otSave(id, input) {
       const q = id ? sb.from('ot_entries').update(input).eq('id', id) : sb.from('ot_entries').insert(input);
@@ -243,12 +239,6 @@ export function supabaseBackend(url: string, anonKey: string, storage?: Supporte
       if (error) throw friendly(error);
       const num = (v: unknown) => (v == null ? null : Number(v));
       return (data ?? []).map((r) => ({ ...r, hours: num(r.hours), old_hours: num(r.old_hours) })) as OtChange[];
-    },
-    async otSetDay(date, label) {
-      const { error } = label.trim()
-        ? await sb.from('ot_days').upsert({ work_date: date, label: label.trim() })
-        : await sb.from('ot_days').delete().eq('work_date', date);
-      if (error) throw friendly(error);
     },
   };
 }

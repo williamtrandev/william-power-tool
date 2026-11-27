@@ -1,9 +1,9 @@
 import clsx from 'clsx';
-import { Clock, Hash, Loader2, Plus, Trash2, Users } from 'lucide-react';
+import { Clock, Hash, Loader2, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Dropdown, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
-import { dayMonth, dayTasks, fmtHours, fullName, holidayName, parseHours, parsePeriods, periodHours, periodsNote, QUICK_HOURS, taskTitle, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
+import { dayMonth, dayTasks, fmtHours, fullName, holidayName, parseHours, parsePeriods, periodHours, NO_TASK, periodsNote, QUICK_HOURS, weekdayLong, type OtChange, type OtEntry, type OtPerson } from '../../lib/ot';
 import { OtPeriods } from './OtPeriods';
 import { relTime } from '../../lib/format';
 import { Modal } from '../../components/Modal';
@@ -12,14 +12,13 @@ import { field, Label } from '../../components/form';
 /** what the editor opens on: an existing entry, or a person + day to log */
 export type Editing = OtEntry | { person_id: string; work_date: string };
 
-/** Add or change one person's OT in one group on one day, and the day's shared title. */
+/** Add or change one person's OT in one group on one day. */
 export function OtEditor({
   backend,
   initial,
   people,
   avatars,
   mine,
-  labels,
   entries,
   find,
   findAll,
@@ -37,7 +36,6 @@ export function OtEditor({
   avatars: Map<string, string | null | undefined>;
   /** your own roster row, marked in the picker */
   mine: string | undefined;
-  labels: Map<string, string>;
   /** the loaded month, for the groups already used on a day */
   entries: OtEntry[];
   /** the entry already logged for this person + day + group, if it is in the loaded month */
@@ -63,7 +61,6 @@ export function OtEditor({
   // hours from start / end times when the entry has them; `loaded` remounts the periods on another entry
   const [timed, setTimed] = useState(!!entry?.periods);
   const [loaded, setLoaded] = useState(0);
-  const [label, setLabel] = useState(labels.get(initial.work_date) ?? '');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState(false);
@@ -79,7 +76,6 @@ export function OtEditor({
     const e = find(u, d, t.trim());
     setEntry(e ?? origin);
     if (e) load(e);
-    if (d !== date) setLabel(labels.get(d) ?? '');
   };
   // another of this person's groups that day, or a new one
   const open = (e: OtEntry | undefined) => {
@@ -131,7 +127,6 @@ export function OtEditor({
     setErr(null);
     try {
       await backend.otSave(entry?.id ?? null, { person_id: personId, work_date: date, task: task.trim(), hours: h, periods: timed ? periods : '', note: note.trim() });
-      if (label.trim() !== (labels.get(date) ?? '')) await backend.otSetDay(date, label);
       onToast(entry ? 'Đã cập nhật giờ OT' : 'Đã ghi giờ OT');
       onSaved(date);
     } catch (e) {
@@ -156,7 +151,6 @@ export function OtEditor({
   const person = people.find((p) => p.id === personId);
   // this person's groups that day (the open one included), and the names used that day by anyone, to pick from
   const mineToday = findAll(personId, date);
-  const dayLabel = label.trim() || labels.get(date);
   const suggestions = dayTasks(entries, date).filter(Boolean);
   const face = (p: OtPerson, size: number) => <Avatar src={avatars.get(p.id)} name={fullName(p)} email={p.email ?? p.id} size={size} />;
   const special = holidayName(date) ?? (date && [0, 6].includes(new Date(date + 'T00:00').getDay()) ? 'Cuối tuần' : null);
@@ -227,7 +221,7 @@ export function OtEditor({
                   e.id === entry?.id ? 'border-accent bg-accent text-white' : 'border-line bg-surface text-fg-2 hover:border-accent/50',
                 )}
               >
-                <span className="max-w-[160px] truncate">{taskTitle(e.task, dayLabel) || 'Không nhóm'}</span>
+                <span className="max-w-[160px] truncate">{e.task || NO_TASK}</span>
                 <b className="font-semibold tabular-nums">{fmtHours(e.hours)}h</b>
               </button>
             ))}
@@ -246,14 +240,14 @@ export function OtEditor({
         )}
 
         <div>
-          <Label hint={suggestions.length ? 'chọn nhóm đã có hoặc gõ tên mới' : 'để trống nếu cả ngày chỉ làm một việc'}>Nhóm / việc</Label>
+          <Label hint={suggestions.length ? 'chọn nhóm đã có hoặc gõ tên mới' : 'tuỳ chọn, cả team cùng việc thì đặt cùng tên'}>Nhóm / việc</Label>
           <input
             ref={taskRef}
             className={field}
             list="ot-day-tasks"
             value={task}
             maxLength={80}
-            placeholder={dayLabel ? `Để trống = ${dayLabel}` : 'VD: LIVE gencode, Dựng RL…'}
+            placeholder="VD: LIVE gencode, Dựng RL…"
             onChange={(e) => pick(personId, date, e.target.value)}
           />
           <datalist id="ot-day-tasks">
@@ -350,11 +344,6 @@ export function OtEditor({
           )}
         </div>
 
-        <div>
-          <Label hint="việc chung của ngày, dùng cho ai không chọn nhóm">Tiêu đề ngày</Label>
-          <input className={field} value={label} maxLength={80} placeholder="VD: LIVE gencode, Security, Dựng RL…" onChange={(e) => setLabel(e.target.value)} />
-        </div>
-
         {err && <p className="rounded-lg bg-error/10 px-3 py-2 text-[12.5px] text-error">{err}</p>}
         {(() => {
           // changes to this cell, so whoever opens it sees who logged / edited it before
@@ -391,69 +380,6 @@ export function OtEditor({
           );
         })()}
         <button type="submit" hidden />
-      </form>
-    </Modal>
-  );
-}
-
-/** Edit only the shared title of a day (from the column header). */
-export function DayLabelEditor({
-  backend,
-  date,
-  label,
-  onClose,
-  onSaved,
-  onBulk,
-  onToast,
-}: {
-  backend: Backend;
-  date: string;
-  label: string;
-  onClose: () => void;
-  onSaved: () => void;
-  /** open the bulk editor on this day */
-  onBulk: () => void;
-  onToast: (m: string) => void;
-}) {
-  const [v, setV] = useState(label);
-  const [busy, setBusy] = useState(false);
-  const save = async () => {
-    setBusy(true);
-    try {
-      await backend.otSetDay(date, v);
-      onToast(v.trim() ? 'Đã đặt tiêu đề ngày' : 'Đã xoá tiêu đề ngày');
-      onSaved();
-    } catch (e) {
-      onToast((e as Error).message);
-      setBusy(false);
-    }
-  };
-  return (
-    <Modal
-      title={`Tiêu đề ngày ${date.slice(8)}/${date.slice(5, 7)} · ${weekdayLong(date)}`}
-      onClose={onClose}
-      footer={
-        <>
-          <Button variant="ghost" className="mr-auto" onClick={onBulk} title="Ghi OT ngày này cho nhiều người cùng lúc">
-            <Users size={15} />
-            Ghi cho nhiều người
-          </Button>
-          <Button onClick={onClose}>Huỷ</Button>
-          <Button variant="primary" disabled={busy || v.trim() === label} onClick={save}>
-            {busy && <Loader2 size={15} className="animate-spin" />}
-            Lưu
-          </Button>
-        </>
-      }
-    >
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          save();
-        }}
-      >
-        <Label hint="để trống để xoá">Cả team làm gì hôm đó</Label>
-        <input autoFocus className={field} value={v} maxLength={80} placeholder="VD: LIVE gencode, Security, Dựng RL…" onChange={(e) => setV(e.target.value)} />
       </form>
     </Modal>
   );

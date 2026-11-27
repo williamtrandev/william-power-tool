@@ -487,7 +487,7 @@ export const OT_STEPS: TourStep[] = [
     target: 'ot-add',
     title: 'Ghi OT',
     placement: 'left',
-    body: <>Chọn ngày, số giờ (gõ 11,5 cũng được) và làm gì hôm đó. Ngày nào cả team cùng làm một việc thì đặt <b>tiêu đề ngày</b> — nó hiện trên đầu cột ở file Excel.</>,
+    body: <>Chọn ngày, <b>nhóm / việc</b> và giờ: gõ số giờ (11,5 cũng được) hoặc nhập giờ bắt đầu – kết thúc từng đợt để tự tính. Tên nhóm hiện dưới ngày trên đầu cột file Excel; ngày có nhiều nhóm thì mỗi nhóm một cột.</>,
   },
   {
     target: 'ot-bulk',
@@ -500,7 +500,7 @@ export const OT_STEPS: TourStep[] = [
     title: 'Bảng theo tháng',
     placement: 'top',
     show: () => has('ot-table'),
-    body: <>Mỗi dòng một người, mỗi cột một ngày. Bấm vào ô để ghi / sửa nhanh, bấm đầu cột để đặt tiêu đề ngày. Cột xanh là cuối tuần / ngày lễ.</>,
+    body: <>Mỗi dòng một người, mỗi cột một ngày. Bấm vào ô để ghi / sửa nhanh, bấm đầu cột để ghi cho nhiều người cùng ngày. Cột xanh là cuối tuần / ngày lễ.</>,
   },
   {
     target: 'ot-export',
@@ -508,7 +508,7 @@ export const OT_STEPS: TourStep[] = [
     placement: 'left',
     body: (
       <>
-        File có 3 sheet: <b>Tổng hợp</b> (giống bảng team đang dùng), <b>Chi tiết</b> (từng ngày, từng người, làm gì) và <b>Theo người</b> (giờ ngày thường / cuối tuần / ngày lễ để tính lương OT).
+        Chọn <b>từ ngày – đến ngày</b> (hoặc tháng, tuần). File giống bảng team đang dùng: mỗi ngày một cột, ngày có nhiều nhóm thì chia cột theo nhóm, dòng nghiêng dưới mỗi người là việc đã làm, cột vàng là tổng giờ.
       </>
     ),
   },

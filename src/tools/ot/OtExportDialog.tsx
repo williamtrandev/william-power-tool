@@ -48,7 +48,7 @@ export function OtExportDialog({ backend, month, roster, onDone, onClose }: { ba
       const sheet = roster.filter((p) => p.active || d.entries.some((e) => e.person_id === p.id)).sort((x, y) => x.name.localeCompare(y.name, 'vi'));
       if (!d.entries.length) throw new Error('không có ai ghi OT trong khoảng này');
       const { exportOt } = await import('./otExport');
-      await exportOt({ from: a, to: b, roster: sheet, entries: d.entries, labels: new Map(d.days.map((x) => [x.work_date, x.label])) });
+      await exportOt({ from: a, to: b, roster: sheet, entries: d.entries });
       onDone('Đã xuất file Excel');
       onClose();
     } catch (e) {

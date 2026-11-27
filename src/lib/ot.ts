@@ -1,6 +1,6 @@
 /**
  * Overtime log (supabase/setup.sql, "overtime log"): a roster of people kept apart from sign-in accounts,
- * one row per person per day per group, and a shared title per day.
+ * one row per person per day per group.
  */
 
 /** someone on the OT sheet — may or may not have an account */
@@ -22,7 +22,7 @@ export interface OtEntry {
   person_id: string;
   /** YYYY-MM-DD */
   work_date: string;
-  /** the group this was for when a day has several ("Dựng RL"); '' = the day's own title */
+  /** the group or job it was for ("Dựng RL"); '' when none was given */
   task: string;
   hours: number;
   /** when it was worked, "12:00-13:00, 18:00-21:30"; '' when only the hours were typed */
@@ -60,14 +60,8 @@ export interface OtChange {
   old_periods: string | null;
 }
 
-export interface OtDay {
-  work_date: string;
-  label: string;
-}
-
 export interface OtMonth {
   entries: OtEntry[];
-  days: OtDay[];
 }
 
 // ── dates (always local YYYY-MM-DD strings, never Date → ISO, so nothing shifts a day across time zones) ──
@@ -151,9 +145,9 @@ export const DAY_KIND_LABEL: Record<DayKind, string> = { weekday: 'Ngày thườ
 
 // ── groups ──
 
-/** what a group is called on screen and in the export: its own name, else the day's title */
-export const taskTitle = (task: string, dayLabel: string | undefined) => task || dayLabel || '';
-/** the day's groups, in the order they were first logged ('' — the day's own title — first) */
+/** what a row without a group is called on screen */
+export const NO_TASK = 'Chưa đặt nhóm';
+/** the day's groups, in the order they were first logged ('' — no group — first) */
 export const dayTasks = (entries: OtEntry[], date: string) => {
   const list = [...new Set(entries.filter((e) => e.work_date === date).map((e) => e.task))];
   return list.sort((a, b) => Number(!!a) - Number(!!b));

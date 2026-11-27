@@ -1,5 +1,5 @@
 import type { Alignment, Borders, Cell, Fill, Font } from 'exceljs';
-import { dayKind, dayMonth, fullDate, holidayName, monthLabel, monthOf, monthRange, shiftMonth, taskTitle, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
+import { dayKind, dayMonth, fullDate, holidayName, monthLabel, monthOf, monthRange, shiftMonth, type MonthKey, type OtEntry, type OtPerson } from '../../lib/ot';
 
 /**
  * A range of days as one sheet laid out like the team's own: one column per OT day, the total in yellow, and under
@@ -8,7 +8,7 @@ import { dayKind, dayMonth, fullDate, holidayName, monthLabel, monthOf, monthRan
  * gets a row above the days naming the month.
  * exceljs is loaded on demand: it is only needed when someone exports.
  */
-export async function exportOt({ from, to, roster, entries, labels }: { from: string; to: string; roster: OtPerson[]; entries: OtEntry[]; labels: Map<string, string> }) {
+export async function exportOt({ from, to, roster, entries }: { from: string; to: string; roster: OtPerson[]; entries: OtEntry[] }) {
   const { default: ExcelJS } = await import('exceljs');
   const wb = new ExcelJS.Workbook();
   wb.creator = 'William Tool';
@@ -25,9 +25,9 @@ export async function exportOt({ from, to, roster, entries, labels }: { from: st
   // the columns of each day
   const spans = [...new Set(dates)].map((d) => ({ d, cols: dates.flatMap((x, i) => (x === d ? [i] : [])) }));
   const shared = (d: string) => dates.filter((x) => x === d).length > 1;
-  // what was done: the group, else the day's title, else the note when everyone in the column wrote the same one
+  // what was done: the group, else the holiday, else the note when everyone in the column wrote the same one
   const titleOf = ({ d, task }: (typeof columns)[number]) => {
-    const named = taskTitle(task, labels.get(d) ?? holidayName(d));
+    const named = task || holidayName(d);
     if (named) return named;
     const notes = new Set(entries.filter((e) => e.work_date === d && e.task === task).map((e) => e.note.trim().split('\n')[0]));
     const [only] = notes;

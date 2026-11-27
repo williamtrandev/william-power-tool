@@ -18,7 +18,7 @@ import {
 } from '../../lib/ot';
 import { OtBulkEditor } from './OtBulkEditor';
 import { OtExportDialog } from './OtExportDialog';
-import { DayLabelEditor, OtEditor, type Editing } from './OtEditor';
+import { OtEditor, type Editing } from './OtEditor';
 import { OtGrid } from './OtGrid';
 import { OtHistory } from './OtHistory';
 import { OtLog } from './OtLog';
@@ -47,7 +47,6 @@ export function OtTool({ active, backend, me, onToast }: Props) {
   // a whole month does not fit a phone: start there with just the days that have OT
   const [onlyOt, setOnlyOt] = useState(() => matchMedia('(max-width: 639px)').matches);
   const [editing, setEditing] = useState<Editing | null>(null);
-  const [dayEdit, setDayEdit] = useState<string | null>(null);
   /** the day the bulk editor opens on */
   const [bulk, setBulk] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -73,7 +72,6 @@ export function OtTool({ active, backend, me, onToast }: Props) {
   }, [active, load]);
 
   const entries = useMemo(() => data?.entries ?? [], [data]);
-  const labels = useMemo(() => new Map((data?.days ?? []).map((d) => [d.work_date, d.label])), [data]);
   // a person can have a row per group on one day
   const byDay = useMemo(() => {
     const m = new Map<string, OtEntry[]>();
@@ -222,7 +220,6 @@ export function OtTool({ active, backend, me, onToast }: Props) {
             people={people}
             hasRoster={roster.length > 0}
             entries={entries}
-            labels={labels}
             onlyOt={onlyOt}
             setOnlyOt={setOnlyOt}
             mineId={mineId}
@@ -230,14 +227,14 @@ export function OtTool({ active, backend, me, onToast }: Props) {
             face={face}
             actorName={actorName}
             onEdit={setEditing}
-            onDay={setDayEdit}
+            onDay={setBulk}
             onAdd={startAdd}
             onManage={() => setManaging(true)}
           />
         )}
 
         {data && view === 'history' && <OtHistory changes={history} people={roster} actorName={actorName} />}
-        {data && view === 'log' && <OtLog entries={entries} labels={labels} people={roster} face={face} mineId={mineId} onEdit={setEditing} onDay={setDayEdit} />}
+        {data && view === 'log' && <OtLog entries={entries} people={roster} face={face} mineId={mineId} onEdit={setEditing} onDay={setBulk} />}
       </div>
 
       {editing && (
@@ -248,7 +245,6 @@ export function OtTool({ active, backend, me, onToast }: Props) {
           people={roster.filter((p) => p.active || p.id === editing.person_id)}
           avatars={avatars}
           mine={mineId}
-          labels={labels}
           entries={entries}
           find={find}
           findAll={findAll}
@@ -268,7 +264,6 @@ export function OtTool({ active, backend, me, onToast }: Props) {
           backend={backend}
           people={people.filter((p) => p.active)}
           initialDate={bulk}
-          labels={labels}
           face={face}
           onClose={() => setBulk(null)}
           onToast={onToast}
@@ -281,23 +276,6 @@ export function OtTool({ active, backend, me, onToast }: Props) {
       )}
       {exporting && <OtExportDialog backend={backend} month={month} roster={roster} onDone={onToast} onClose={() => setExporting(false)} />}
       {managing && <PeopleManager backend={backend} people={roster} dir={dir} me={me} onClose={() => setManaging(false)} onChanged={load} onToast={onToast} />}
-      {dayEdit && (
-        <DayLabelEditor
-          backend={backend}
-          date={dayEdit}
-          label={labels.get(dayEdit) ?? ''}
-          onBulk={() => {
-            setBulk(dayEdit);
-            setDayEdit(null);
-          }}
-          onClose={() => setDayEdit(null)}
-          onToast={onToast}
-          onSaved={() => {
-            setDayEdit(null);
-            load();
-          }}
-        />
-      )}
     </div>
   );
 }

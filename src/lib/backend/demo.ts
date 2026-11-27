@@ -1,5 +1,5 @@
 import { SAMPLE_COMMANDS, type Command, type HistoryRow } from '../commands';
-import type { OtChange, OtDay, OtEntry, OtPerson } from '../ot';
+import type { OtChange, OtEntry, OtPerson } from '../ot';
 import { cleanSecret, secondsLeft, totp, type AccountActivity, type AccountCode, type AccountInput, type AheadCodes, type TeamAccount } from '../otp';
 import { OfflineError } from './errors';
 import type { Backend, Member, MemberRole, MemberStatus, User } from './types';
@@ -9,7 +9,7 @@ export function demoBackend(): Backend {
   const KEY = 'wpt-demo-db';
   const SESSION = 'wpt-demo-session';
   type DemoAccount = Omit<TeamAccount, 'has_password' | 'has_otp' | 'can_manage'> & { password: string | null; otp_secret: string | null; otp_algorithm: AccountInput['otp_algorithm']; members: string[] };
-  type Store = { members: Member[]; commands: Command[]; history: HistoryRow[]; accounts?: DemoAccount[]; accountLog?: AccountActivity[]; ot?: OtEntry[]; otDays?: OtDay[]; otPeople?: OtPerson[]; otLog?: OtChange[] };
+  type Store = { members: Member[]; commands: Command[]; history: HistoryRow[]; accounts?: DemoAccount[]; accountLog?: AccountActivity[]; ot?: OtEntry[]; otDays?: { work_date: string; label: string }[]; otPeople?: OtPerson[]; otLog?: OtChange[] };
   const now = () => new Date().toISOString();
   const id = () => crypto.randomUUID();
   const read = (): Store => {
@@ -309,7 +309,7 @@ export function demoBackend(): Backend {
       seedOt(s);
       const inRange = (d: string) => d >= from && d <= to;
       // rows saved before groups existed have no task
-      return { entries: s.ot!.filter((e) => inRange(e.work_date)).map((e) => ({ ...e, task: e.task ?? '', periods: e.periods ?? '' })), days: (s.otDays ?? []).filter((d) => inRange(d.work_date)) };
+      return { entries: s.ot!.filter((e) => inRange(e.work_date)).map((e) => ({ ...e, task: e.task ?? '', periods: e.periods ?? '' })) };
     },
     async otSave(oid, input) {
       const s = read();
@@ -359,13 +359,6 @@ export function demoBackend(): Backend {
       const inRange = (d: string | null) => !!d && d >= from && d <= to;
       return (s.otLog ?? []).filter((c) => inRange(c.work_date) || inRange(c.old_work_date)).slice(0, 500);
     },
-    async otSetDay(date, label) {
-      const s = read();
-      if (!member(s)) throw deny();
-      s.otDays = (s.otDays ?? []).filter((d) => d.work_date !== date);
-      if (label.trim()) s.otDays.push({ work_date: date, label: label.trim() });
-      write(s);
-    },
   };
   // rehearse being offline: localStorage.setItem('wpt-demo-offline', '1') — every server call fails as if the VPN blocked it
   const AUTH = ['mode', 'session', 'onAuthChange', 'signInAs', 'signInWithGoogle', 'signOut'];
@@ -378,7 +371,15 @@ export function demoBackend(): Backend {
 }
 
 /** a roster (one person without an account) and a few OT days this month, so the demo table is not empty */
-function seedOt(s: { members: Member[]; ot?: OtEntry[]; otPeople?: OtPerson[] }) {
+function seedOt(s: { members: Member[]; ot?: OtEntry[]; otPeople?: OtPerson[]; otDays?: { work_date: string; label: string }[] }) {
+  // day titles became groups, as in setup.sql: a row without a group takes its day's old title
+  if (s.otDays && s.ot) {
+    for (const d of s.otDays)
+      for (const e of s.ot)
+        if (e.work_date === d.work_date && !e.task && !s.ot.some((x) => x.person_id === e.person_id && x.work_date === d.work_date && x.task === d.label)) e.task = d.label;
+    delete s.otDays;
+    localStorage.setItem('wpt-demo-db', JSON.stringify(s));
+  }
   if (s.otPeople && s.ot) return;
   // OT rows from before the roster existed point at nobody
   if (!s.otPeople) s.ot = undefined;

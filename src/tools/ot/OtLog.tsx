@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Pencil } from 'lucide-react';
+import { Pencil, Users } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { Button } from '../../components/ui';
 import { dayKind, fmtHours, fullDate, fullName, holidayName, weekdayLong, type OtEntry, type OtPerson } from '../../lib/ot';
@@ -7,7 +7,6 @@ import { dayKind, fmtHours, fullDate, fullName, holidayName, weekdayLong, type O
 /** Day by day, newest first: who did OT and what they did. */
 export function OtLog({
   entries,
-  labels,
   people,
   face,
   mineId,
@@ -15,11 +14,11 @@ export function OtLog({
   onDay,
 }: {
   entries: OtEntry[];
-  labels: Map<string, string>;
   people: OtPerson[];
   face: (p: OtPerson, size: number) => ReactNode;
   mineId: string | undefined;
   onEdit: (e: OtEntry) => void;
+  /** log several people on that day */
   onDay: (d: string) => void;
 }) {
   const who = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
@@ -33,15 +32,16 @@ export function OtLog({
   return (
     <div className="space-y-3">
       {groups.map(([d, list]) => {
-        const label = labels.get(d) ?? holidayName(d);
+        const holiday = holidayName(d);
         const weekend = dayKind(d) !== 'weekday';
         return (
           <section key={d} className="overflow-hidden rounded-xl border border-line bg-surface">
             <header className={clsx('flex flex-wrap items-center gap-2 border-b border-line px-4 py-2', weekend ? 'bg-emerald-500/8' : 'bg-surface-2/60')}>
               <span className="text-[13px] font-semibold tabular-nums">{fullDate(d)}</span>
               <span className={clsx('text-[12px]', weekend ? 'font-medium text-emerald-700 dark:text-emerald-400' : 'text-muted')}>{weekdayLong(d)}</span>
-              <button type="button" onClick={() => onDay(d)} className="focus-ring flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] hover:bg-surface-3">
-                {label ? <span className="font-medium text-accent">{label}</span> : <span className="text-faint">+ tiêu đề ngày</span>}
+              {holiday && <span className="text-[12px] font-medium text-emerald-700 dark:text-emerald-400">{holiday}</span>}
+              <button type="button" onClick={() => onDay(d)} className="focus-ring flex items-center gap-1 rounded px-1.5 py-0.5 text-[12px] text-faint hover:bg-surface-3 hover:text-fg">
+                <Users size={12} /> Ghi thêm người
               </button>
               <span className="ml-auto font-mono text-[12px] font-semibold text-fg-2 tabular-nums">{fmtHours(list.reduce((a, e) => a + e.hours, 0))} giờ</span>
             </header>

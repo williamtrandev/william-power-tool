@@ -601,11 +601,12 @@ grant execute on function public.acct_list(), public.acct_password(uuid), public
 --     roster and logs / fixes OT for anyone, including people without an account. Only admins delete
 --     someone from the roster (and only while they have no OT logged).
 --   * One OT row per person per day per group: hours + what they did. A day can have several groups
---     ("LIVE gencode" and "Dựng RL") and one person can log hours in each; '' is the day's own title.
+--     ("LIVE gencode" and "Dựng RL") and one person can log hours in each; '' is no group.
 --   * periods optionally says when and what, as JSON: [{"start":"17:30","end":"19:30","what":"Golive hệ thống A"}];
 --     the app works the hours and the note ("17h30 - 19h30: Golive hệ thống A") out from it.
 --   * Every add / edit / delete of an OT row lands in ot_log (who, when, before → after), visible to all.
---   * ot_days holds a shared title per day ("LIVE gencode", "Dựng RL"…), shown above the column in the export.
+--   * ot_days held a shared title per day before groups existed; the titles were moved into the groups (see the
+--     end of this section) and the app no longer reads or writes it. Kept so nothing is lost.
 
 create table if not exists public.ot_people (
   id         uuid primary key default gen_random_uuid(),
@@ -765,3 +766,10 @@ revoke all on public.ot_log from anon, authenticated;
 grant select on public.ot_log to authenticated;
 revoke execute on function public.ot_audit() from anon, public, authenticated;
 grant select, insert, update, delete on public.ot_people, public.ot_entries, public.ot_days to authenticated;
+
+-- day titles became groups: a row without a group takes its day's old title, unless that person already has a
+-- row in a group of that name that day. Safe to re-run: ot_days no longer changes.
+update public.ot_entries e set task = d.label
+  from public.ot_days d
+ where e.work_date = d.work_date and e.task = ''
+   and not exists (select 1 from public.ot_entries x where x.person_id = e.person_id and x.work_date = e.work_date and x.task = d.label);

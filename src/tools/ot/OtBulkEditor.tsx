@@ -16,7 +16,7 @@ interface Around {
   /** OT already logged that day, every group */
   existing: OtEntry[];
   /** the latest earlier day with OT (up to a month back), to copy from */
-  prev?: { date: string; entries: OtEntry[]; label?: string };
+  prev?: { date: string; entries: OtEntry[] };
 }
 
 /**
@@ -27,7 +27,6 @@ export function OtBulkEditor({
   backend,
   people,
   initialDate,
-  labels,
   face,
   onClose,
   onSaved,
@@ -37,14 +36,12 @@ export function OtBulkEditor({
   /** the active roster, in display order */
   people: OtPerson[];
   initialDate: string;
-  labels: Map<string, string>;
   face: (p: OtPerson, size: number) => ReactNode;
   onClose: () => void;
   onSaved: (date: string) => void;
   onToast: (m: string) => void;
 }) {
   const [date, setDate] = useState(initialDate);
-  const [label, setLabel] = useState(labels.get(initialDate) ?? '');
   /** the group everyone here is logged under; '' = the day's title */
   const [task, setTask] = useState('');
   const [hours, setHours] = useState('');
@@ -67,14 +64,14 @@ export function OtBulkEditor({
     let alive = true;
     backend
       .otList(shiftDay(date, -31), date)
-      .then(({ entries, days }) => {
+      .then(({ entries }) => {
         if (!alive) return;
         const before = entries.filter((e) => e.work_date < date);
         const last = before.reduce<string | undefined>((m, e) => (!m || e.work_date > m ? e.work_date : m), undefined);
         setAround({
           date,
           existing: entries.filter((e) => e.work_date === date),
-          prev: last ? { date: last, entries: before.filter((e) => e.work_date === last), label: days.find((d) => d.work_date === last)?.label } : undefined,
+          prev: last ? { date: last, entries: before.filter((e) => e.work_date === last) } : undefined,
         });
       })
       .catch(() => alive && setAround({ date, existing: [] }));
@@ -94,7 +91,6 @@ export function OtBulkEditor({
   const pickDate = (d: string) => {
     setDate(d);
     setAround(null);
-    if (!label.trim() || label === labels.get(date)) setLabel(labels.get(d) ?? '');
   };
 
   const copyPrev = () => {
@@ -107,7 +103,6 @@ export function OtBulkEditor({
     setHours(h != null ? fmtHours(h) : '');
     setNote(same((e) => e.note) ?? '');
     setTask(same((e) => e.task) ?? '');
-    if (!label.trim() && prev.label) setLabel(prev.label);
     onToast(`Đã chép ${prev.entries.length} người từ ${dayMonth(prev.date)} — sửa lại nếu cần`);
   };
 
@@ -138,7 +133,6 @@ export function OtBulkEditor({
         toWrite.map((p) => ({ person_id: p.id, work_date: date, task: task.trim(), ...valuesOf(p.id) })),
         overwrite,
       );
-      if (label.trim() !== (labels.get(date) ?? '')) await backend.otSetDay(date, label);
       onToast(`Đã ghi OT ${dayMonth(date)} cho ${n} người${skipped.length ? ` · bỏ qua ${skipped.length} người đã có` : ''}`);
       onSaved(date);
     } catch (e) {
@@ -169,18 +163,14 @@ export function OtBulkEditor({
       }
     >
       <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <Label hint={date ? (special ? `${weekdayLong(date)} · ${special}` : weekdayLong(date)) : undefined}>Ngày</Label>
             <input type="date" required className={field} value={date} onChange={(e) => pickDate(e.target.value)} />
           </div>
           <div>
-            <Label hint="cả ngày">Tiêu đề ngày</Label>
-            <input className={field} value={label} maxLength={80} placeholder="VD: Dựng RL, LIVE gencode…" onChange={(e) => setLabel(e.target.value)} />
-          </div>
-          <div>
             <Label hint="tuỳ chọn">Nhóm / việc</Label>
-            <input className={field} list="ot-bulk-tasks" value={task} maxLength={80} placeholder={label.trim() ? `Để trống = ${label.trim()}` : 'VD: Security'} onChange={(e) => setTask(e.target.value)} />
+            <input className={field} list="ot-bulk-tasks" value={task} maxLength={80} placeholder="VD: Dựng RL, LIVE gencode…" onChange={(e) => setTask(e.target.value)} />
             <datalist id="ot-bulk-tasks">
               {otherGroups.map((t) => (
                 <option key={t} value={t} />
@@ -204,8 +194,11 @@ export function OtBulkEditor({
             <CopyPlus size={15} className="shrink-0 text-accent" />
             <span className="min-w-0 flex-1">
               Ngày OT gần nhất trước đó: <b className="font-semibold">{dayMonth(around.prev.date)}</b>
-              {around.prev.label && <span className="text-muted"> ({around.prev.label})</span>} —{' '}
-              {around.prev.entries.map((e) => people.find((p) => p.id === e.person_id)?.name ?? '?').join(', ')}
+              {dayTasks(around.prev.entries, around.prev.date).some(Boolean) && (
+                <span className="text-muted"> ({dayTasks(around.prev.entries, around.prev.date).filter(Boolean).join(', ')})</span>
+              )}{' '}
+              —{' '}
+              {[...new Set(around.prev.entries.map((e) => e.person_id))].map((id) => people.find((p) => p.id === id)?.name ?? '?').join(', ')}
             </span>
             <Button size="sm" onClick={copyPrev}>
               Chép từ {dayMonth(around.prev.date)}
