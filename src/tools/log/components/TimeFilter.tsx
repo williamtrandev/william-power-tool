@@ -55,13 +55,13 @@ export function TimeFilter({ range, onRange, bounds }: Props) {
     onRange(r);
     setOpen(false);
   };
-  // typing adds the separators; deleting leaves the text alone, else a removed "/" would come straight back
-  const typed = (prev: string, set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    set(e.target.value.length > prev.length ? maskInput(e.target.value) : e.target.value);
+  // typing or pasting adds the separators; deleting leaves the text alone, else a removed "/" would come straight back
+  const typed = (set: (v: string) => void) => (e: React.ChangeEvent<HTMLInputElement>) =>
+    set((e.nativeEvent as InputEvent).inputType?.startsWith('delete') ? e.target.value : maskInput(e.target.value));
   const box = (label: string, value: string, set: (v: string) => void) => (
     <div>
       <Label compact>{label}</Label>
-      <input aria-label={label} inputMode="numeric" autoComplete="off" spellCheck={false} placeholder={INPUT_HINT} value={value} onChange={typed(value, set)} className={clsx(fieldSm, 'font-mono tabular-nums')} />
+      <input aria-label={label} inputMode="numeric" autoComplete="off" spellCheck={false} placeholder={INPUT_HINT} value={value} onChange={typed(set)} className={clsx(fieldSm, 'font-mono tabular-nums')} />
     </div>
   );
 
