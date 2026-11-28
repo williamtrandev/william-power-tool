@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Clock, Hash, Loader2, Plus, Trash2 } from 'lucide-react';
+import { Clock, Hash, Loader2, Plus, RotateCcw, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Avatar, Button, Dropdown, Segmented } from '../../components/ui';
 import type { Backend } from '../../lib/backend';
@@ -59,6 +59,8 @@ export function OtEditor({
   const [hours, setHours] = useState(entry ? fmtHours(entry.hours) : '');
   const [note, setNote] = useState(entry?.note ?? '');
   const [periods, setPeriods] = useState(entry?.periods ?? '');
+  // the note the periods make: the note follows it until it is edited by hand, then stays as typed
+  const [autoNote, setAutoNote] = useState(() => periodsNote(parsePeriods(entry?.periods ?? '')));
   // hours from start / end times when the entry has them; `loaded` remounts the periods on another entry
   const [timed, setTimed] = useState(!!entry?.periods);
   const [loaded, setLoaded] = useState(0);
@@ -93,6 +95,7 @@ export function OtEditor({
     setHours(e ? fmtHours(e.hours) : '');
     setNote(e?.note ?? '');
     setPeriods(e?.periods ?? '');
+    setAutoNote(periodsNote(parsePeriods(e?.periods ?? '')));
     setTimed(!!e?.periods);
     setLoaded((n) => n + 1);
   }
@@ -101,8 +104,9 @@ export function OtEditor({
 
   const h = parseHours(hours);
   const valid = h > 0 && h <= 24 && !!date;
-  // two ways to give the hours: typed, or worked out from start / end times (then the hours and the note follow
-  // the periods and cannot be typed over). Leaving the periods keeps their total and note as a starting point.
+  // two ways to give the hours: typed, or worked out from start / end times (then the hours follow the periods and
+  // cannot be typed over; the note is made from them but may be edited). Leaving the periods keeps their total and
+  // note as a starting point.
   // what was typed before switching to periods comes back if no period was filled in
   const typed = useRef({ hours: '', note: '' });
   const switchMode = (toPeriods: boolean) => {
@@ -119,6 +123,7 @@ export function OtEditor({
     const list = parsePeriods(periods);
     setHours(list.length ? fmtHours(periodHours(list)) : '');
     setNote(periodsNote(list));
+    setAutoNote(periodsNote(list));
     setLoaded((n) => n + 1);
   };
 
@@ -290,7 +295,9 @@ export function OtEditor({
                 value={periods}
                 onChange={(list, total, text) => {
                   setPeriods(list);
-                  setNote(text);
+                  // an untouched note follows the periods; one edited by hand is left alone
+                  if (note === autoNote) setNote(text);
+                  setAutoNote(text);
                   setHours(total != null ? fmtHours(total) : '');
                 }}
               />
@@ -330,21 +337,22 @@ export function OtEditor({
         </div>
 
         <div>
-          <Label hint={timed ? 'ghép từ các đợt ở trên' : 'làm gì trong buổi OT'}>Nội dung công việc</Label>
-          {timed ? (
-            <p className={clsx('min-h-10 rounded-lg border border-dashed border-line px-3 py-2 text-[13px] leading-relaxed whitespace-pre-line', note ? 'text-fg-2' : 'text-faint')}>
-              {note || 'Nhập giờ và việc làm của từng đợt — VD: 17h30 - 19h30: Golive hệ thống A'}
-            </p>
-          ) : (
-            <textarea
-              rows={3}
-              className={clsx(field, 'h-auto resize-y py-2 leading-relaxed')}
-              value={note}
-              maxLength={2000}
-              placeholder="VD: Hỗ trợ LIVE gencode, fix lỗi đối soát…"
-              onChange={(e) => setNote(e.target.value)}
-            />
-          )}
+          <div className="flex flex-wrap items-baseline gap-x-2">
+            <Label hint={timed ? (note === autoNote ? 'tự ghép từ các đợt, sửa được' : 'đã sửa tay') : 'làm gì trong buổi OT'}>Nội dung công việc</Label>
+            {timed && note !== autoNote && (
+              <button type="button" onClick={() => setNote(autoNote)} className="focus-ring ml-auto inline-flex items-center gap-1 rounded text-[12px] text-accent hover:underline">
+                <RotateCcw size={12} /> Ghép lại từ các đợt
+              </button>
+            )}
+          </div>
+          <textarea
+            rows={timed ? Math.max(2, note.split('\n').length + 1) : 3}
+            className={clsx(field, 'h-auto resize-y py-2 leading-relaxed')}
+            value={note}
+            maxLength={2000}
+            placeholder={timed ? 'Nhập giờ và việc làm của từng đợt — VD: 17h30 - 19h30: Golive hệ thống A' : 'VD: Hỗ trợ LIVE gencode, fix lỗi đối soát…'}
+            onChange={(e) => setNote(e.target.value)}
+          />
         </div>
 
         {err && <p className="rounded-lg bg-error/10 px-3 py-2 text-[12.5px] text-error">{err}</p>}

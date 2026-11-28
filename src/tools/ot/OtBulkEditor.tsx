@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Clock, CopyPlus, Hash, Loader2, Search, Users } from 'lucide-react';
+import { Clock, CopyPlus, Hash, Loader2, RotateCcw, Search, Users } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Modal } from '../../components/Modal';
 import { OtDateField } from './OtDateField';
@@ -51,7 +51,9 @@ export function OtBulkEditor({
   const [timed, setTimed] = useState(false);
   const [periods, setPeriods] = useState('');
   const [periodTotal, setPeriodTotal] = useState<number | null>(null);
+  // the note everyone gets: made from the periods until it is edited by hand
   const [periodNote, setPeriodNote] = useState('');
+  const [autoNote, setAutoNote] = useState('');
   const [rows, setRows] = useState<Record<string, Row>>({});
   const [overwrite, setOverwrite] = useState(false);
   const [q, setQ] = useState('');
@@ -116,7 +118,7 @@ export function OtBulkEditor({
   const toWrite = chosen.filter((p) => !skipped.includes(p));
   const okHours = (n: number | null) => n != null && n > 0 && n <= 24;
   // what each ticked person gets: the shared periods, or their own hours and note
-  const valuesOf = (pid: string) => (timed ? { hours: periodTotal ?? NaN, periods, note: periodNote } : { hours: parseHours(row(pid).hours), periods: '', note: row(pid).note.trim() });
+  const valuesOf = (pid: string) => (timed ? { hours: periodTotal ?? NaN, periods, note: periodNote.trim() } : { hours: parseHours(row(pid).hours), periods: '', note: row(pid).note.trim() });
   const invalid = toWrite.filter((p) => !okHours(valuesOf(p.id).hours));
   const ready = !!date && toWrite.length > 0 && invalid.length === 0 && !busy;
   const shown = useMemo(() => {
@@ -226,7 +228,8 @@ export function OtBulkEditor({
                 value={periods}
                 onChange={(list, total, text) => {
                   setPeriods(list);
-                  setPeriodNote(text);
+                  if (periodNote === autoNote) setPeriodNote(text);
+                  setAutoNote(text);
                   setPeriodTotal(total);
                 }}
               />
@@ -236,7 +239,25 @@ export function OtBulkEditor({
                   {periodTotal != null ? fmtHours(periodTotal) : '—'} <span className="font-sans text-[12px] font-normal text-muted">giờ</span>
                 </span>
               </div>
-              {periodNote && <p className="mt-2 rounded-lg border border-dashed border-line px-3 py-1.5 text-[12.5px] whitespace-pre-line text-fg-2">{periodNote}</p>}
+              <div className="mt-2.5 flex flex-wrap items-baseline gap-x-2">
+                <p className="mb-1 text-[12px] font-medium text-fg-2">
+                  Nội dung công việc <span className="font-normal text-faint">— {periodNote === autoNote ? 'tự ghép từ các đợt, sửa được' : 'đã sửa tay'}</span>
+                </p>
+                {periodNote !== autoNote && (
+                  <button type="button" onClick={() => setPeriodNote(autoNote)} className="focus-ring ml-auto inline-flex items-center gap-1 rounded text-[12px] text-accent hover:underline">
+                    <RotateCcw size={12} /> Ghép lại từ các đợt
+                  </button>
+                )}
+              </div>
+              <textarea
+                rows={Math.max(2, periodNote.split('\n').length + 1)}
+                aria-label="Nội dung cho mọi người"
+                className={clsx(fieldSm, 'h-auto resize-y py-1.5 leading-relaxed')}
+                value={periodNote}
+                maxLength={2000}
+                placeholder="Nhập giờ và việc làm của từng đợt — VD: 17h30 - 19h30: Golive hệ thống A"
+                onChange={(e) => setPeriodNote(e.target.value)}
+              />
             </>
           ) : (
             <>
