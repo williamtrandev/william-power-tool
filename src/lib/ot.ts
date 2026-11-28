@@ -184,7 +184,10 @@ export const hoursBetween = (start: number, end: number) => Math.round((((end - 
 
 /** one stretch of OT and what was done in it: "17:30" → "19:30", "Golive hệ thống A" */
 export type Period = { start: string; end: string; what: string };
-const completePeriod = (p: Period) => parseHm(p.start) != null && parseHm(p.end) != null;
+/** a time typed out in full ("11:00", not "11" while still typing) */
+const fullHm = (s: string) => /^\d{1,2}:\d{2}$/.test(s.trim()) && parseHm(s) != null;
+/** both times typed out, and different (the same start and end is a typo, not 24 hours) */
+export const completePeriod = (p: Period) => fullHm(p.start) && fullHm(p.end) && parseHm(p.start) !== parseHm(p.end);
 /** the stored JSON → the periods ('' or anything unreadable: none) */
 export const parsePeriods = (s: string): Period[] => {
   try {

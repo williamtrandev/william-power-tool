@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { Plus, X } from 'lucide-react';
 import { useState } from 'react';
 import { fieldSm } from '../../components/form';
-import { fmtHours, fmtPeriods, hoursBetween, maskHm, parseHm, parsePeriods, periodHours, periodsNote, type Period } from '../../lib/ot';
+import { completePeriod as complete, fmtHours, fmtPeriods, hoursBetween, maskHm, parseHm, parsePeriods, periodHours, periodsNote, type Period } from '../../lib/ot';
 
 const blank = (): Period => ({ start: '', end: '', what: '' });
 
@@ -18,7 +18,6 @@ export function OtPeriods({ value, onChange }: { value: string; onChange: (perio
     return list.length ? list : [blank()];
   });
 
-  const complete = (p: Period) => parseHm(p.start) != null && parseHm(p.end) != null;
   const update = (next: Period[]) => {
     setRows(next);
     const done = next.filter(complete);
@@ -57,6 +56,8 @@ export function OtPeriods({ value, onChange }: { value: string; onChange: (perio
                 {fmtHours(hoursBetween(parseHm(p.start)!, parseHm(p.end)!))} giờ
                 {parseHm(p.end)! <= parseHm(p.start)! && <span className="block text-[11px] text-faint">qua đêm</span>}
               </>
+            ) : p.start && p.start === p.end ? (
+              <span className="text-error">trùng giờ</span>
             ) : (
               <span className="text-faint">— giờ</span>
             )}
