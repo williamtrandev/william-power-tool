@@ -551,6 +551,8 @@ export function AccountsTool({ active, backend, me, onToast }: Props) {
       setLoading(false);
     }
   }, [backend]);
+  // changes made offline reached the server (local ids became real ones): read again
+  useEffect(() => backend.onSynced?.(load), [backend, load]);
   useEffect(() => {
     if (active && !list && !loading && !err) load();
   }, [active, list, loading, err, load]);

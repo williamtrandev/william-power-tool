@@ -67,6 +67,8 @@ export function OtTool({ active, backend, me, onToast }: Props) {
       setLoading(false);
     }
   }, [backend, month]);
+  // changes made offline reached the server (local ids became real ones): read again
+  useEffect(() => backend.onSynced?.(load), [backend, load]);
   useEffect(() => {
     if (active) load();
   }, [active, load]);

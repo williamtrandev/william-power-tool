@@ -1,6 +1,7 @@
 import type { Command, CommandInput, HistoryRow } from '../commands';
 import type { OtChange, OtEntry, OtInput, OtMonth, OtPerson, OtPersonInput } from '../ot';
 import type { AccountActivity, AccountCode, AccountInput, AheadCodes, OtpCode, TeamAccount } from '../otp';
+import type { OutboxState } from './outbox';
 
 export type MemberStatus = 'pending' | 'approved' | 'blocked';
 export type MemberRole = 'member' | 'admin';
@@ -42,6 +43,16 @@ export interface Backend {
   /** whether reads come from the server, or from what was saved on this device because it cannot be reached
    * (`savedAt`: when that data was fetched) — see cache.ts */
   onConnection?(cb: (offline: boolean, savedAt?: number) => void): () => void;
+  // changes made offline, waiting on this device until the server answers again — see outbox.ts
+  /** called now and on every change of the queue */
+  onOutbox?(cb: (s: OutboxState) => void): () => void;
+  /** after queued changes reached the server (or one was dropped): time to read again */
+  onSynced?(cb: () => void): () => void;
+  outboxSync?(): Promise<void>;
+  /** a change the server did not take: `keep` sends it anyway, otherwise it is dropped */
+  outboxResolve?(qid: string, keep: boolean): Promise<void>;
+  /** the OT roster as last read, to name the people in queued OT changes */
+  outboxPeople?(): Map<string, OtPerson>;
   /** this user's access row (created as "pending" on sign-up) */
   me(): Promise<Member | null>;
   // admin

@@ -243,8 +243,10 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  // who may use it could not be read (offline, never opened before): saving "some people" would drop the others
+  const [membersLost, setMembersLost] = useState(false);
   useEffect(() => {
-    if (initial && !initial.everyone && !initial.is_private) backend.acctMembers(initial.id).then((ids) => setChosen(new Set(ids)), () => {});
+    if (initial && !initial.everyone && !initial.is_private) backend.acctMembers(initial.id).then((ids) => setChosen(new Set(ids)), () => setMembersLost(true));
   }, [backend, initial]);
 
   const takeDrafts = (d: OtpDraft[]) => {
@@ -302,10 +304,10 @@ export function AccountEditor({ backend, initial, members, meId, admin, systems,
   const single = otpMode === 'set' && drafts?.length === 1 ? drafts[0] : null;
 
   const memberIds = [...chosen];
-  const accessOk = access !== 'some' || memberIds.length > 0;
+  const accessOk = access !== 'some' || (memberIds.length > 0 && !membersLost);
   const otpOk = otpMode !== 'set' || !!drafts;
   const ok = accessOk && otpOk && (multi ? picked.some(Boolean) : !!username.trim());
-  const missing = [!multi && !username.trim() && 'tên đăng nhập', !otpOk && 'mã QR / secret OTP', !accessOk && 'người được dùng'].filter(Boolean) as string[];
+  const missing = [!multi && !username.trim() && 'tên đăng nhập', !otpOk && 'mã QR / secret OTP', !accessOk && (membersLost && access === 'some' ? 'danh sách người được dùng (cần có mạng để tải)' : 'người được dùng')].filter(Boolean) as string[];
 
   const save = async () => {
     if (!ok || busy) return;

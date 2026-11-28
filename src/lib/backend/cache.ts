@@ -2,7 +2,7 @@ import { secondsLeft, type AheadCodes, type OtpCode } from '../otp';
 import { isNetworkError, OfflineError } from './errors';
 import type { Backend } from './types';
 
-/** where the saved reads live: localStorage on the web, chrome.storage.session in the extension */
+/** where the saved reads live: localStorage on the web, chrome.storage.local in the extension */
 export interface CacheStore {
   getItem(key: string): string | null | Promise<string | null>;
   setItem(key: string, value: string): void | Promise<void>;
@@ -27,7 +27,7 @@ const CHECK_EVERY = 5 * 60_000;
 /**
  * Keeps the last answer of each read on this device, per user. When the server cannot be reached (offline, a VPN
  * blocking it) the read returns that saved answer instead of failing, and `onConnection` says the app is on old data.
- * Writes, and passwords, still need the server. OTP codes are the server's codes of the next hours, fetched ahead
+ * Passwords still need the server; writes made meanwhile wait in the outbox (outbox.ts). OTP codes are the server's codes of the next hours, fetched ahead
  * while it answers (never the secret): offline, the code of the current 30 s is picked from them.
  */
 export function withCache(b: Backend, store: CacheStore): Backend {

@@ -137,6 +137,8 @@ export function CommandsTool({ active, backend, me, onToast }: Props) {
       setLoading(false);
     }
   }, [backend]);
+  // changes made offline reached the server (local ids became real ones): read again
+  useEffect(() => backend.onSynced?.(load), [backend, load]);
 
   // fetch the first time the tab is opened
   useEffect(() => {

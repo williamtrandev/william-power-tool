@@ -1,6 +1,7 @@
 import { WifiOff } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppHeader, MobileNav, TOOLS, type ToolId } from './components/AppHeader';
+import { SyncStatus } from './components/SyncStatus';
 import { LoadingScreen, LoginScreen, UnconfiguredScreen, WaitingScreen } from './components/auth/AuthScreens';
 import { ACCOUNT_STEPS, COMMAND_STEPS, LOG_STEPS, OT_STEPS, UTILS_STEPS } from './components/tour/steps';
 import { Tour } from './components/tour/Tour';
@@ -104,13 +105,14 @@ export default function App() {
         <div role="alert" className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-warn/30 bg-warn/10 px-4 py-1.5 text-[12.5px] text-fg-2">
           <WifiOff size={14} className="shrink-0 text-warn" />
           <span className="min-w-0 flex-1">
-            <b className="font-semibold text-fg">Mất kết nối tới máy chủ</b> — đang xem dữ liệu đã lưu{savedAt ? ` lúc ${fmtDateTime(savedAt)}` : ''}. Mã OTP vẫn dùng được (tải sẵn 4 giờ); lưu thay đổi và xem mật khẩu cần có mạng. Có thể do mất mạng hoặc VPN đang chặn; trang tự thử lại.
+            <b className="font-semibold text-fg">Mất kết nối tới máy chủ</b> — đang xem dữ liệu đã lưu{savedAt ? ` lúc ${fmtDateTime(savedAt)}` : ''}. Vẫn thêm / sửa được, tự đồng bộ khi có mạng; mã OTP dùng được (tải sẵn 4 giờ); xem hay đổi mật khẩu cần có mạng. Có thể do mất mạng hoặc VPN đang chặn; trang tự thử lại.
           </span>
           <button type="button" onClick={refresh} className="focus-ring rounded px-1.5 font-medium text-accent hover:underline">
             Thử lại
           </button>
         </div>
       )}
+      <SyncStatus backend={backend!} onToast={showToast} />
       {/* tools stay mounted so switching tabs keeps loaded logs / pasted codes */}
       <LogTool active={current === 'log'} onToast={showToast} />
       <UtilsTool active={current === 'utils'} onToast={showToast} />
