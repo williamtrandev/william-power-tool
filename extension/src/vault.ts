@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { isNetworkError } from '../../src/lib/backend/errors';
 import type { User } from '../../src/lib/backend/types';
 import type { TeamAccount } from '../../src/lib/otp';
+import { SESSION_DAYS } from '../../src/lib/useAuth';
 import { backend } from './backend';
 import { SITES_KEY, type SitesCache } from './config';
 import { hostOf } from './site';
@@ -25,12 +26,17 @@ export function useVault() {
       const u = await backend.session();
       setUser(u);
       if (!u) return setPhase('signed-out');
+      // kept across browser restarts now: the same cap as the web app since the last real sign-in
+      if (u.signedInAt && Date.now() - new Date(u.signedInAt).getTime() > SESSION_DAYS * 86400000) {
+        await backend.signOut();
+        return setPhase('signed-out');
+      }
       const me = await backend.me();
       if (me?.status !== 'approved') return setPhase('waiting');
       const list = await backend.acctList();
       setAccounts(list);
       const cache: SitesCache = { hosts: [...new Set(list.map((a) => hostOf(a.url)).filter((h): h is string => !!h))], at: Date.now() };
-      chrome.storage.session.set({ [SITES_KEY]: cache });
+      chrome.storage.local.set({ [SITES_KEY]: cache });
       setPhase('ready');
     } catch (e) {
       setError((e as Error).message);
@@ -47,7 +53,7 @@ export function useVault() {
   };
   const signOut = async () => {
     await backend?.signOut();
-    await chrome.storage.session.remove(SITES_KEY);
+    await chrome.storage.local.remove(SITES_KEY);
     setUser(null);
     setAccounts([]);
     setPhase('signed-out');

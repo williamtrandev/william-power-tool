@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { AUTH_KEY, getInlineMode, SIGN_IN_ERROR, SITES_KEY, SUPABASE_KEY, SUPABASE_URL, sessionStore, type SitesCache } from './config';
+import { AUTH_KEY, getInlineMode, SIGN_IN_ERROR, SITES_KEY, SUPABASE_KEY, SUPABASE_URL, vaultStore, type SitesCache } from './config';
 import type { ContentFill, FillAsk, FillReply, ForgetOtp, InfoAsk, InfoReply, OpenAsk, OpenReply, PendingOtp, RememberOtp, StatusAsk, WatchReply } from './messages';
 import { hostOf } from './site';
 
@@ -35,7 +35,7 @@ async function onSignIn() {
 async function signIn() {
   const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
     // the popup's client refreshes the token; two refreshing at once would race
-    auth: { storage: sessionStore, storageKey: AUTH_KEY, flowType: 'pkce', persistSession: true, autoRefreshToken: false, detectSessionInUrl: false },
+    auth: { storage: vaultStore, storageKey: AUTH_KEY, flowType: 'pkce', persistSession: true, autoRefreshToken: false, detectSessionInUrl: false },
   });
   const { data, error } = await sb.auth.signInWithOAuth({
     provider: 'google',
@@ -83,8 +83,8 @@ async function onOpen(m: Msg, s: chrome.runtime.MessageSender): Promise<OpenRepl
   if (mode === 'off') return {};
   const host = hostOf(s.url);
   if (mode === 'matching') {
-    // known only once the list has loaded in this browser session (popup or menu)
-    const sites = (await chrome.storage.session.get(SITES_KEY))[SITES_KEY] as SitesCache | undefined;
+    // known once the list has loaded (popup or menu)
+    const sites = (await chrome.storage.local.get(SITES_KEY))[SITES_KEY] as SitesCache | undefined;
     if (!host || !sites?.hosts.some((h) => host === h || host.endsWith('.' + h))) return {};
   }
   const token = crypto.randomUUID();

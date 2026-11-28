@@ -9,15 +9,18 @@ export const AUTH_KEY = 'wpt-auth';
 /** why the last Google sign-in failed — the popup is usually closed by then, so it reads this when reopened */
 export const SIGN_IN_ERROR = 'wpt-sign-in-error';
 
-/** the session lives in chrome.storage.session: shared by the popup and the background worker, gone when the browser closes */
-export const sessionStore: SupportedStorage = {
-  getItem: async (k) => ((await chrome.storage.session.get(k))[k] as string | undefined) ?? null,
-  setItem: (k, v) => chrome.storage.session.set({ [k]: v }),
-  removeItem: (k) => chrome.storage.session.remove(k),
+/** the session and the saved account list live in chrome.storage.local: shared by the popup and the background
+ * worker, and kept when the browser closes — Chrome opened on the VPN, with no way to the server, still lists the
+ * accounts and fills OTPs. Passwords are never saved; signing out removes the rest */
+export const vaultStore: SupportedStorage = {
+  getItem: async (k) => ((await chrome.storage.local.get(k))[k] as string | undefined) ?? null,
+  setItem: (k, v) => chrome.storage.local.set({ [k]: v }),
+  removeItem: (k) => chrome.storage.local.remove(k),
 };
 
-/** host names of the accounts this user may use, written whenever the list loads — the background decides from it
- * whether a page gets the inline menu, without holding the session itself. Removed on sign-out. */
+/** host names of the accounts this user may use, written whenever the list loads (chrome.storage.local) — the
+ * background decides from it whether a page gets the inline menu, without holding the session itself. Removed on
+ * sign-out. */
 export const SITES_KEY = 'wpt-sites';
 export interface SitesCache {
   hosts: string[];
